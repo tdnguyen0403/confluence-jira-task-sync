@@ -1,0 +1,25 @@
+2025-06-20 18:31:55,601 - INFO - Logging initialized. Output will be saved to 'logs\automation_run_20250620_183155.log'
+2025-06-20 18:31:55,601 - INFO - Initializing API clients for Server instances...
+2025-06-20 18:31:55,601 - INFO - --- Starting Jira/Confluence Automation Script ---
+2025-06-20 18:31:56,088 - INFO - 
+Processing Main Page and its descendants starting from: https://pfteamspace.pepperl-fuchs.com/x/1rXxGQ
+2025-06-20 18:31:56,088 - INFO -   Attempting to resolve short URL: https://pfteamspace.pepperl-fuchs.com/x/1rXxGQ
+2025-06-20 18:31:57,840 - INFO -   Short URL resolved to: https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271126/Gen+20250620_180827+-+Main+Test+Page+Root
+2025-06-20 18:31:57,854 - INFO -   Searching for Work Package on page ID: 435271126...
+2025-06-20 18:31:59,949 - INFO -   SUCCESS: Found Work Package 'SFSEA-777' on page 435271126.
+2025-06-20 18:31:59,949 - INFO -   Main Page Work Package assignee: tdnguyen (will be fallback)
+2025-06-20 18:32:02,098 - INFO -   Found 7 total page(s) to scan for tasks.
+2025-06-20 18:32:02,406 - ERROR -   ERROR: Unexpected error fetching page 435271126 details. Details: KeyError('version')
+2025-06-20 18:32:02,708 - ERROR -   ERROR: Unexpected error fetching page 435271127 details. Details: KeyError('version')
+2025-06-20 18:32:03,012 - ERROR -   ERROR: Unexpected error fetching page 435271128 details. Details: KeyError('version')
+2025-06-20 18:32:03,283 - ERROR -   ERROR: Unexpected error fetching page 435271129 details. Details: KeyError('version')
+2025-06-20 18:32:03,637 - ERROR -   ERROR: Unexpected error fetching page 435271130 details. Details: KeyError('version')
+2025-06-20 18:32:03,941 - ERROR -   ERROR: Unexpected error fetching page 435271131 details. Details: KeyError('version')
+2025-06-20 18:32:04,251 - ERROR -   ERROR: Unexpected error fetching page 435271132 details. Details: KeyError('version')
+2025-06-20 18:32:04,253 - INFO - 
+Discovered 0 incomplete tasks across all scanned pages. Now processing each task...
+2025-06-20 18:32:04,253 - INFO - 
+All Jira tasks processed. Now updating Confluence pages...
+2025-06-20 18:32:04,253 - INFO - 
+--- Script Finished ---
+2025-06-20 18:32:04,253 - INFO - No tasks were found or processed.

@@ -1,0 +1,223 @@
+2025-06-23 21:59:31,978 - INFO - Logging initialized. Output will be saved to 'logs\automation_run_20250623_215931.log'
+2025-06-23 21:59:31,979 - INFO - Initializing API clients for Server instances...
+2025-06-23 21:59:31,980 - INFO - --- Starting Jira/Confluence Automation Script ---
+2025-06-23 21:59:38,403 - INFO - 
+Processing Main Page and its descendants starting from: https://pfteamspace.pepperl-fuchs.com/x/1rXxGQ
+2025-06-23 21:59:38,404 - INFO -   Attempting to resolve short URL: https://pfteamspace.pepperl-fuchs.com/x/1rXxGQ
+2025-06-23 21:59:40,872 - INFO -   Short URL resolved to: https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271126/Gen+20250620_180827+-+Main+Test+Page+Root
+2025-06-23 21:59:40,873 - INFO -   Searching for Work Package on page ID: 435271126...
+2025-06-23 21:59:42,405 - INFO -   SUCCESS: Found Work Package 'SFSEA-777' on page 435271126.
+2025-06-23 21:59:42,405 - INFO -   Main Page Work Package assignee: tdnguyen (will be fallback)
+2025-06-23 21:59:44,332 - INFO -   Found 7 total page(s) to scan for tasks.
+2025-06-23 21:59:44,538 - INFO -   Scanning page 'Gen 20250620_180827 - Main Test Page Root' (ID: 435271126) for tasks...
+2025-06-23 21:59:44,735 - INFO -     - Found INCOMPLETE Task | ID: task-2f4e9f72-0 | Due: 2025-06-25 | Assignee: tdnguyen | Summary: 'Main Page Task A (Incomplete)'
+2025-06-23 21:59:44,735 - INFO -     - Task 'Main Page Task B (Complete)' (ID: task-e8d3452e-1) is COMPLETE. Skipping.
+2025-06-23 21:59:44,935 - INFO -   Scanning page 'Gen 20250620_180827 - L1' (ID: 435271127) for tasks...
+2025-06-23 21:59:45,144 - INFO -     - Found INCOMPLETE Task | ID: task-41c55feb-2 | Due: 2025-06-21 | Assignee: tdnguyen | Summary: 'Task 2 (Std Incomplete)'
+2025-06-23 21:59:45,145 - INFO -     - Task 'Task 3 (Std Complete)' (ID: task-0f6fd974-3) is COMPLETE. Skipping.
+2025-06-23 21:59:45,145 - INFO -     - Found INCOMPLETE Task | ID: task-7180df22-4 | Due: 2025-06-20 | Assignee: tdnguyen | Summary: 'Task 4 (Std Incomplete Due Today)'
+2025-06-23 21:59:45,145 - INFO -     - Found INCOMPLETE Task | ID: task-25745b3d-5 | Due: 2025-06-27 | Assignee: tdnguyen | Summary: 'Task 5 (Info Panel)'
+2025-06-23 21:59:45,350 - INFO -   Scanning page 'Gen 20250620_180827 - L1.1' (ID: 435271128) for tasks...
+2025-06-23 21:59:45,551 - INFO -     - Found INCOMPLETE Task | ID: task-0e79fb1c-6 | Due: 2025-06-21 | Assignee: tdnguyen | Summary: 'Task 6 (Std Incomplete)'
+2025-06-23 21:59:45,552 - INFO -     - Task 'Task 7 (Std Complete)' (ID: task-f90f421a-7) is COMPLETE. Skipping.
+2025-06-23 21:59:45,552 - INFO -     - Found INCOMPLETE Task | ID: task-63afb879-8 | Due: 2025-06-20 | Assignee: tdnguyen | Summary: 'Task 8 (Std Incomplete Due Today)'
+2025-06-23 21:59:45,553 - INFO -     - Found INCOMPLETE Task | ID: task-04b61c86-9 | Due: 2025-06-27 | Assignee: tdnguyen | Summary: 'Task 9 (Info Panel)'
+2025-06-23 21:59:45,759 - INFO -   Scanning page 'Gen 20250620_180827 - L2' (ID: 435271129) for tasks...
+2025-06-23 21:59:45,760 - INFO -     - Found INCOMPLETE Task | ID: task-8cfc79de-6 | Due: 2025-07-07 | Assignee: tdnguyen | Summary: 'Task 6 (Table Cell 1)'
+2025-06-23 21:59:45,962 - INFO -     - Found INCOMPLETE Task | ID: task-b19a5937-7 | Due: 2025-07-07 | Assignee: tdnguyen | Summary: 'Task 7 (Table Cell 2, assigned)'
+2025-06-23 21:59:45,962 - INFO -     - Found INCOMPLETE Task | ID: task-9d8d7920-8 | Due: 2025-07-07 | Assignee: tdnguyen | Summary: 'Task 8 (Layout Col 1)'
+2025-06-23 21:59:45,962 - INFO -     - Found INCOMPLETE Task | ID: task-1b573845-9 | Due: 2025-06-22 | Assignee: tdnguyen | Summary: 'Task 9 (Layout Col 2)'
+2025-06-23 21:59:45,962 - INFO -     - Found INCOMPLETE Task | ID: task-04dca7cd-10 | Due: 2025-07-07 | Assignee: tdnguyen | Summary: 'Task 10 (Note Panel)'
+2025-06-23 21:59:46,167 - INFO -   Scanning page 'Gen 20250620_180827 - L2.1' (ID: 435271130) for tasks...
+2025-06-23 21:59:46,370 - INFO -     - Found INCOMPLETE Task | ID: task-d61689b9-11 | Due: 2025-06-21 | Assignee: tdnguyen | Summary: 'Task 11 (Std Incomplete)'
+2025-06-23 21:59:46,370 - INFO -     - Task 'Task 12 (Std Complete)' (ID: task-174f7775-12) is COMPLETE. Skipping.
+2025-06-23 21:59:46,370 - INFO -     - Found INCOMPLETE Task | ID: task-8b176f0c-13 | Due: 2025-06-20 | Assignee: tdnguyen | Summary: 'Task 13 (Std Incomplete Due Today)'
+2025-06-23 21:59:46,371 - INFO -     - Found INCOMPLETE Task | ID: task-ca7bd4ce-14 | Due: 2025-06-27 | Assignee: tdnguyen | Summary: 'Task 14 (Info Panel)'
+2025-06-23 21:59:46,575 - INFO -   Scanning page 'Gen 20250620_180827 - L3' (ID: 435271131) for tasks...
+2025-06-23 21:59:46,575 - INFO -   No valid tasks found on page 'Gen 20250620_180827 - L3' (ID: 435271131).
+2025-06-23 21:59:46,780 - INFO -   Scanning page 'Gen 20250620_180827 - L3.1' (ID: 435271132) for tasks...
+2025-06-23 21:59:46,984 - INFO -     - Found INCOMPLETE Task | ID: task-13706582-13 | Due: 2025-06-21 | Assignee: tdnguyen | Summary: 'Task 13 (Std Incomplete)'
+2025-06-23 21:59:46,984 - INFO -     - Task 'Task 14 (Std Complete)' (ID: task-3887e7ad-14) is COMPLETE. Skipping.
+2025-06-23 21:59:46,984 - INFO -     - Found INCOMPLETE Task | ID: task-81ef2f3f-15 | Due: 2025-06-20 | Assignee: tdnguyen | Summary: 'Task 15 (Std Incomplete Due Today)'
+2025-06-23 21:59:46,984 - INFO -     - Found INCOMPLETE Task | ID: task-0f08a8e2-16 | Due: 2025-06-27 | Assignee: tdnguyen | Summary: 'Task 16 (Info Panel)'
+2025-06-23 21:59:46,985 - INFO - 
+Discovered 18 incomplete tasks across all scanned pages. Now processing each task...
+2025-06-23 21:59:46,985 - INFO - 
+Processing task: 'Main Page Task A (Incomplete)' from page ID: 435271126
+2025-06-23 21:59:46,985 - INFO -   Searching for closest Work Package ancestor for page ID: 435271126
+2025-06-23 21:59:47,193 - INFO -   Searching for Work Package on page ID: 435271126...
+2025-06-23 21:59:47,622 - INFO -   SUCCESS: Found Work Package 'SFSEA-777' on page 435271126.
+2025-06-23 21:59:47,623 - INFO -   -> Found Work Package 'SFSEA-777' on closest relevant page: 'Gen 20250620_180827 - Main Test Page Root' (ID: 435271126)
+2025-06-23 21:59:47,623 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Main Page Task A (Incomplete)'...
+2025-06-23 21:59:49,642 - INFO -     -> Successfully transitioned Jira issue SFSEA-949 to 'Backlog' (ID: 11).
+2025-06-23 21:59:49,643 - INFO - 
+Processing task: 'Task 2 (Std Incomplete)' from page ID: 435271127
+2025-06-23 21:59:49,644 - INFO -   Searching for closest Work Package ancestor for page ID: 435271127
+2025-06-23 21:59:49,851 - INFO -   Searching for Work Package on page ID: 435271127...
+2025-06-23 21:59:50,285 - INFO -   SUCCESS: Found Work Package 'SFSEA-882' on page 435271127.
+2025-06-23 21:59:50,285 - INFO -   -> Found Work Package 'SFSEA-882' on closest relevant page: 'Gen 20250620_180827 - L1' (ID: 435271127)
+2025-06-23 21:59:50,285 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 2 (Std Incomplete)'...
+2025-06-23 21:59:51,795 - INFO -     -> Successfully transitioned Jira issue SFSEA-950 to 'Backlog' (ID: 11).
+2025-06-23 21:59:51,797 - INFO - 
+Processing task: 'Task 4 (Std Incomplete Due Today)' from page ID: 435271127
+2025-06-23 21:59:51,797 - INFO -   Searching for closest Work Package ancestor for page ID: 435271127
+2025-06-23 21:59:51,994 - INFO -   Searching for Work Package on page ID: 435271127...
+2025-06-23 21:59:52,435 - INFO -   SUCCESS: Found Work Package 'SFSEA-882' on page 435271127.
+2025-06-23 21:59:52,435 - INFO -   -> Found Work Package 'SFSEA-882' on closest relevant page: 'Gen 20250620_180827 - L1' (ID: 435271127)
+2025-06-23 21:59:52,435 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 4 (Std Incomplete Due Today)'...
+2025-06-23 21:59:54,034 - INFO -     -> Successfully transitioned Jira issue SFSEA-951 to 'Backlog' (ID: 11).
+2025-06-23 21:59:54,034 - INFO - 
+Processing task: 'Task 5 (Info Panel)' from page ID: 435271127
+2025-06-23 21:59:54,034 - INFO -   Searching for closest Work Package ancestor for page ID: 435271127
+2025-06-23 21:59:54,248 - INFO -   Searching for Work Package on page ID: 435271127...
+2025-06-23 21:59:54,685 - INFO -   SUCCESS: Found Work Package 'SFSEA-882' on page 435271127.
+2025-06-23 21:59:54,685 - INFO -   -> Found Work Package 'SFSEA-882' on closest relevant page: 'Gen 20250620_180827 - L1' (ID: 435271127)
+2025-06-23 21:59:54,685 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 5 (Info Panel)'...
+2025-06-23 21:59:56,232 - INFO -     -> Successfully transitioned Jira issue SFSEA-952 to 'Backlog' (ID: 11).
+2025-06-23 21:59:56,232 - INFO - 
+Processing task: 'Task 6 (Std Incomplete)' from page ID: 435271128
+2025-06-23 21:59:56,232 - INFO -   Searching for closest Work Package ancestor for page ID: 435271128
+2025-06-23 21:59:56,456 - INFO -   Searching for Work Package on page ID: 435271128...
+2025-06-23 21:59:56,888 - INFO -   SUCCESS: Found Work Package 'SFSEA-883' on page 435271128.
+2025-06-23 21:59:56,888 - INFO -   -> Found Work Package 'SFSEA-883' on closest relevant page: 'Gen 20250620_180827 - L1.1' (ID: 435271128)
+2025-06-23 21:59:56,889 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 6 (Std Incomplete)'...
+2025-06-23 21:59:58,462 - INFO -     -> Successfully transitioned Jira issue SFSEA-953 to 'Backlog' (ID: 11).
+2025-06-23 21:59:58,462 - INFO - 
+Processing task: 'Task 8 (Std Incomplete Due Today)' from page ID: 435271128
+2025-06-23 21:59:58,462 - INFO -   Searching for closest Work Package ancestor for page ID: 435271128
+2025-06-23 21:59:58,675 - INFO -   Searching for Work Package on page ID: 435271128...
+2025-06-23 21:59:59,113 - INFO -   SUCCESS: Found Work Package 'SFSEA-883' on page 435271128.
+2025-06-23 21:59:59,113 - INFO -   -> Found Work Package 'SFSEA-883' on closest relevant page: 'Gen 20250620_180827 - L1.1' (ID: 435271128)
+2025-06-23 21:59:59,113 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 8 (Std Incomplete Due Today)'...
+2025-06-23 22:00:00,627 - INFO -     -> Successfully transitioned Jira issue SFSEA-954 to 'Backlog' (ID: 11).
+2025-06-23 22:00:00,627 - INFO - 
+Processing task: 'Task 9 (Info Panel)' from page ID: 435271128
+2025-06-23 22:00:00,627 - INFO -   Searching for closest Work Package ancestor for page ID: 435271128
+2025-06-23 22:00:00,852 - INFO -   Searching for Work Package on page ID: 435271128...
+2025-06-23 22:00:01,284 - INFO -   SUCCESS: Found Work Package 'SFSEA-883' on page 435271128.
+2025-06-23 22:00:01,284 - INFO -   -> Found Work Package 'SFSEA-883' on closest relevant page: 'Gen 20250620_180827 - L1.1' (ID: 435271128)
+2025-06-23 22:00:01,284 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 9 (Info Panel)'...
+2025-06-23 22:00:02,914 - INFO -     -> Successfully transitioned Jira issue SFSEA-955 to 'Backlog' (ID: 11).
+2025-06-23 22:00:02,914 - INFO - 
+Processing task: 'Task 6 (Table Cell 1)' from page ID: 435271129
+2025-06-23 22:00:02,915 - INFO -   Searching for closest Work Package ancestor for page ID: 435271129
+2025-06-23 22:00:03,127 - INFO -   Searching for Work Package on page ID: 435271129...
+2025-06-23 22:00:03,581 - INFO -   SUCCESS: Found Work Package 'SFSEA-777' on page 435271129.
+2025-06-23 22:00:03,581 - INFO -   -> Found Work Package 'SFSEA-777' on closest relevant page: 'Gen 20250620_180827 - L2' (ID: 435271129)
+2025-06-23 22:00:03,581 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 6 (Table Cell 1)'...
+2025-06-23 22:00:05,659 - INFO -     -> Successfully transitioned Jira issue SFSEA-956 to 'Backlog' (ID: 11).
+2025-06-23 22:00:05,659 - INFO - 
+Processing task: 'Task 7 (Table Cell 2, assigned)' from page ID: 435271129
+2025-06-23 22:00:05,659 - INFO -   Searching for closest Work Package ancestor for page ID: 435271129
+2025-06-23 22:00:05,864 - INFO -   Searching for Work Package on page ID: 435271129...
+2025-06-23 22:00:06,300 - INFO -   SUCCESS: Found Work Package 'SFSEA-777' on page 435271129.
+2025-06-23 22:00:06,300 - INFO -   -> Found Work Package 'SFSEA-777' on closest relevant page: 'Gen 20250620_180827 - L2' (ID: 435271129)
+2025-06-23 22:00:06,300 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 7 (Table Cell 2, assigned)'...
+2025-06-23 22:00:07,821 - INFO -     -> Successfully transitioned Jira issue SFSEA-957 to 'Backlog' (ID: 11).
+2025-06-23 22:00:07,822 - INFO - 
+Processing task: 'Task 8 (Layout Col 1)' from page ID: 435271129
+2025-06-23 22:00:07,822 - INFO -   Searching for closest Work Package ancestor for page ID: 435271129
+2025-06-23 22:00:08,019 - INFO -   Searching for Work Package on page ID: 435271129...
+2025-06-23 22:00:08,464 - INFO -   SUCCESS: Found Work Package 'SFSEA-777' on page 435271129.
+2025-06-23 22:00:08,464 - INFO -   -> Found Work Package 'SFSEA-777' on closest relevant page: 'Gen 20250620_180827 - L2' (ID: 435271129)
+2025-06-23 22:00:08,464 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 8 (Layout Col 1)'...
+2025-06-23 22:00:10,007 - INFO -     -> Successfully transitioned Jira issue SFSEA-958 to 'Backlog' (ID: 11).
+2025-06-23 22:00:10,016 - INFO - 
+Processing task: 'Task 9 (Layout Col 2)' from page ID: 435271129
+2025-06-23 22:00:10,016 - INFO -   Searching for closest Work Package ancestor for page ID: 435271129
+2025-06-23 22:00:10,208 - INFO -   Searching for Work Package on page ID: 435271129...
+2025-06-23 22:00:10,644 - INFO -   SUCCESS: Found Work Package 'SFSEA-777' on page 435271129.
+2025-06-23 22:00:10,644 - INFO -   -> Found Work Package 'SFSEA-777' on closest relevant page: 'Gen 20250620_180827 - L2' (ID: 435271129)
+2025-06-23 22:00:10,644 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 9 (Layout Col 2)'...
+2025-06-23 22:00:12,239 - INFO -     -> Successfully transitioned Jira issue SFSEA-959 to 'Backlog' (ID: 11).
+2025-06-23 22:00:12,239 - INFO - 
+Processing task: 'Task 10 (Note Panel)' from page ID: 435271129
+2025-06-23 22:00:12,239 - INFO -   Searching for closest Work Package ancestor for page ID: 435271129
+2025-06-23 22:00:12,475 - INFO -   Searching for Work Package on page ID: 435271129...
+2025-06-23 22:00:12,932 - INFO -   SUCCESS: Found Work Package 'SFSEA-777' on page 435271129.
+2025-06-23 22:00:12,932 - INFO -   -> Found Work Package 'SFSEA-777' on closest relevant page: 'Gen 20250620_180827 - L2' (ID: 435271129)
+2025-06-23 22:00:12,932 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 10 (Note Panel)'...
+2025-06-23 22:00:14,461 - INFO -     -> Successfully transitioned Jira issue SFSEA-960 to 'Backlog' (ID: 11).
+2025-06-23 22:00:14,462 - INFO - 
+Processing task: 'Task 11 (Std Incomplete)' from page ID: 435271130
+2025-06-23 22:00:14,463 - INFO -   Searching for closest Work Package ancestor for page ID: 435271130
+2025-06-23 22:00:14,675 - INFO -   Searching for Work Package on page ID: 435271130...
+2025-06-23 22:00:15,108 - INFO -   SUCCESS: Found Work Package 'SFSEA-882' on page 435271130.
+2025-06-23 22:00:15,109 - INFO -   -> Found Work Package 'SFSEA-882' on closest relevant page: 'Gen 20250620_180827 - L2.1' (ID: 435271130)
+2025-06-23 22:00:15,109 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 11 (Std Incomplete)'...
+2025-06-23 22:00:17,816 - INFO -     -> Successfully transitioned Jira issue SFSEA-961 to 'Backlog' (ID: 11).
+2025-06-23 22:00:17,816 - INFO - 
+Processing task: 'Task 13 (Std Incomplete Due Today)' from page ID: 435271130
+2025-06-23 22:00:17,816 - INFO -   Searching for closest Work Package ancestor for page ID: 435271130
+2025-06-23 22:00:18,020 - INFO -   Searching for Work Package on page ID: 435271130...
+2025-06-23 22:00:18,465 - INFO -   SUCCESS: Found Work Package 'SFSEA-882' on page 435271130.
+2025-06-23 22:00:18,465 - INFO -   -> Found Work Package 'SFSEA-882' on closest relevant page: 'Gen 20250620_180827 - L2.1' (ID: 435271130)
+2025-06-23 22:00:18,465 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 13 (Std Incomplete Due Today)'...
+2025-06-23 22:00:20,053 - INFO -     -> Successfully transitioned Jira issue SFSEA-962 to 'Backlog' (ID: 11).
+2025-06-23 22:00:20,053 - INFO - 
+Processing task: 'Task 14 (Info Panel)' from page ID: 435271130
+2025-06-23 22:00:20,053 - INFO -   Searching for closest Work Package ancestor for page ID: 435271130
+2025-06-23 22:00:20,263 - INFO -   Searching for Work Package on page ID: 435271130...
+2025-06-23 22:00:20,698 - INFO -   SUCCESS: Found Work Package 'SFSEA-882' on page 435271130.
+2025-06-23 22:00:20,699 - INFO -   -> Found Work Package 'SFSEA-882' on closest relevant page: 'Gen 20250620_180827 - L2.1' (ID: 435271130)
+2025-06-23 22:00:20,699 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 14 (Info Panel)'...
+2025-06-23 22:00:22,286 - INFO -     -> Successfully transitioned Jira issue SFSEA-963 to 'Backlog' (ID: 11).
+2025-06-23 22:00:22,286 - INFO - 
+Processing task: 'Task 13 (Std Incomplete)' from page ID: 435271132
+2025-06-23 22:00:22,287 - INFO -   Searching for closest Work Package ancestor for page ID: 435271132
+2025-06-23 22:00:22,495 - INFO -   Searching for Work Package on page ID: 435271132...
+2025-06-23 22:00:22,934 - INFO -   SUCCESS: Found Work Package 'SFSEA-883' on page 435271132.
+2025-06-23 22:00:22,934 - INFO -   -> Found Work Package 'SFSEA-883' on closest relevant page: 'Gen 20250620_180827 - L3.1' (ID: 435271132)
+2025-06-23 22:00:22,934 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 13 (Std Incomplete)'...
+2025-06-23 22:00:24,520 - INFO -     -> Successfully transitioned Jira issue SFSEA-964 to 'Backlog' (ID: 11).
+2025-06-23 22:00:24,520 - INFO - 
+Processing task: 'Task 15 (Std Incomplete Due Today)' from page ID: 435271132
+2025-06-23 22:00:24,520 - INFO -   Searching for closest Work Package ancestor for page ID: 435271132
+2025-06-23 22:00:24,723 - INFO -   Searching for Work Package on page ID: 435271132...
+2025-06-23 22:00:25,161 - INFO -   SUCCESS: Found Work Package 'SFSEA-883' on page 435271132.
+2025-06-23 22:00:25,161 - INFO -   -> Found Work Package 'SFSEA-883' on closest relevant page: 'Gen 20250620_180827 - L3.1' (ID: 435271132)
+2025-06-23 22:00:25,161 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 15 (Std Incomplete Due Today)'...
+2025-06-23 22:00:27,253 - INFO -     -> Successfully transitioned Jira issue SFSEA-965 to 'Backlog' (ID: 11).
+2025-06-23 22:00:27,253 - INFO - 
+Processing task: 'Task 16 (Info Panel)' from page ID: 435271132
+2025-06-23 22:00:27,253 - INFO -   Searching for closest Work Package ancestor for page ID: 435271132
+2025-06-23 22:00:27,469 - INFO -   Searching for Work Package on page ID: 435271132...
+2025-06-23 22:00:27,897 - INFO -   SUCCESS: Found Work Package 'SFSEA-883' on page 435271132.
+2025-06-23 22:00:27,897 - INFO -   -> Found Work Package 'SFSEA-883' on closest relevant page: 'Gen 20250620_180827 - L3.1' (ID: 435271132)
+2025-06-23 22:00:27,897 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'Task 16 (Info Panel)'...
+2025-06-23 22:00:29,471 - INFO -     -> Successfully transitioned Jira issue SFSEA-966 to 'Backlog' (ID: 11).
+2025-06-23 22:00:29,485 - INFO - 
+All Jira tasks processed. Now updating Confluence pages...
+2025-06-23 22:00:29,485 - INFO -   Updating Confluence page 435271126 with 1 Jira link(s)...
+2025-06-23 22:00:29,682 - INFO -     -> Found task ID task-2f4e9f72-0. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:30,619 - INFO -   SUCCESS: Confluence API confirmed page 435271126 was updated.
+2025-06-23 22:00:30,619 - INFO -   Updating Confluence page 435271127 with 3 Jira link(s)...
+2025-06-23 22:00:30,843 - INFO -     -> Found task ID task-41c55feb-2. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:30,844 - INFO -     -> Found task ID task-7180df22-4. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:30,845 - INFO -     -> Found task ID task-25745b3d-5. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:31,837 - INFO -   SUCCESS: Confluence API confirmed page 435271127 was updated.
+2025-06-23 22:00:31,837 - INFO -   Updating Confluence page 435271128 with 3 Jira link(s)...
+2025-06-23 22:00:32,047 - INFO -     -> Found task ID task-0e79fb1c-6. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:32,047 - INFO -     -> Found task ID task-63afb879-8. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:32,047 - INFO -     -> Found task ID task-04b61c86-9. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:32,984 - INFO -   SUCCESS: Confluence API confirmed page 435271128 was updated.
+2025-06-23 22:00:32,984 - INFO -   Updating Confluence page 435271129 with 5 Jira link(s)...
+2025-06-23 22:00:34,151 - INFO -     -> Found task ID task-8cfc79de-6. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:34,151 - INFO -     -> Found task ID task-b19a5937-7. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:34,151 - INFO -     -> Found task ID task-9d8d7920-8. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:34,151 - INFO -     -> Found task ID task-1b573845-9. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:34,151 - INFO -     -> Found task ID task-04dca7cd-10. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:35,137 - INFO -   SUCCESS: Confluence API confirmed page 435271129 was updated.
+2025-06-23 22:00:35,137 - INFO -   Updating Confluence page 435271130 with 3 Jira link(s)...
+2025-06-23 22:00:35,356 - INFO -     -> Found task ID task-d61689b9-11. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:35,357 - INFO -     -> Found task ID task-8b176f0c-13. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:35,357 - INFO -     -> Found task ID task-ca7bd4ce-14. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:36,290 - INFO -   SUCCESS: Confluence API confirmed page 435271130 was updated.
+2025-06-23 22:00:36,290 - INFO -   Updating Confluence page 435271132 with 3 Jira link(s)...
+2025-06-23 22:00:36,516 - INFO -     -> Found task ID task-13706582-13. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:36,516 - INFO -     -> Found task ID task-81ef2f3f-15. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:36,516 - INFO -     -> Found task ID task-0f08a8e2-16. Inserting Jira macro and removing Confluence task.
+2025-06-23 22:00:37,444 - INFO -   SUCCESS: Confluence API confirmed page 435271132 was updated.
+2025-06-23 22:00:37,631 - INFO - 
+--- Script Finished ---
+2025-06-23 22:00:37,631 - INFO - Results have been saved to 'output\automation_results_20250623_215931.xlsx'

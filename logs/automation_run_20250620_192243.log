@@ -1,0 +1,133 @@
+2025-06-20 19:22:43,926 - INFO - Logging initialized. Output will be saved to 'logs\automation_run_20250620_192243.log'
+2025-06-20 19:22:43,940 - INFO - Initializing API clients for Server instances...
+2025-06-20 19:22:43,941 - INFO - --- Starting Jira/Confluence Automation Script ---
+2025-06-20 19:22:44,336 - INFO - 
+Processing Main Page and its descendants starting from: https://pfteamspace.pepperl-fuchs.com/x/OFz7Fw
+2025-06-20 19:22:44,368 - INFO -   Attempting to resolve short URL: https://pfteamspace.pepperl-fuchs.com/x/OFz7Fw
+2025-06-20 19:22:46,054 - INFO -   Short URL resolved to: https://pfteamspace.pepperl-fuchs.com/spaces/~tdnguyen/pages/402349112/Jourfix+SF+Team
+2025-06-20 19:22:46,072 - INFO -   Searching for Work Package on page ID: 402349112...
+2025-06-20 19:22:47,893 - INFO -   SUCCESS: Found Work Package 'SFSEA-939' on page 402349112.
+2025-06-20 19:22:47,893 - INFO -   Main Page Work Package assignee: tdnguyen (will be fallback)
+2025-06-20 19:22:50,614 - INFO -   Found 9 total page(s) to scan for tasks.
+2025-06-20 19:22:50,885 - INFO -   Scanning page 'Jourfix SF Team' (ID: 402349112) for tasks...
+2025-06-20 19:22:50,889 - INFO -     - Found INCOMPLETE Task | ID: 2 | Due: 2025-06-30 | Assignee: tdnguyen | Summary: 'provide training topics for Suko'
+2025-06-20 19:22:51,180 - INFO -   Scanning page 'Jourfix Raghav' (ID: 409404463) for tasks...
+2025-06-20 19:22:51,483 - INFO -     - Found INCOMPLETE Task | ID: 20 | Due: 2025-07-04 | Assignee: tdnguyen | Summary: 'to collect back the database structure, the interface of the program, the business process, where data are stored to give an overview to'
+2025-06-20 19:22:51,744 - INFO -     - Found INCOMPLETE Task | ID: 21 | Due: 2025-07-04 | Assignee: rtantry | Summary: 'to check with DUng if he is ok with the Notification System'
+2025-06-20 19:22:52,005 - INFO -     - Found INCOMPLETE Task | ID: 22 | Due: 2025-07-04 | Assignee: rtantry | Summary: 'to ask TPU to give the instruction for ref'
+2025-06-20 19:22:52,295 - INFO -     - Found INCOMPLETE Task | ID: 23 | Due: 2025-07-04 | Assignee: rtantry | Summary: 'To submit as a feature request once it is available'
+2025-06-20 19:22:52,612 - INFO -     - Found INCOMPLETE Task | ID: 24 | Due: 2025-07-04 | Assignee: rtantry | Summary: 'to publish the rules & info on LCNC governance'
+2025-06-20 19:22:52,912 - INFO -     - Found INCOMPLETE Task | ID: 25 | Due: 2025-07-04 | Assignee: rtantry | Summary: 'to discuss and go deep into the governance'
+2025-06-20 19:22:53,215 - INFO -   Scanning page 'Jourfix Raymond' (ID: 409404475) for tasks...
+2025-06-20 19:22:53,247 - INFO -     - Task 'check previous discussion on this topic' (ID: 7) is COMPLETE. Skipping.
+2025-06-20 19:22:53,247 - INFO -     - Task 'book meeting with IT to find out a solution so that non-license user to trigger flow which is available in production environment without license user to step in' (ID: 8) is COMPLETE. Skipping.
+2025-06-20 19:22:53,530 - INFO -   Scanning page 'Jourfix Su Ko' (ID: 409404482) for tasks...
+2025-06-20 19:22:53,546 - INFO -     - Task 'send the request to Su Ko with Thorsten in Cc' (ID: 4) is COMPLETE. Skipping.
+2025-06-20 19:22:53,865 - INFO -     - Task 'project number  to create & inform Su Ko' (ID: 5) is COMPLETE. Skipping.
+2025-06-20 19:22:53,865 - INFO -     - Task 'inform Thorsten on the timeline & decision' (ID: 6) is COMPLETE. Skipping.
+2025-06-20 19:22:54,123 - INFO -   Scanning page 'Apriso MES' (ID: 435653385) for tasks...
+2025-06-20 19:22:54,123 - INFO -   No valid tasks found on page 'Apriso MES' (ID: 435653385).
+2025-06-20 19:22:54,378 - INFO -   Scanning page 'MES Standard Function & Requirement' (ID: 435653386) for tasks...
+2025-06-20 19:22:54,395 - INFO -   No valid tasks found on page 'MES Standard Function & Requirement' (ID: 435653386).
+2025-06-20 19:22:54,649 - INFO -   Scanning page 'MES Deep Dive into Master Data Structure' (ID: 435653387) for tasks...
+2025-06-20 19:22:54,667 - INFO -   No valid tasks found on page 'MES Deep Dive into Master Data Structure' (ID: 435653387).
+2025-06-20 19:22:54,968 - INFO -   Scanning page 'MES Requirement for engineering (IE/M+S)' (ID: 435653388) for tasks...
+2025-06-20 19:22:54,968 - INFO -   No valid tasks found on page 'MES Requirement for engineering (IE/M+S)' (ID: 435653388).
+2025-06-20 19:22:55,228 - INFO -   Scanning page 'MES Reading List & Playground' (ID: 435653390) for tasks...
+2025-06-20 19:22:55,228 - INFO -   No valid tasks found on page 'MES Reading List & Playground' (ID: 435653390).
+2025-06-20 19:22:55,238 - INFO - 
+Discovered 8 incomplete tasks across all scanned pages. Now processing each task...
+2025-06-20 19:22:55,238 - INFO - 
+Processing task: 'provide training topics for Suko' from page ID: 402349112
+2025-06-20 19:22:55,239 - INFO -   Searching for closest Work Package ancestor for page ID: 402349112
+2025-06-20 19:22:55,494 - INFO -   Searching for Work Package on page ID: 402349112...
+2025-06-20 19:22:56,044 - INFO -   SUCCESS: Found Work Package 'SFSEA-939' on page 402349112.
+2025-06-20 19:22:56,044 - INFO -   -> Found Work Package 'SFSEA-939' on closest relevant page: 'Jourfix SF Team' (ID: 402349112)
+2025-06-20 19:22:56,044 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'provide training topics for Suko'...
+2025-06-20 19:22:58,091 - INFO -     -> Successfully transitioned Jira issue SFSEA-940 to 'Backlog' (ID: 11).
+2025-06-20 19:22:58,092 - INFO - 
+Processing task: 'to collect back the database structure, the interface of the program, the business process, where data are stored to give an overview to' from page ID: 409404463
+2025-06-20 19:22:58,093 - INFO -   Searching for closest Work Package ancestor for page ID: 409404463
+2025-06-20 19:22:58,356 - INFO -   Searching for Work Package on page ID: 409404463...
+2025-06-20 19:22:59,198 - INFO -   INFO: No Work Package found on page 409404463.
+2025-06-20 19:22:59,198 - INFO -   Searching for Work Package on page ID: 402349112...
+2025-06-20 19:22:59,773 - INFO -   SUCCESS: Found Work Package 'SFSEA-939' on page 402349112.
+2025-06-20 19:22:59,773 - INFO -   -> Found Work Package 'SFSEA-939' on closest relevant page: 'Jourfix SF Team' (ID: 402349112)
+2025-06-20 19:22:59,773 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'to collect back the database structure, the interface of the program, the business process, where data are stored to give an overview to'...
+2025-06-20 19:23:01,726 - INFO -     -> Successfully transitioned Jira issue SFSEA-941 to 'Backlog' (ID: 11).
+2025-06-20 19:23:01,726 - INFO - 
+Processing task: 'to check with DUng if he is ok with the Notification System' from page ID: 409404463
+2025-06-20 19:23:01,729 - INFO -   Searching for closest Work Package ancestor for page ID: 409404463
+2025-06-20 19:23:01,988 - INFO -   Searching for Work Package on page ID: 409404463...
+2025-06-20 19:23:02,848 - INFO -   INFO: No Work Package found on page 409404463.
+2025-06-20 19:23:02,848 - INFO -   Searching for Work Package on page ID: 402349112...
+2025-06-20 19:23:03,457 - INFO -   SUCCESS: Found Work Package 'SFSEA-939' on page 402349112.
+2025-06-20 19:23:03,457 - INFO -   -> Found Work Package 'SFSEA-939' on closest relevant page: 'Jourfix SF Team' (ID: 402349112)
+2025-06-20 19:23:03,457 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'to check with DUng if he is ok with the Notification System'...
+2025-06-20 19:23:05,310 - INFO -     -> Successfully transitioned Jira issue SFSEA-942 to 'Backlog' (ID: 11).
+2025-06-20 19:23:05,313 - INFO - 
+Processing task: 'to ask TPU to give the instruction for ref' from page ID: 409404463
+2025-06-20 19:23:05,313 - INFO -   Searching for closest Work Package ancestor for page ID: 409404463
+2025-06-20 19:23:05,616 - INFO -   Searching for Work Package on page ID: 409404463...
+2025-06-20 19:23:06,530 - INFO -   INFO: No Work Package found on page 409404463.
+2025-06-20 19:23:06,530 - INFO -   Searching for Work Package on page ID: 402349112...
+2025-06-20 19:23:07,153 - INFO -   SUCCESS: Found Work Package 'SFSEA-939' on page 402349112.
+2025-06-20 19:23:07,153 - INFO -   -> Found Work Package 'SFSEA-939' on closest relevant page: 'Jourfix SF Team' (ID: 402349112)
+2025-06-20 19:23:07,153 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'to ask TPU to give the instruction for ref'...
+2025-06-20 19:23:09,202 - INFO -     -> Successfully transitioned Jira issue SFSEA-943 to 'Backlog' (ID: 11).
+2025-06-20 19:23:09,202 - INFO - 
+Processing task: 'To submit as a feature request once it is available' from page ID: 409404463
+2025-06-20 19:23:09,202 - INFO -   Searching for closest Work Package ancestor for page ID: 409404463
+2025-06-20 19:23:09,505 - INFO -   Searching for Work Package on page ID: 409404463...
+2025-06-20 19:23:10,431 - INFO -   INFO: No Work Package found on page 409404463.
+2025-06-20 19:23:10,431 - INFO -   Searching for Work Package on page ID: 402349112...
+2025-06-20 19:23:11,043 - INFO -   SUCCESS: Found Work Package 'SFSEA-939' on page 402349112.
+2025-06-20 19:23:11,043 - INFO -   -> Found Work Package 'SFSEA-939' on closest relevant page: 'Jourfix SF Team' (ID: 402349112)
+2025-06-20 19:23:11,043 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'To submit as a feature request once it is available'...
+2025-06-20 19:23:13,090 - INFO -     -> Successfully transitioned Jira issue SFSEA-944 to 'Backlog' (ID: 11).
+2025-06-20 19:23:13,096 - INFO - 
+Processing task: 'to publish the rules & info on LCNC governance' from page ID: 409404463
+2025-06-20 19:23:13,097 - INFO -   Searching for closest Work Package ancestor for page ID: 409404463
+2025-06-20 19:23:13,353 - INFO -   Searching for Work Package on page ID: 409404463...
+2025-06-20 19:23:14,311 - INFO -   INFO: No Work Package found on page 409404463.
+2025-06-20 19:23:14,311 - INFO -   Searching for Work Package on page ID: 402349112...
+2025-06-20 19:23:14,901 - INFO -   SUCCESS: Found Work Package 'SFSEA-939' on page 402349112.
+2025-06-20 19:23:14,901 - INFO -   -> Found Work Package 'SFSEA-939' on closest relevant page: 'Jourfix SF Team' (ID: 402349112)
+2025-06-20 19:23:14,901 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'to publish the rules & info on LCNC governance'...
+2025-06-20 19:23:16,983 - INFO -     -> Successfully transitioned Jira issue SFSEA-945 to 'Backlog' (ID: 11).
+2025-06-20 19:23:16,983 - INFO - 
+Processing task: 'to discuss and go deep into the governance' from page ID: 409404463
+2025-06-20 19:23:16,983 - INFO -   Searching for closest Work Package ancestor for page ID: 409404463
+2025-06-20 19:23:17,287 - INFO -   Searching for Work Package on page ID: 409404463...
+2025-06-20 19:23:18,209 - INFO -   INFO: No Work Package found on page 409404463.
+2025-06-20 19:23:18,209 - INFO -   Searching for Work Package on page ID: 402349112...
+2025-06-20 19:23:18,766 - INFO -   SUCCESS: Found Work Package 'SFSEA-939' on page 402349112.
+2025-06-20 19:23:18,766 - INFO -   -> Found Work Package 'SFSEA-939' on closest relevant page: 'Jourfix SF Team' (ID: 402349112)
+2025-06-20 19:23:18,769 - INFO -       -> Status is INCOMPLETE. Creating Jira task for 'to discuss and go deep into the governance'...
+2025-06-20 19:23:20,766 - INFO -     -> Successfully transitioned Jira issue SFSEA-946 to 'Backlog' (ID: 11).
+2025-06-20 19:23:20,783 - INFO -   Searching for closest Work Package ancestor for page ID: 409404482
+2025-06-20 19:23:21,073 - INFO -   Searching for Work Package on page ID: 409404482...
+2025-06-20 19:23:21,394 - INFO -   INFO: No Jira macros (non-aggregate) found on page 409404482.
+2025-06-20 19:23:21,394 - INFO -   Searching for Work Package on page ID: 402349112...
+2025-06-20 19:23:21,967 - INFO -   SUCCESS: Found Work Package 'SFSEA-939' on page 402349112.
+2025-06-20 19:23:21,982 - INFO -   -> Found Work Package 'SFSEA-939' on closest relevant page: 'Jourfix SF Team' (ID: 402349112)
+2025-06-20 19:23:23,948 - INFO -     -> Successfully transitioned Jira issue SFSEA-947 to 'Backlog' (ID: 11).
+2025-06-20 19:23:23,949 - INFO - 
+All Jira tasks processed. Now updating Confluence pages...
+2025-06-20 19:23:23,952 - INFO -   Updating Confluence page 402349112 with 1 Jira link(s)...
+2025-06-20 19:23:24,257 - INFO -     -> Found task ID 2. Inserting Jira macro and removing Confluence task.
+2025-06-20 19:23:25,870 - INFO -   SUCCESS: Confluence API confirmed page 402349112 was updated.
+2025-06-20 19:23:25,870 - INFO -   Updating Confluence page 409404463 with 6 Jira link(s)...
+2025-06-20 19:23:26,155 - INFO -     -> Found task ID 20. Inserting Jira macro and removing Confluence task.
+2025-06-20 19:23:26,155 - INFO -     -> Found task ID 21. Inserting Jira macro and removing Confluence task.
+2025-06-20 19:23:26,159 - INFO -     -> Found task ID 22. Inserting Jira macro and removing Confluence task.
+2025-06-20 19:23:26,159 - INFO -     -> Found task ID 23. Inserting Jira macro and removing Confluence task.
+2025-06-20 19:23:26,159 - INFO -     -> Found task ID 24. Inserting Jira macro and removing Confluence task.
+2025-06-20 19:23:26,159 - INFO -     -> Found task ID 25. Inserting Jira macro and removing Confluence task.
+2025-06-20 19:23:28,139 - INFO -   SUCCESS: Confluence API confirmed page 409404463 was updated.
+2025-06-20 19:23:28,139 - INFO -   Updating Confluence page 409404482 with 1 Jira link(s)...
+2025-06-20 19:23:28,461 - INFO -     -> Found task ID 8. Inserting Jira macro and removing Confluence task.
+2025-06-20 19:23:29,982 - INFO -   SUCCESS: Confluence API confirmed page 409404482 was updated.
+2025-06-20 19:23:30,045 - INFO - 
+--- Script Finished ---
+2025-06-20 19:23:30,045 - INFO - Results have been saved to 'output\automation_results_20250620_192243.xlsx'

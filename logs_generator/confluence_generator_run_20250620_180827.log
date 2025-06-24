@@ -1,0 +1,31 @@
+2025-06-20 18:08:27,515 - INFO - Confluence Page Generator Logging initialized. Output will be saved to 'logs_generator\confluence_generator_run_20250620_180827.log'
+2025-06-20 18:08:27,515 - INFO - Initializing Confluence API client...
+2025-06-20 18:08:27,515 - INFO - 
+--- Initiating Main Test Tree Generation under Confluence Parent ID: 422189655 ---
+2025-06-20 18:08:27,523 - INFO - Generating tree up to 2 levels deep (below the main test page).
+2025-06-20 18:08:27,523 - INFO - Attempting to resolve userkey for username: 'tdnguyen' using get_user_details_by_username...
+2025-06-20 18:08:28,480 - INFO - Successfully resolved userkey 'ff80818177ca630d0177cf5f93370044' for username 'tdnguyen'.
+2025-06-20 18:08:28,884 - INFO - Created page 'Gen 20250620_180827 - Main Test Page Root' (ID: 435271126) at: https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271126/Gen+20250620_180827+-+Main+Test+Page+Root
+2025-06-20 18:08:28,884 - INFO - 
+--- Generating sub-levels under 'Gen 20250620_180827 - Main Test Page Root' (ID: 435271126) ---
+2025-06-20 18:08:29,233 - INFO - Created page 'Gen 20250620_180827 - L1' (ID: 435271127) at: https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271127/Gen+20250620_180827+-+L1
+2025-06-20 18:08:29,564 - INFO - Created page 'Gen 20250620_180827 - L1.1' (ID: 435271128) at: https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271128/Gen+20250620_180827+-+L1.1
+2025-06-20 18:08:29,936 - INFO - Created page 'Gen 20250620_180827 - L2' (ID: 435271129) at: https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271129/Gen+20250620_180827+-+L2
+2025-06-20 18:08:30,260 - INFO - Created page 'Gen 20250620_180827 - L2.1' (ID: 435271130) at: https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271130/Gen+20250620_180827+-+L2.1
+2025-06-20 18:08:30,600 - INFO - Created page 'Gen 20250620_180827 - L3' (ID: 435271131) at: https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271131/Gen+20250620_180827+-+L3
+2025-06-20 18:08:30,927 - INFO - Created page 'Gen 20250620_180827 - L3.1' (ID: 435271132) at: https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271132/Gen+20250620_180827+-+L3.1
+2025-06-20 18:08:30,927 - INFO - 
+--- Final Confluence Test Tree Generation Summary ---
+2025-06-20 18:08:30,933 - INFO - Total 7 pages generated (including main test page).
+2025-06-20 18:08:30,933 - INFO - URLs of ALL generated pages (and their direct WP):
+2025-06-20 18:08:30,933 - INFO - - Gen 20250620_180827 - Main Test Page Root (WP: SFSEA-777): https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271126/Gen+20250620_180827+-+Main+Test+Page+Root
+2025-06-20 18:08:30,933 - INFO - - Gen 20250620_180827 - L1 (WP: SFSEA-882): https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271127/Gen+20250620_180827+-+L1
+2025-06-20 18:08:30,933 - INFO - - Gen 20250620_180827 - L1.1 (WP: SFSEA-883): https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271128/Gen+20250620_180827+-+L1.1
+2025-06-20 18:08:30,935 - INFO - - Gen 20250620_180827 - L2 (WP: SFSEA-777): https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271129/Gen+20250620_180827+-+L2
+2025-06-20 18:08:30,935 - INFO - - Gen 20250620_180827 - L2.1 (WP: SFSEA-882): https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271130/Gen+20250620_180827+-+L2.1
+2025-06-20 18:08:30,935 - INFO - - Gen 20250620_180827 - L3 (No WP on page): https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271131/Gen+20250620_180827+-+L3
+2025-06-20 18:08:30,935 - INFO - - Gen 20250620_180827 - L3.1 (WP: SFSEA-883): https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271132/Gen+20250620_180827+-+L3.1
+2025-06-20 18:08:30,935 - INFO - 
+To test your main automation script, add the URL of the Main Test Page: 'https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435271126/Gen+20250620_180827+-+Main+Test+Page+Root' to your input.xlsx file.
+2025-06-20 18:08:30,935 - INFO - 
+Generator script finished successfully.
