@@ -1,0 +1,51 @@
+2025-06-24 20:01:48,851 - INFO - 
+--- Starting Undo Automation Script ---
+2025-06-24 20:01:48,851 - INFO - Using results file: 'output\automation_results_20250624_195359.xlsx'
+2025-06-24 20:01:49,039 - INFO - 
+--- Phase 1: Transitioning 19 Jira Tasks ---
+2025-06-24 20:01:50,102 - INFO - Successfully transitioned 'SFSEA-1000' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:01:51,157 - INFO - Successfully transitioned 'SFSEA-1001' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:01:52,190 - INFO - Successfully transitioned 'SFSEA-1002' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:01:53,350 - INFO - Successfully transitioned 'SFSEA-1003' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:01:54,364 - INFO - Successfully transitioned 'SFSEA-1004' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:01:55,416 - INFO - Successfully transitioned 'SFSEA-1005' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:01:56,495 - INFO - Successfully transitioned 'SFSEA-1006' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:01:57,551 - INFO - Successfully transitioned 'SFSEA-1007' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:01:58,618 - INFO - Successfully transitioned 'SFSEA-1008' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:01:59,633 - INFO - Successfully transitioned 'SFSEA-1009' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:02:00,670 - INFO - Successfully transitioned 'SFSEA-1010' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:02:01,737 - INFO - Successfully transitioned 'SFSEA-1011' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:02:02,811 - INFO - Successfully transitioned 'SFSEA-1012' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:02:03,991 - INFO - Successfully transitioned 'SFSEA-1013' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:02:05,044 - INFO - Successfully transitioned 'SFSEA-1014' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:02:06,111 - INFO - Successfully transitioned 'SFSEA-1015' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:02:07,157 - INFO - Successfully transitioned 'SFSEA-997' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:02:08,190 - INFO - Successfully transitioned 'SFSEA-998' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:02:09,330 - INFO - Successfully transitioned 'SFSEA-999' to 'Backlog' via REST call (ID: 11).
+2025-06-24 20:02:09,331 - INFO - 
+--- Phase 2: Rolling back 7 Confluence Pages ---
+2025-06-24 20:02:09,331 - WARNING - NOTE: This operation reverts pages to their state *before* the script ran. Any other changes made since will also be undone.
+2025-06-24 20:02:09,332 - INFO - Attempting to roll back page 435279776 to version 1
+2025-06-24 20:02:10,390 - INFO - Updating page "Gen 20250624_195248 - Main Test Page Root" with None
+2025-06-24 20:02:10,905 - INFO - Content of 435279776 differs
+2025-06-24 20:02:11,661 - INFO - Attempting to roll back page 435279778 to version 1
+2025-06-24 20:02:12,182 - INFO - Updating page "Gen 20250624_195248 - L1.1" with None
+2025-06-24 20:02:12,702 - INFO - Content of 435279778 differs
+2025-06-24 20:02:13,335 - INFO - Attempting to roll back page 435279779 to version 1
+2025-06-24 20:02:13,852 - INFO - Updating page "Gen 20250624_195248 - L1.1-2.1" with None
+2025-06-24 20:02:14,366 - INFO - Content of 435279779 differs
+2025-06-24 20:02:15,022 - INFO - Attempting to roll back page 435279780 to version 1
+2025-06-24 20:02:15,543 - INFO - Updating page "Gen 20250624_195248 - L1.1-2.2" with None
+2025-06-24 20:02:16,063 - INFO - Content of 435279780 differs
+2025-06-24 20:02:16,807 - INFO - Attempting to roll back page 435279781 to version 1
+2025-06-24 20:02:17,328 - INFO - Updating page "Gen 20250624_195248 - L1.2" with None
+2025-06-24 20:02:17,852 - INFO - Content of 435279781 differs
+2025-06-24 20:02:18,484 - INFO - Attempting to roll back page 435279782 to version 1
+2025-06-24 20:02:19,004 - INFO - Updating page "Gen 20250624_195248 - L1.2-2.1" with None
+2025-06-24 20:02:19,530 - INFO - Content of 435279782 differs
+2025-06-24 20:02:20,168 - INFO - Attempting to roll back page 435279783 to version 1
+2025-06-24 20:02:20,688 - INFO - Updating page "Gen 20250624_195248 - L1.2-2.2" with None
+2025-06-24 20:02:21,218 - INFO - Content of 435279783 differs
+2025-06-24 20:02:21,923 - INFO - 
+--- Undo Automation Script Finished ---
+2025-06-24 20:02:21,924 - INFO - Review the log file and Confluence/Jira to confirm changes.

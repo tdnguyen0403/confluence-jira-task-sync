@@ -1,0 +1,134 @@
+2025-06-24 19:53:59,399 - INFO - Logging to 'logs\automation_run_20250624_195359.log'
+2025-06-24 19:53:59,401 - INFO - --- Starting Jira/Confluence Automation Script ---
+2025-06-24 19:53:59,570 - INFO - 
+Processing hierarchy starting from: https://pfteamspace.pepperl-fuchs.com/x/oNfxGQ
+2025-06-24 19:53:59,570 - INFO -   Attempting to resolve short URL: https://pfteamspace.pepperl-fuchs.com/x/oNfxGQ
+2025-06-24 19:54:01,132 - INFO -   Short URL resolved to: https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/435279776/Gen+20250624_195248+-+Main+Test+Page+Root
+2025-06-24 19:54:03,025 - INFO - rest/api/content/435279776/child/page
+2025-06-24 19:54:03,285 - INFO - rest/api/content/435279778/child/page
+2025-06-24 19:54:03,548 - INFO - rest/api/content/435279779/child/page
+2025-06-24 19:54:03,807 - INFO - rest/api/content/435279780/child/page
+2025-06-24 19:54:04,065 - INFO - rest/api/content/435279781/child/page
+2025-06-24 19:54:04,327 - INFO - rest/api/content/435279782/child/page
+2025-06-24 19:54:04,592 - INFO - rest/api/content/435279783/child/page
+2025-06-24 19:54:04,853 - INFO -   Found 7 total page(s) to scan.
+2025-06-24 19:54:11,609 - INFO - 
+Discovered 19 incomplete tasks. Now processing...
+2025-06-24 19:54:11,609 - INFO - 
+Processing task: 'Main Page Task A (Incomplete)' from page ID: 435279776
+2025-06-24 19:54:12,720 - INFO - Creating issue "Main Page Task A (Incomplete)"
+2025-06-24 19:54:14,631 - INFO - Successfully transitioned 'SFSEA-997' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:14,633 - INFO - 
+Processing task: 'Std Incomplete' from page ID: 435279778
+2025-06-24 19:54:15,727 - INFO - Creating issue "Std Incomplete"
+2025-06-24 19:54:17,591 - INFO - Successfully transitioned 'SFSEA-998' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:17,594 - INFO - 
+Processing task: 'Std Incomplete Due Today' from page ID: 435279778
+2025-06-24 19:54:18,691 - INFO - Creating issue "Std Incomplete Due Today"
+2025-06-24 19:54:20,515 - INFO - Successfully transitioned 'SFSEA-999' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:20,517 - INFO - 
+Processing task: 'Task in Info Panel' from page ID: 435279778
+2025-06-24 19:54:21,615 - INFO - Creating issue "Task in Info Panel"
+2025-06-24 19:54:23,462 - INFO - Successfully transitioned 'SFSEA-1000' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:23,465 - INFO - 
+Processing task: 'Std Incomplete' from page ID: 435279779
+2025-06-24 19:54:24,570 - INFO - Creating issue "Std Incomplete"
+2025-06-24 19:54:26,467 - INFO - Successfully transitioned 'SFSEA-1001' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:26,469 - INFO - 
+Processing task: 'Std Incomplete Due Today' from page ID: 435279779
+2025-06-24 19:54:27,578 - INFO - Creating issue "Std Incomplete Due Today"
+2025-06-24 19:54:29,437 - INFO - Successfully transitioned 'SFSEA-1002' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:29,439 - INFO - 
+Processing task: 'Task in Info Panel' from page ID: 435279779
+2025-06-24 19:54:30,544 - INFO - Creating issue "Task in Info Panel"
+2025-06-24 19:54:32,358 - INFO - Successfully transitioned 'SFSEA-1003' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:32,362 - INFO - 
+Processing task: 'Task in Table Cell' from page ID: 435279780
+2025-06-24 19:54:33,534 - INFO - Creating issue "Task in Table Cell"
+2025-06-24 19:54:35,370 - INFO - Successfully transitioned 'SFSEA-1004' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:35,372 - INFO - 
+Processing task: 'Task in Layout Column 1' from page ID: 435279780
+2025-06-24 19:54:36,482 - INFO - Creating issue "Task in Layout Column 1"
+2025-06-24 19:54:38,366 - INFO - Successfully transitioned 'SFSEA-1005' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:38,368 - INFO - 
+Processing task: 'Task in Layout Column 2' from page ID: 435279780
+2025-06-24 19:54:39,483 - INFO - Creating issue "Task in Layout Column 2"
+2025-06-24 19:54:41,262 - INFO - Successfully transitioned 'SFSEA-1006' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:41,265 - INFO - 
+Processing task: 'Task in Table Cell' from page ID: 435279781
+2025-06-24 19:54:42,364 - INFO - Creating issue "Task in Table Cell"
+2025-06-24 19:54:44,173 - INFO - Successfully transitioned 'SFSEA-1007' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:44,175 - INFO - 
+Processing task: 'Task in Layout Column 1' from page ID: 435279781
+2025-06-24 19:54:45,285 - INFO - Creating issue "Task in Layout Column 1"
+2025-06-24 19:54:47,069 - INFO - Successfully transitioned 'SFSEA-1008' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:47,070 - INFO - 
+Processing task: 'Task in Layout Column 2' from page ID: 435279781
+2025-06-24 19:54:48,164 - INFO - Creating issue "Task in Layout Column 2"
+2025-06-24 19:54:49,995 - INFO - Successfully transitioned 'SFSEA-1009' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:49,997 - INFO - 
+Processing task: 'Std Incomplete' from page ID: 435279782
+2025-06-24 19:54:51,091 - INFO - Creating issue "Std Incomplete"
+2025-06-24 19:54:52,909 - INFO - Successfully transitioned 'SFSEA-1010' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:52,912 - INFO - 
+Processing task: 'Std Incomplete Due Today' from page ID: 435279782
+2025-06-24 19:54:54,014 - INFO - Creating issue "Std Incomplete Due Today"
+2025-06-24 19:54:55,809 - INFO - Successfully transitioned 'SFSEA-1011' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:55,812 - INFO - 
+Processing task: 'Task in Info Panel' from page ID: 435279782
+2025-06-24 19:54:56,930 - INFO - Creating issue "Task in Info Panel"
+2025-06-24 19:54:58,730 - INFO - Successfully transitioned 'SFSEA-1012' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:54:58,732 - INFO - 
+Processing task: 'Task in Table Cell' from page ID: 435279783
+2025-06-24 19:54:59,834 - INFO - Creating issue "Task in Table Cell"
+2025-06-24 19:55:01,774 - INFO - Successfully transitioned 'SFSEA-1013' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:55:01,777 - INFO - 
+Processing task: 'Task in Layout Column 1' from page ID: 435279783
+2025-06-24 19:55:02,870 - INFO - Creating issue "Task in Layout Column 1"
+2025-06-24 19:55:04,713 - INFO - Successfully transitioned 'SFSEA-1014' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:55:04,715 - INFO - 
+Processing task: 'Task in Layout Column 2' from page ID: 435279783
+2025-06-24 19:55:05,818 - INFO - Creating issue "Task in Layout Column 2"
+2025-06-24 19:55:07,596 - INFO - Successfully transitioned 'SFSEA-1015' to 'Backlog' via REST call (ID: 11).
+2025-06-24 19:55:07,598 - INFO - 
+All Jira tasks processed. Now updating Confluence pages...
+2025-06-24 19:55:07,861 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-997'.
+2025-06-24 19:55:07,862 - INFO - Updating page "Gen 20250624_195248 - Main Test Page Root" with None
+2025-06-24 19:55:08,388 - INFO - Content of 435279776 differs
+2025-06-24 19:55:09,024 - INFO -   Successfully sent update for page 435279776.
+2025-06-24 19:55:09,287 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-998'.
+2025-06-24 19:55:09,288 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-999'.
+2025-06-24 19:55:09,289 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-1000'.
+2025-06-24 19:55:09,290 - INFO - Updating page "Gen 20250624_195248 - L1.1" with None
+2025-06-24 19:55:09,813 - INFO - Content of 435279778 differs
+2025-06-24 19:55:10,454 - INFO -   Successfully sent update for page 435279778.
+2025-06-24 19:55:10,717 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-1001'.
+2025-06-24 19:55:10,718 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-1002'.
+2025-06-24 19:55:10,719 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-1003'.
+2025-06-24 19:55:10,720 - INFO - Updating page "Gen 20250624_195248 - L1.1-2.1" with None
+2025-06-24 19:55:11,246 - INFO - Content of 435279779 differs
+2025-06-24 19:55:11,880 - INFO -   Successfully sent update for page 435279779.
+2025-06-24 19:55:12,144 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-1005'.
+2025-06-24 19:55:12,146 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-1006'.
+2025-06-24 19:55:12,148 - INFO - Updating page "Gen 20250624_195248 - L1.1-2.2" with None
+2025-06-24 19:55:12,674 - INFO - Content of 435279780 differs
+2025-06-24 19:55:13,293 - INFO -   Successfully sent update for page 435279780.
+2025-06-24 19:55:13,551 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-1008'.
+2025-06-24 19:55:13,551 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-1009'.
+2025-06-24 19:55:13,552 - INFO - Updating page "Gen 20250624_195248 - L1.2" with None
+2025-06-24 19:55:14,075 - INFO - Content of 435279781 differs
+2025-06-24 19:55:14,706 - INFO -   Successfully sent update for page 435279781.
+2025-06-24 19:55:14,974 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-1010'.
+2025-06-24 19:55:14,975 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-1011'.
+2025-06-24 19:55:14,976 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-1012'.
+2025-06-24 19:55:14,978 - INFO - Updating page "Gen 20250624_195248 - L1.2-2.1" with None
+2025-06-24 19:55:15,504 - INFO - Content of 435279782 differs
+2025-06-24 19:55:16,163 - INFO -   Successfully sent update for page 435279782.
+2025-06-24 19:55:16,428 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-1014'.
+2025-06-24 19:55:16,429 - INFO -   Prepared task 'None' for replacement with Jira macro for 'SFSEA-1015'.
+2025-06-24 19:55:16,430 - INFO - Updating page "Gen 20250624_195248 - L1.2-2.2" with None
+2025-06-24 19:55:16,961 - INFO - Content of 435279783 differs
+2025-06-24 19:55:17,595 - INFO -   Successfully sent update for page 435279783.
+2025-06-24 19:55:17,634 - INFO - Results have been saved to 'output\automation_results_20250624_195359.xlsx'
+2025-06-24 19:55:17,634 - INFO - 
+--- Script Finished ---
