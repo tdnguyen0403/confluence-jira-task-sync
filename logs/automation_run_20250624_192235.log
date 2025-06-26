@@ -1,4 +1,0 @@
-2025-06-24 19:22:35,082 - INFO - Logging initialized. Output will be saved to 'logs\automation_run_20250624_192235.log'
-2025-06-24 19:22:35,082 - INFO - --- Starting Jira/Confluence Automation Script ---
-2025-06-24 19:22:35,964 - INFO - 
-Processing Main Page and its descendants starting from: https://pfteamspace.pepperl-fuchs.com/x/1rXxGQ
