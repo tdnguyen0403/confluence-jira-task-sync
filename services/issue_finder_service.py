@@ -1,0 +1,42 @@
+import logging
+from typing import Optional, Dict, Any
+
+from bs4 import BeautifulSoup
+
+from api.safe_confluence_api import SafeConfluenceApi
+from api.safe_jira_api import SafeJiraApi
+import config
+
+class IssueFinderService:
+    """A dedicated service for finding specific Jira issues on Confluence pages."""
+
+    def __init__(self, safe_confluence_api: SafeConfluenceApi, safe_jira_api: SafeJiraApi):
+        self.confluence_api = safe_confluence_api
+        self.jira_api = safe_jira_api
+
+    def find_issue_on_page(self, page_id: str, issue_type_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Finds the first Jira macro on a page that matches a given issue type ID.
+        
+        Args:
+            page_id: The ID of the Confluence page to search.
+            issue_type_id: The Jira issue type ID to look for (e.g., "10100" for Work Package).
+            
+        Returns:
+            The full Jira issue dictionary if found, otherwise None.
+        """
+        page_content = self.confluence_api.get_page_by_id(page_id, expand="body.storage")
+        if not page_content or 'body' not in page_content or 'storage' not in page_content['body']:
+            return None
+        
+        soup = BeautifulSoup(page_content["body"]["storage"]["value"], "html.parser")
+        for macro in soup.find_all("ac:structured-macro", {"ac:name": "jira"}):
+            if macro.find_parent("ac:structured-macro", {"ac:name": lambda x: x in config.AGGREGATE_MACRO_NAMES}):
+                continue
+            key_param = macro.find("ac:parameter", {"ac:name": "key"})
+            if key_param:
+                issue_key = key_param.get_text(strip=True)
+                jira_issue = self.jira_api.get_issue(issue_key, fields="issuetype")
+                if jira_issue and jira_issue.get("fields", {}).get("issuetype", {}).get("id") == issue_type_id:
+                    return self.jira_api.get_issue(issue_key, fields="key,issuetype,assignee,reporter")
+        return None

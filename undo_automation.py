@@ -1,35 +1,32 @@
-# undo_automation.py - Corrected to parse the results file with the right column names.
-
-import datetime
 import logging
 import os
-import sys
-import warnings
-from typing import Optional, Set, Dict, Tuple
-
 import pandas as pd
-import requests
+from typing import Optional, Set, Dict, Tuple
+from datetime import datetime
+import warnings
+
 from atlassian import Confluence, Jira
+import requests
 
 import config
-from safe_api import SafeJiraService, SafeConfluenceService
+from interfaces.api_service_interface import ApiServiceInterface
+from services.confluence_service import ConfluenceService
+from services.jira_service import JiraService
+from api.safe_jira_api import SafeJiraApi
+from api.safe_confluence_api import SafeConfluenceApi
+from utils.logging_config import setup_logging
 
-# --- Suppress SSL Warnings ---
-urllib3 = requests.packages.urllib3
-warnings.filterwarnings('ignore', category=urllib3.exceptions.InsecureRequestWarning)
-
+warnings.filterwarnings("ignore", category=requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
 class UndoOrchestrator:
-    """Orchestrates the undo process using safe API services."""
+    """Orchestrates the undo process by depending on the unified service interface."""
 
-    def __init__(self, safe_confluence: SafeConfluenceService, safe_jira: SafeJiraService):
-        self.confluence = safe_confluence
-        self.jira = safe_jira
-        self.timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    def __init__(self, confluence_service: ApiServiceInterface, jira_service: ApiServiceInterface):
+        self.confluence = confluence_service
+        self.jira = jira_service
 
     def run(self, results_file_override: Optional[str] = None):
-        """Executes the main undo logic."""
-        self._setup_logging()
+        setup_logging("logs_undo", "undo_run")
         logging.info("\n--- Starting Undo Automation Script ---")
 
         results_df = self._load_results_file(results_file_override)
@@ -37,8 +34,7 @@ class UndoOrchestrator:
             logging.warning("Results file is empty or could not be read. No actions to perform.")
             return
 
-        jira_keys, pages_to_rollback = self._parse_results(results_df)
-
+        jira_keys, pages_to_rollback = self._parse_results_for_undo(results_df)
         self._transition_jira_tasks(jira_keys)
         self._rollback_confluence_pages(pages_to_rollback)
 
@@ -46,121 +42,75 @@ class UndoOrchestrator:
         logging.info("Review the log file and Confluence/Jira to confirm changes.")
 
     def _transition_jira_tasks(self, jira_keys: Set[str]):
-        """Transitions all identified Jira tasks using the safe service."""
-        logging.info(f"\n--- Phase 1: Transitioning {len(jira_keys)} Jira Tasks ---")
         if not jira_keys:
             logging.info("  No Jira tasks to transition.")
             return
+        logging.info(f"\n--- Phase 1: Transitioning {len(jira_keys)} Jira Tasks to Backlog ---")
         for key in sorted(list(jira_keys)):
-            self.jira.transition_issue(key, config.JIRA_TARGET_STATUS_NAME, "11")
+            self.jira.transition_issue(key, config.JIRA_TARGET_STATUS_NAME, config.JIRA_TRANSITION_ID_BACKLOG)
 
     def _rollback_confluence_pages(self, pages: Dict[str, int]):
-        """Rolls back all identified Confluence pages using the safe service."""
-        logging.info(f"\n--- Phase 2: Rolling back {len(pages)} Confluence Pages ---")
         if not pages:
             logging.info("  No Confluence pages to roll back.")
             return
-        
-        logging.warning("NOTE: This operation reverts pages to their state *before* the script ran. Any other changes made since will also be undone.")
+        logging.info(f"\n--- Phase 2: Rolling back {len(pages)} Confluence Pages ---")
+        logging.warning("NOTE: This operation reverts pages to their state *before* the script ran.")
         for page_id, version in sorted(pages.items()):
             logging.info(f"Attempting to roll back page {page_id} to version {version}")
-            page_content = self.confluence.get_page_by_id(page_id, version=version, expand="body.storage")
+            historical_page = self.confluence.get_page_by_id(page_id, version=version, expand="body.storage")
             current_page = self.confluence.get_page_by_id(page_id)
-            if page_content and current_page:
-                self.confluence.update_page(
-                    page_id=page_id,
-                    title=current_page['title'],
-                    body=page_content['body']['storage']['value']
-                )
+            if historical_page and current_page and 'body' in historical_page and 'storage' in historical_page['body']:
+                historical_content = historical_page['body']['storage']['value']
+                self.confluence.update_page_content(page_id, current_page['title'], historical_content)
             else:
-                logging.error(f"  Failed to get content for page '{page_id}' version {version}.")
+                logging.error(f"  Failed to get content for page '{page_id}' version {version}. Skipping rollback.")
 
     def _load_results_file(self, file_override: Optional[str]) -> Optional[pd.DataFrame]:
-        """Finds the latest or uses the specified results file."""
-        path = file_override if file_override else self._find_latest_results_file("output")
-        
+        if file_override: path = file_override
+        else:
+            path = self._find_latest_results_file("output")
+            if path: logging.info(f"Found latest results file: '{os.path.basename(path)}'")
         if not path or not os.path.exists(path):
-            logging.error(f"ERROR: Results file not found at '{path}'. Aborting.")
+            logging.error(f"ERROR: Results file not found. Aborting.")
             return None
-
         logging.info(f"Using results file: '{path}'")
-        try:
-            return pd.read_excel(path)
+        try: return pd.read_excel(path)
         except Exception as e:
-            logging.error(f"ERROR: Failed to read Excel file '{path}'. Details: {repr(e)}")
+            logging.error(f"ERROR: Failed to read Excel file '{path}'. Details: {e}")
             return None
 
     def _find_latest_results_file(self, folder: str) -> Optional[str]:
-        """Finds the most recent automation results file in a folder."""
-        latest_file = None
-        latest_ts = None
-        if not os.path.exists(folder):
-            logging.error(f"Output folder '{folder}' does not exist.")
-            return None
-            
-        for filename in os.listdir(folder):
-            if filename.startswith("automation_results_") and filename.endswith(".xlsx"):
-                try:
-                    ts_str = filename.replace("automation_results_", "").replace(".xlsx", "")
-                    file_ts = datetime.datetime.strptime(ts_str, "%Y%m%d_%H%M%S")
-                    if not latest_ts or file_ts > latest_ts:
-                        latest_ts = file_ts
-                        latest_file = os.path.join(folder, filename)
-                except ValueError:
-                    continue
-        return latest_file
+        if not os.path.exists(folder): return None
+        files = [os.path.join(folder, f) for f in os.listdir(folder) if f.startswith("automation_results_") and f.endswith(".xlsx")]
+        return max(files, key=os.path.getmtime) if files else None
 
-    def _parse_results(self, df: pd.DataFrame) -> Tuple[Set[str], Dict[str, int]]:
-        """
-        CORRECTED: Parses the DataFrame to extract items to be undone,
-        using the actual column names generated by main.py.
-        """
-        jira_keys = set()
-        pages = {}
-        
-        # CORRECTED: These are the actual column names generated by main.py
+    def _parse_results_for_undo(self, df: pd.DataFrame) -> Tuple[Set[str], Dict[str, int]]:
+        jira_keys: Set[str] = set()
+        pages: Dict[str, int] = {}
         required_cols = ["Status", "New Jira Task Key", "confluence_page_id", "original_page_version"]
         if not all(col in df.columns for col in required_cols):
-            logging.error(f"Results file is missing one of the required columns: {required_cols}")
-            logging.error(f"Available columns are: {list(df.columns)}")
+            logging.error(f"Results file is missing required columns. Expected: {required_cols}, Found: {list(df.columns)}")
             return jira_keys, pages
-
         for _, row in df.iterrows():
             if row.get("Status") == "Success":
-                # Use the correct column names to access the data
-                if pd.notna(row.get("New Jira Task Key")):
-                    jira_keys.add(row["New Jira Task Key"])
-                
+                if pd.notna(row.get("New Jira Task Key")): jira_keys.add(row["New Jira Task Key"])
                 if pd.notna(row.get("confluence_page_id")) and pd.notna(row.get("original_page_version")):
-                    page_id = str(int(row["confluence_page_id"]))
-                    version = int(row["original_page_version"])
-                    if page_id not in pages:
-                        pages[page_id] = version
-                        
+                    pages[str(int(row["confluence_page_id"]))] = int(row["original_page_version"])
         return jira_keys, pages
 
-    def _setup_logging(self):
-        log_dir = "logs_undo"
-        os.makedirs(log_dir, exist_ok=True)
-        log_file = os.path.join(log_dir, f"undo_run_{self.timestamp}.log")
-        
-        root_logger = logging.getLogger()
-        if root_logger.hasHandlers():
-            root_logger.handlers.clear()
-            
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s",
-                            handlers=[logging.FileHandler(log_file, 'w', 'utf-8'), logging.StreamHandler(sys.stdout)])
-
-
 if __name__ == "__main__":
-    # Initialize raw clients
-    jira_client_raw = Jira(url=config.JIRA_URL, token=config.JIRA_API_TOKEN, cloud=False, verify_ssl=False)
-    confluence_client_raw = Confluence(url=config.CONFLUENCE_URL, token=config.CONFLUENCE_API_TOKEN, cloud=False, verify_ssl=False)
+    # 1. Initialize raw clients
+    jira_client = Jira(url=config.JIRA_URL, token=config.JIRA_API_TOKEN, cloud=False, verify_ssl=False)
+    confluence_client = Confluence(url=config.CONFLUENCE_URL, token=config.CONFLUENCE_API_TOKEN, cloud=False, verify_ssl=False)
+    
+    # 2. Instantiate the low-level API handlers
+    safe_jira_api = SafeJiraApi(jira_client)
+    safe_confluence_api = SafeConfluenceApi(confluence_client)
+    
+    # 3. Instantiate the high-level service implementations
+    jira_service = JiraService(safe_jira_api)
+    confluence_service = ConfluenceService(safe_confluence_api)
 
-    # Wrap clients in Safe Services
-    safe_jira = SafeJiraService(jira_client_raw)
-    safe_confluence = SafeConfluenceService(confluence_client_raw)
-
-    # Instantiate and Run Orchestrator
-    orchestrator = UndoOrchestrator(safe_confluence, safe_jira)
-    orchestrator.run()
+    # 4. Inject services into the orchestrator
+    undo_orchestrator = UndoOrchestrator(confluence_service, jira_service)
+    undo_orchestrator.run()
