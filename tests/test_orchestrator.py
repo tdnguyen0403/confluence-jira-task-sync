@@ -37,13 +37,23 @@ class TestAutomationOrchestrator(unittest.TestCase):
         mock_read_excel.return_value = pd.DataFrame([{"ConfluencePageURL": "http://test.url/123"}])
         
         self.mock_confluence_service.get_page_id_from_url.return_value = "123"
-        self.mock_confluence_service.get_all_descendants.return_value = ["456"]
+        # Correctly mock get_all_descendants to return an empty list for this test
+        self.mock_confluence_service.get_all_descendants.return_value = []
         
         task1 = ConfluenceTask(confluence_page_id='123', task_summary='Task 1', confluence_task_id='t1', assignee_name='user', due_date='2025-01-01', original_page_version=1, confluence_page_title='Page 1', confluence_page_url='/page1', original_page_version_by='user', original_page_version_when='now')
+        
+        self.mock_confluence_service.get_page_by_id.return_value = {
+            "body": {
+                "storage": {
+                    "value": "Dummy Content"
+                }
+            }
+        }
         
         self.mock_confluence_service.get_tasks_from_page.return_value = [task1]
         self.mock_issue_finder.find_issue_on_page.return_value = {"key": "WP-1"}
         self.mock_jira_service.create_issue.return_value = {"key": "JIRA-1"}
+        self.mock_jira_service.prepare_jira_task_fields.return_value = {} # Add this line
 
         self.orchestrator.run()
 
@@ -64,6 +74,15 @@ class TestAutomationOrchestrator(unittest.TestCase):
         self.mock_confluence_service.get_page_id_from_url.return_value = "123"
         self.mock_confluence_service.get_all_descendants.return_value = []
         task1 = ConfluenceTask(confluence_page_id='123', task_summary='Task 1', confluence_task_id='t1', assignee_name='user', due_date='2025-01-01', original_page_version=1, confluence_page_title='Page 1', confluence_page_url='/page1', original_page_version_by='user', original_page_version_when='now')
+        
+        self.mock_confluence_service.get_page_by_id.return_value = {
+            "body": {
+                "storage": {
+                    "value": "Dummy Content"
+                }
+            }
+        }
+        
         self.mock_confluence_service.get_tasks_from_page.return_value = [task1]
         
         # Mock the finder to return None
@@ -91,9 +110,11 @@ class TestUndoOrchestrator(unittest.TestCase):
             self.mock_jira_service
         )
 
-    @patch('undo_automation.pd.read_excel')
+    # Add a patch for os.path.exists
+    @patch('undo_automation.os.path.exists', return_value=True)
     @patch('undo_automation.UndoOrchestrator._find_latest_results_file', return_value="dummy_path.xlsx")
-    def test_undo_run(self, mock_find_file, mock_read_excel):
+    @patch('undo_automation.pd.read_excel')
+    def test_undo_run(self, mock_read_excel, mock_find_file, mock_exists):
         """Verify the full undo workflow."""
         mock_data = {
             "Status": ["Success", "Success"],

@@ -26,7 +26,7 @@ DEFAULT_DUE_DATE = (datetime.date.today() + datetime.timedelta(days=14)).strftim
 
 # --- HTML Parsing Settings ---
 AGGREGATE_MACRO_NAMES = [
-    "jira", "jiraissues", "excerpt-include", "include", "widget", "html"
+    "jira", "jiraissues", "excerpt","excerpt-include", "include", "widget", "html"
 ]
 
 #--- Test Data Generation Settings ---

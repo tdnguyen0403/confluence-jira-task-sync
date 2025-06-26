@@ -214,7 +214,7 @@ class SafeConfluenceApi:
             confluence_page_title=page_details.get("title", "N/A"),
             confluence_page_url=page_details.get("_links", {}).get("webui", ""),
             confluence_task_id=task_id_tag.get_text(strip=True),
-            task_summary=task_body.get_text(strip=True),
+            task_summary=' '.join(task_body.get_text(separator=' ').split()), # Corrected line
             assignee_name=assignee_name,
             due_date=due_date,
             original_page_version=int(page_version.get("number", -1)),

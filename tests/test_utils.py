@@ -1,0 +1,53 @@
+import unittest
+from unittest.mock import patch, mock_open
+import os
+import logging
+
+# Add the project root to the path for testing
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from utils import logging_config
+
+class TestLoggingConfig(unittest.TestCase):
+    """Tests the logging configuration utility."""
+
+    @patch('utils.logging_config.logging.FileHandler')
+    @patch('utils.logging_config.logging.StreamHandler')
+    @patch('utils.logging_config.logging.basicConfig')
+    @patch('utils.logging_config.os.makedirs')
+    def test_setup_logging_creates_file_and_logs(self, mock_makedirs, mock_basic_config, mock_stream_handler, mock_file_handler):
+        """Verify that logging setup creates directories and configures logging correctly."""
+        
+        log_dir = "test_logs"
+        script_name = "test_script"
+        
+        with patch('utils.logging_config.datetime') as mock_datetime:
+            # Mock the timestamp to get a predictable filename
+            mock_datetime.now.return_value.strftime.return_value = "20250101_120000"
+            
+            log_file_path = logging_config.setup_logging(log_dir, script_name)
+
+            # 1. Verify directory creation
+            mock_makedirs.assert_called_once_with(log_dir, exist_ok=True)
+            
+            # 2. Verify file path is correct
+            expected_path = os.path.join(log_dir, f"{script_name}_20250101_120000.log")
+            self.assertEqual(log_file_path, expected_path)
+
+            # 3. Verify logging is configured
+            self.assertTrue(mock_basic_config.called)
+            
+            # 4. Check that handlers were set up
+            # Corrected assertion to be more robust
+            found_handlers = False
+            for call in mock_basic_config.call_args_list:
+                _, kwargs = call
+                if 'handlers' in kwargs:
+                    found_handlers = True
+                    self.assertEqual(len(kwargs['handlers']), 2)
+            self.assertTrue(found_handlers, "logging.basicConfig was not called with 'handlers'")
+
+
+if __name__ == '__main__':
+    unittest.main()
