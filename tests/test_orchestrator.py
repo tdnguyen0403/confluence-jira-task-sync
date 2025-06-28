@@ -5,8 +5,6 @@ import pandas as pd
 import sys
 import os
 import logging
-# Add this to disable logging during tests
-logging.disable(logging.CRITICAL)
 
 from main import AutomationOrchestrator
 from undo_automation import UndoOrchestrator
@@ -34,30 +32,16 @@ class TestAutomationOrchestrator(unittest.TestCase):
 
     @patch('main.pd.read_excel')
     @patch('main.AutomationOrchestrator._save_results')
-    def test_run_with_incomplete_task_in_dev_mode(self, mock_save, mock_read_excel):
-        """Verify an incomplete task is created and transitioned to Backlog in dev mode."""
-        # Add this line to ensure the transition is called
-        config.PRODUCTION_MODE = False
+    def test_run_with_tasks(self, mock_save, mock_read_excel):
+        """Verify the full workflow when tasks are found."""
         mock_read_excel.return_value = pd.DataFrame([{"ConfluencePageURL": "http://test.url/123"}])
         
         self.mock_confluence_service.get_page_id_from_url.return_value = "123"
         # Correctly mock get_all_descendants to return an empty list for this test
         self.mock_confluence_service.get_all_descendants.return_value = []
         
-        task1 = ConfluenceTask(
-            confluence_page_id='123',
-            task_summary='Task 1', 
-            confluence_task_id='t1', 
-            status='incomplete', 
-            assignee_name='user', 
-            due_date='2025-01-01', 
-            original_page_version=1, 
-            confluence_page_title='Page 1', 
-            confluence_page_url='/page1', 
-            original_page_version_by='user', 
-            original_page_version_when='now'
-            )
-
+        task1 = ConfluenceTask(confluence_page_id='123', task_summary='Task 1', confluence_task_id='t1', assignee_name='user', due_date='2025-01-01', original_page_version=1, confluence_page_title='Page 1', confluence_page_url='/page1', original_page_version_by='user', original_page_version_when='now')
+        
         self.mock_confluence_service.get_page_by_id.return_value = {
             "body": {
                 "storage": {
@@ -83,91 +67,13 @@ class TestAutomationOrchestrator(unittest.TestCase):
 
     @patch('main.pd.read_excel')
     @patch('main.AutomationOrchestrator._save_results')
-    def test_run_with_incomplete_task_in_prod_mode(self, mock_save, mock_read_excel):
-        """Verify an incomplete task is created and NOT transitioned in production mode."""
-        config.PRODUCTION_MODE = True
-        mock_read_excel.return_value = pd.DataFrame([{"ConfluencePageURL": "http://test.url/123"}])
-        
-        self.mock_confluence_service.get_page_id_from_url.return_value = "123"
-        self.mock_confluence_service.get_all_descendants.return_value = []
-        
-        task1 = ConfluenceTask(
-            confluence_page_id='123',
-            task_summary='Task 1', 
-            confluence_task_id='t1', 
-            status='incomplete', 
-            assignee_name='user', 
-            due_date='2025-01-01', 
-            original_page_version=1, 
-            confluence_page_title='Page 1', 
-            confluence_page_url='/page1', 
-            original_page_version_by='user', 
-            original_page_version_when='now'
-            )
-        
-        self.mock_confluence_service.get_tasks_from_page.return_value = [task1]
-        self.mock_issue_finder.find_issue_on_page.return_value = {"key": "WP-1"}
-        self.mock_jira_service.create_issue.return_value = {"key": "JIRA-1"}
-
-        self.orchestrator.run()
-
-        self.mock_jira_service.create_issue.assert_called_once()
-        self.mock_jira_service.transition_issue.assert_not_called()
-        mock_save.assert_called_once()
-
-    @patch('main.pd.read_excel')
-    @patch('main.AutomationOrchestrator._save_results')
-    def test_run_with_completed_task(self, mock_save, mock_read_excel):
-        """Verify a completed task is created and transitioned to Done."""
-        mock_read_excel.return_value = pd.DataFrame([{"ConfluencePageURL": "http://test.url/123"}])
-        
-        self.mock_confluence_service.get_page_id_from_url.return_value = "123"
-        self.mock_confluence_service.get_all_descendants.return_value = []
-        
-        task1 = ConfluenceTask(
-            confluence_page_id='123', 
-            task_summary='Task 1', 
-            confluence_task_id='t1', 
-            status='complete', 
-            assignee_name='user', 
-            due_date='2025-01-01', 
-            original_page_version=1, 
-            confluence_page_title='Page 1', 
-            confluence_page_url='/page1', 
-            original_page_version_by='user', 
-            original_page_version_when='now'
-            )
-        
-        self.mock_confluence_service.get_tasks_from_page.return_value = [task1]
-        self.mock_issue_finder.find_issue_on_page.return_value = {"key": "WP-1"}
-        self.mock_jira_service.create_issue.return_value = {"key": "JIRA-1"}
-
-        self.orchestrator.run()
-
-        self.mock_jira_service.create_issue.assert_called_once()
-        self.mock_jira_service.transition_issue.assert_called_once_with("JIRA-1", config.JIRA_TARGET_STATUSES['completed_task'])
-        mock_save.assert_called_once()
-
-    @patch('main.pd.read_excel')
-    @patch('main.AutomationOrchestrator._save_results')
     def test_run_no_work_package(self, mock_save, mock_read_excel):
         """Verify workflow when no work package is found for a task."""
         mock_read_excel.return_value = pd.DataFrame([{"ConfluencePageURL": "http://test.url/123"}])
         
         self.mock_confluence_service.get_page_id_from_url.return_value = "123"
         self.mock_confluence_service.get_all_descendants.return_value = []
-        task1 = ConfluenceTask(
-            confluence_page_id='123', 
-            task_summary='Task 1', 
-            confluence_task_id='t1',
-            status='incomplete',            
-            assignee_name='user', 
-            due_date='2025-01-01', 
-            original_page_version=1, 
-            confluence_page_title='Page 1', 
-            confluence_page_url='/page1', 
-            original_page_version_by='user', 
-            original_page_version_when='now')
+        task1 = ConfluenceTask(confluence_page_id='123', task_summary='Task 1', confluence_task_id='t1', assignee_name='user', due_date='2025-01-01', original_page_version=1, confluence_page_title='Page 1', confluence_page_url='/page1', original_page_version_by='user', original_page_version_when='now')
         
         self.mock_confluence_service.get_page_by_id.return_value = {
             "body": {
@@ -209,71 +115,7 @@ class TestAutomationOrchestrator(unittest.TestCase):
         # Ensure that no further processing happens for an invalid URL
         self.mock_confluence_service.get_all_descendants.assert_not_called()
 
-    @patch('main.pd.read_excel')
-    @patch('main.AutomationOrchestrator._save_results')
-    def test_run_with_incomplete_task_in_dev_mode(self, mock_save, mock_read_excel):
-        """Verify an incomplete task is created and transitioned to Backlog in dev mode."""
-        config.PRODUCTION_MODE = False
-        mock_read_excel.return_value = pd.DataFrame([{"ConfluencePageURL": "http://test.url/123"}])
-        
-        self.mock_confluence_service.get_page_id_from_url.return_value = "123"
-        self.mock_confluence_service.get_all_descendants.return_value = []
-        
-        task1 = ConfluenceTask(confluence_page_id='123', task_summary='Task 1', confluence_task_id='t1', assignee_name='user', due_date='2025-01-01', original_page_version=1, confluence_page_title='Page 1', confluence_page_url='/page1', original_page_version_by='user', original_page_version_when='now', status='incomplete')
-        
-        self.mock_confluence_service.get_tasks_from_page.return_value = [task1]
-        self.mock_issue_finder.find_issue_on_page.return_value = {"key": "WP-1"}
-        self.mock_jira_service.create_issue.return_value = {"key": "JIRA-1"}
 
-        self.orchestrator.run()
-
-        self.mock_jira_service.create_issue.assert_called_once()
-        self.mock_jira_service.transition_issue.assert_called_once_with("JIRA-1", config.JIRA_TARGET_STATUSES['new_task_dev'])
-        mock_save.assert_called_once()
-
-    @patch('main.pd.read_excel')
-    @patch('main.AutomationOrchestrator._save_results')
-    def test_run_with_incomplete_task_in_prod_mode(self, mock_save, mock_read_excel):
-        """Verify an incomplete task is created and NOT transitioned in production mode."""
-        config.PRODUCTION_MODE = True
-        mock_read_excel.return_value = pd.DataFrame([{"ConfluencePageURL": "http://test.url/123"}])
-        
-        self.mock_confluence_service.get_page_id_from_url.return_value = "123"
-        self.mock_confluence_service.get_all_descendants.return_value = []
-        
-        task1 = ConfluenceTask(confluence_page_id='123', task_summary='Task 1', confluence_task_id='t1', assignee_name='user', due_date='2025-01-01', original_page_version=1, confluence_page_title='Page 1', confluence_page_url='/page1', original_page_version_by='user', original_page_version_when='now', status='incomplete')
-        
-        self.mock_confluence_service.get_tasks_from_page.return_value = [task1]
-        self.mock_issue_finder.find_issue_on_page.return_value = {"key": "WP-1"}
-        self.mock_jira_service.create_issue.return_value = {"key": "JIRA-1"}
-
-        self.orchestrator.run()
-
-        self.mock_jira_service.create_issue.assert_called_once()
-        self.mock_jira_service.transition_issue.assert_not_called()
-        mock_save.assert_called_once()
-
-    @patch('main.pd.read_excel')
-    @patch('main.AutomationOrchestrator._save_results')
-    def test_run_with_completed_task(self, mock_save, mock_read_excel):
-        """Verify a completed task is created and transitioned to Done."""
-        mock_read_excel.return_value = pd.DataFrame([{"ConfluencePageURL": "http://test.url/123"}])
-        
-        self.mock_confluence_service.get_page_id_from_url.return_value = "123"
-        self.mock_confluence_service.get_all_descendants.return_value = []
-        
-        task1 = ConfluenceTask(confluence_page_id='123', task_summary='Task 1', confluence_task_id='t1', assignee_name='user', due_date='2025-01-01', original_page_version=1, confluence_page_title='Page 1', confluence_page_url='/page1', original_page_version_by='user', original_page_version_when='now', status='complete')
-        
-        self.mock_confluence_service.get_tasks_from_page.return_value = [task1]
-        self.mock_issue_finder.find_issue_on_page.return_value = {"key": "WP-1"}
-        self.mock_jira_service.create_issue.return_value = {"key": "JIRA-1"}
-
-        self.orchestrator.run()
-
-        self.mock_jira_service.create_issue.assert_called_once()
-        self.mock_jira_service.transition_issue.assert_called_once_with("JIRA-1", config.JIRA_TARGET_STATUSES['completed_task'])
-        mock_save.assert_called_once()
-        
     def tearDown(self):
         """Clean up logging handlers after each test."""
         root_logger = logging.getLogger()

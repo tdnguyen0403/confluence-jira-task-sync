@@ -46,9 +46,8 @@ class UndoOrchestrator:
             logging.info("  No Jira tasks to transition.")
             return
         logging.info(f"\n--- Phase 1: Transitioning {len(jira_keys)} Jira Tasks to Backlog ---")
-        target_status = config.JIRA_TARGET_STATUSES["undo"]
         for key in sorted(list(jira_keys)):
-            self.jira.transition_issue(key, target_status)
+            self.jira.transition_issue(key, config.JIRA_TARGET_STATUS_NAME, config.JIRA_TRANSITION_ID_BACKLOG)
 
     def _rollback_confluence_pages(self, pages: Dict[str, int]):
         if not pages:

@@ -1,6 +1,6 @@
 import logging
 import requests
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 from atlassian import Jira
 import config
@@ -46,36 +46,8 @@ class SafeJiraApi:
             logging.error(f"Fallback create_issue failed. Error: {e}")
             return None
 
-    def get_available_transitions(self, issue_key: str) -> List[Dict[str, Any]]:
-        """Gets all available transitions for a given issue."""
-        url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
+    def transition_issue(self, issue_key: str, target_status: str, transition_id: str) -> bool:
         try:
-            response = requests.get(url, headers=self.headers, verify=False, timeout=15)
-            response.raise_for_status()
-            return response.json().get("transitions", [])
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Could not get transitions for '{issue_key}'. Error: {e}")
-            return []
-
-    def find_transition_id_by_name(self, issue_key: str, target_status: str) -> Optional[str]:
-        """Finds a transition ID by its target status name."""
-        transitions = self.get_available_transitions(issue_key)
-        for t in transitions:
-            if t.get("to", {}).get("name", "").lower() == target_status.lower():
-                return t["id"]
-        logging.error(f"Transition to status '{target_status}' not available for issue '{issue_key}'.")
-        return None
-
-
-
-    def transition_issue(self, issue_key: str, target_status: str) -> bool:
-        """Transitions an issue to a target status by dynamically finding the transition ID."""
-        transition_id = self.find_transition_id_by_name(issue_key, target_status)
-        if not transition_id:
-            return False
-            
-        try:
-            # First, try the official library
             self.client.transition_issue(issue_key, transition_id)
             logging.info(f"Successfully transitioned '{issue_key}' to '{target_status}' via library call.")
             return True

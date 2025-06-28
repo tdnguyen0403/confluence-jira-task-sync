@@ -20,15 +20,8 @@ TASK_ISSUE_TYPE_ID = "10002"
 JIRA_PARENT_WP_CUSTOM_FIELD_ID = "customfield_10207"
 
 # --- Automation Settings ---  config.py
-# Set to False for testing (transitions new tasks to Backlog)
-# Set to True for production (new tasks remain in the default 'Waiting' status)
-PRODUCTION_MODE = False
-
-JIRA_TARGET_STATUSES = {
-    "new_task_dev": "Backlog", # Status for new tasks in dev mode
-    "completed_task": "Done",
-    "undo": "Backlog"
-}
+JIRA_TARGET_STATUS_NAME = "Backlog"
+JIRA_TRANSITION_ID_BACKLOG = "11"
 
 
 # --- HTML Parsing Settings --- config.py
