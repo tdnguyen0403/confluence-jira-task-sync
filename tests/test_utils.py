@@ -48,6 +48,15 @@ class TestLoggingConfig(unittest.TestCase):
                     self.assertEqual(len(kwargs['handlers']), 2)
             self.assertTrue(found_handlers, "logging.basicConfig was not called with 'handlers'")
 
-
+    def tearDown(self):
+        """Clean up logging handlers after each test."""
+        # Get the root logger
+        root_logger = logging.getLogger()
+        
+        # Close all handlers and clear them to release file locks
+        for handler in root_logger.handlers[:]:
+            handler.close()
+            root_logger.removeHandler(handler)
+            
 if __name__ == '__main__':
     unittest.main()

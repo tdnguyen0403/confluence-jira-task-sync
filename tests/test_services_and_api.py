@@ -1,5 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch, MagicMock
+import requests
+import logging
 
 # Add the project root to the path for testing
 import sys
@@ -87,7 +89,21 @@ class TestSafeJiraApi(unittest.TestCase):
         self.mock_jira_client.transition_issue.assert_called_once()
         mock_post.assert_called_once()
 
+    @patch('api.safe_jira_api.requests.get')
+    def test_get_issue_fallback_failure(self, mock_get):
+        """Test get_issue when both primary and fallback attempts fail."""
+        self.mock_jira_client.get_issue.side_effect = Exception("API Error")
+        mock_get.side_effect = requests.exceptions.RequestException("Network Error")
+        result = self.safe_jira_api.get_issue("FAIL-1")
+        self.assertIsNone(result)
 
+    def tearDown(self):
+        """Clean up logging handlers after each test."""
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            handler.close()
+            root_logger.removeHandler(handler)
+            
 class TestSafeConfluenceApi(unittest.TestCase):
     """Tests the low-level SafeConfluenceApi."""
 
@@ -160,6 +176,27 @@ class TestSafeConfluenceApi(unittest.TestCase):
         self.assertEqual(tasks[1].assignee_name, "testuser")
         self.assertEqual(tasks[1].due_date, "2025-12-31")
 
+    @patch('api.safe_confluence_api.requests.get')
+    def test_get_page_by_id_fallback_failure(self, mock_get):
+        """Test get_page_by_id when both primary and fallback attempts fail."""
+        self.mock_confluence_client.get_page_by_id.side_effect = Exception("API Error")
+        mock_get.side_effect = requests.exceptions.RequestException("Network Error")
+        result = self.safe_confluence_api.get_page_by_id("FAIL-123")
+        self.assertIsNone(result)
+
+    def test_get_tasks_from_page_no_body(self):
+        """Test task parsing from a page with no body content."""
+        page_details = {"id": "101"} # Missing 'body' key
+        tasks = self.safe_confluence_api.get_tasks_from_page(page_details)
+        self.assertEqual(len(tasks), 0)
+        
+    def tearDown(self):
+        """Clean up logging handlers after each test."""
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            handler.close()
+            root_logger.removeHandler(handler)
+            
 # --- Service Layer Tests ---
 
 class TestJiraService(unittest.TestCase):
@@ -245,6 +282,11 @@ class TestIssueFinderService(unittest.TestCase):
         self.assertIsNone(result)
         self.mock_jira_api.get_issue.assert_not_called()
 
+    def test_find_issue_on_page_no_page_content(self):
+        """Test the finder when the Confluence API returns no content for the page."""
+        self.mock_confluence_api.get_page_by_id.return_value = None
+        result = self.issue_finder.find_issue_on_page("123", config.WORK_PACKAGE_ISSUE_TYPE_ID)
+        self.assertIsNone(result)
 
 if __name__ == '__main__':
     unittest.main()
