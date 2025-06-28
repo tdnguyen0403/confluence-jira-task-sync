@@ -93,7 +93,7 @@ class UndoOrchestrator:
             logging.error(f"Results file is missing required columns. Expected: {required_cols}, Found: {list(df.columns)}")
             return jira_keys, pages
         for _, row in df.iterrows():
-            if row.get("Status") == "Success":
+            if str(row.get("Status")).startswith("Success"):
                 if pd.notna(row.get("New Jira Task Key")): jira_keys.add(row["New Jira Task Key"])
                 if pd.notna(row.get("confluence_page_id")) and pd.notna(row.get("original_page_version")):
                     pages[str(int(row["confluence_page_id"]))] = int(row["original_page_version"])

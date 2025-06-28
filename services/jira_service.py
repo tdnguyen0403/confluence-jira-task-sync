@@ -18,8 +18,8 @@ class JiraService(ApiServiceInterface):
     def create_issue(self, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return self._api.create_issue(fields)
 
-    def transition_issue(self, issue_key: str, target_status: str, transition_id: str) -> bool:
-        return self._api.transition_issue(issue_key, target_status, transition_id)
+    def transition_issue(self, issue_key: str, target_status: str) -> bool:
+        return self._api.transition_issue(issue_key, target_status)
 
     def prepare_jira_task_fields(self, task: ConfluenceTask, parent_key: str) -> Dict[str, Any]:
         description = f"Source Confluence Page: [{task.confluence_page_title}|{task.confluence_page_url}]"
