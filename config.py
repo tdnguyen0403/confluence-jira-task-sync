@@ -25,8 +25,8 @@ JIRA_TRANSITION_ID_BACKLOG = "11"
 
 
 # --- HTML Parsing Settings --- config.py
-AGGREGATE_MACRO_NAMES = [
-    "jira", "jiraissues", "excerpt","excerpt-include", "include", "widget", "html"
+AGGREGATION_CONFLUENCE_MACRO = [
+    "jira", "jiraissues", "excerpt","excerpt-include", "include", "widget", "html", "content-report-table", "pagetree", "recently-updated", "table-excerpt", "table-excerpt-include", "table-filter", "table-pivot", "table-transformer"
 ]
 
 #--- Test Data Generation Settings --- config.py

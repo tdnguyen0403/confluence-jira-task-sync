@@ -32,13 +32,13 @@ class IssueFinderService:
         soup = BeautifulSoup(page_content["body"]["storage"]["value"], "html.parser")
         for macro in soup.find_all("ac:structured-macro", {"ac:name": "jira"}):
             # Corrected logic to ignore macros within other macros
-            if macro.find_parent("ac:structured-macro", {"ac:name": lambda x: x in config.AGGREGATE_MACRO_NAMES and x != 'jira'}):
+            if macro.find_parent("ac:structured-macro", {"ac:name": lambda x: x in config.AGGREGATION_CONFLUENCE_MACRO and x != 'jira'}):
                 continue
             key_param = macro.find("ac:parameter", {"ac:name": "key"})
             if key_param:
                 issue_key = key_param.get_text(strip=True)
                 # This check should only happen if the macro is not ignored
-                if not macro.find_parent("ac:structured-macro", {"ac:name": lambda x: x in config.AGGREGATE_MACRO_NAMES and x != 'jira'}):
+                if not macro.find_parent("ac:structured-macro", {"ac:name": lambda x: x in config.AGGREGATION_CONFLUENCE_MACRO and x != 'jira'}):
                     jira_issue = self.jira_api.get_issue(issue_key, fields="issuetype")
                     if jira_issue and jira_issue.get("fields", {}).get("issuetype", {}).get("id") == issue_type_id:
                         return self.jira_api.get_issue(issue_key, fields="key,issuetype,assignee,reporter")

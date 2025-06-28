@@ -267,20 +267,25 @@ class TestIssueFinderService(unittest.TestCase):
         self.mock_jira_api.get_issue.assert_called_once_with("TASK-123", fields="issuetype")
 
     def test_find_issue_on_page_in_ignored_macro(self):
-        """Test that a Jira macro inside an 'excerpt' macro is ignored."""
-        page_html = f"""
-            <ac:structured-macro ac:name="excerpt">
-                <ac:rich-text-body>
-                    <ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">WP-999</ac:parameter></ac:structured-macro>
-                </ac:rich-text-body>
-            </ac:structured-macro>
-        """
-        self.mock_confluence_api.get_page_by_id.return_value = {"body": {"storage": {"value": page_html}}}
+        """Test that a Jira macro inside an aggregation macro is ignored."""
+        for macro_name in config.AGGREGATION_CONFLUENCE_MACRO:
+            if macro_name == 'jira': continue # Skip the jira macro itself
+            with self.subTest(macro=macro_name):
+                page_html = f"""
+                    <ac:structured-macro ac:name="{macro_name}">
+                        <ac:rich-text-body>
+                            <ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">WP-999</ac:parameter></ac:structured-macro>
+                        </ac:rich-text-body>
+                    </ac:structured-macro>
+                """
+                self.mock_confluence_api.get_page_by_id.return_value = {"body": {"storage": {"value": page_html}}}
 
-        result = self.issue_finder.find_issue_on_page("123", config.WORK_PACKAGE_ISSUE_TYPE_ID)
+                result = self.issue_finder.find_issue_on_page("123", config.WORK_PACKAGE_ISSUE_TYPE_ID)
 
-        self.assertIsNone(result)
-        self.mock_jira_api.get_issue.assert_not_called()
+                self.assertIsNone(result)
+                self.mock_jira_api.get_issue.assert_not_called()
+                # Reset mock for the next sub-test
+                self.mock_jira_api.get_issue.reset_mock()
 
     def test_find_issue_on_page_no_page_content(self):
         """Test the finder when the Confluence API returns no content for the page."""
