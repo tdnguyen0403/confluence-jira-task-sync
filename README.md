@@ -1,50 +1,50 @@
 # Jira Confluence Automator
 
-This script automates the process of converting tasks in Confluence pages into Jira issues.
+The Jira Confluence Automator is a Python script designed to streamline task management by automatically converting incomplete Confluence tasks into Jira issues. This tool enhances efficiency by integrating Confluence-based task tracking with Jira's robust issue management capabilities.
 
-## Features
+## ✨ Features
 
-- Scans a Confluence page and its children for incomplete tasks.
-- Creates a Jira issue for each incomplete task.
-- Links the created Jira issue back to the Confluence page.
-- Replaces the Confluence task with a Jira issue macro.
-- Logs all operations for easy tracking and debugging.
-- Provides an undo script to revert all changes.
-- Uses environment variables for secrets and a JSON file for configuration.
+* **Task Scanning**: Identifies incomplete tasks within specified Confluence pages and their child pages.
+* **Jira Issue Creation**: Automatically creates a Jira issue for each identified incomplete task.
+* **Bi-directional Linking**: Establishes a link from the newly created Jira issue back to its originating Confluence page.
+* **Confluence Integration**: Replaces the original Confluence task with a Jira issue macro, providing a direct link to the Jira issue within Confluence.
+* **Comprehensive Logging**: Generates detailed logs for all operations, facilitating easy tracking, debugging, and auditing.
+* **Undo Capability**: Includes a dedicated script to revert all changes made during the automation process.
+* **Secure Configuration**: Utilizes environment variables for sensitive credentials and a JSON file for general configuration.
 
-## Setup
+## 🚀 Setup
 
-1.  **Clone the repository.**
-2.  **Install the dependencies:**
+To get started with the Jira Confluence Automator, follow these steps:
+
+1.  **Clone the Repository**:
+    ```bash
+    git clone <repository-url>
+    cd jira_confluence_automator
+    ```
+2.  **Install Dependencies**:
     ```bash
     pip install -r requirements.txt
     ```
-3.  **Create a `.env` file:**
-    Create this file in the root of the project and add your sensitive credentials. See `.env.example` for the required format.
-4.  **Configure User Inputs:**
-    Open the `user_input.json` file and add the Confluence Page URLs you want to process to the `ConfluencePageURLs` list.
-5.  **Set Environment Variables:**
-    Run the following command to generate a script that sets your environment variables:
-    ```bash
-    python generate_env.py
-    ```
-    Then, run the generated script in your terminal:
-    ```bash
-    set_env.bat
-    ```
+3.  **Configure Environment Variables**:
+    * Create a `.env` file in the project's root directory.
+    * Refer to `.env.example` for the required format and add your sensitive credentials.
+    * Generate the environment variable setup script:
+        ```bash
+        python generate_env.py
+        ```
+    * Execute the generated script in your terminal to set the variables:
+        ```bash
+        set_env.bat  # On Windows
+        # Or for Linux/macOS, use:
+        # source set_env.sh
+        ```
+4.  **Define User Inputs**:
+    * Open `user_input.json`.
+    * Add the URLs of the Confluence pages you wish to process to the `ConfluencePageURLs` list.
 
-## Usage
+## 💡 Usage
 
-1.  **Run the script:**
-    ```bash
-    python main.py
-    ```
-2.  **Check the output:**
-    The script will create an `output` folder with a new Excel file containing the results of the automation. It will also create a `logs` folder with a log file for the current run.
-
-## Undo Script
-
-If you need to revert the changes made by the script, you can run the `undo_automation.py` script:
+Once configured, run the automation script:
 
 ```bash
-python undo_automation.py
+python main.py
