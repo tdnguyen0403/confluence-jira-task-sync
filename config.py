@@ -24,7 +24,11 @@ JIRA_MACRO_SERVER_ID = os.getenv("JIRA_MACRO_SERVER_ID")
 
 # --- Master Data / Custom IDs --- config.py
 JIRA_PROJECT_KEY = "SFSEA"
-WORK_PACKAGE_ISSUE_TYPE_ID = "10100"
+PARENT_ISSUES_TYPE_ID = {
+    "Work Package": "10100",
+    "Risk": "11404",
+    "Deviation": "10103"
+}
 TASK_ISSUE_TYPE_ID = "10002"
 JIRA_PARENT_WP_CUSTOM_FIELD_ID = "customfield_10207"
 

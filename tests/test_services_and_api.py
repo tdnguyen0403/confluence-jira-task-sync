@@ -363,7 +363,18 @@ class TestIssueFinderService(unittest.TestCase):
         self.mock_jira_api = Mock(spec=SafeJiraApi)
         self.issue_finder = IssueFinderService(self.mock_confluence_api, self.mock_jira_api)
 
-    def test_find_issue_on_page_success(self):
+        # Suppress logging during tests for cleaner output unless needed for debugging
+        logging.disable(logging.CRITICAL)
+
+    def tearDown(self):
+        """Clean up logging handlers after each test."""
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            handler.close()
+            root_logger.removeHandler(handler)
+        logging.disable(logging.NOTSET) # Re-enable logging
+
+    def test_find_issue_on_page_success_work_package(self):
         """Test finding a work package successfully."""
         page_html = f"""
             <div>
@@ -373,41 +384,108 @@ class TestIssueFinderService(unittest.TestCase):
             </div>
         """
         self.mock_confluence_api.get_page_by_id.return_value = {"body": {"storage": {"value": page_html}}}
-        
+
         # Mock the two calls to get_issue
         self.mock_jira_api.get_issue.side_effect = [
-            {"fields": {"issuetype": {"id": config.WORK_PACKAGE_ISSUE_TYPE_ID}}},
-            {"key": "WP-1", "fields": {"summary": "Full WP Details"}}
+            {"fields": {"issuetype": {"id": config.PARENT_ISSUES_TYPE_ID["Work Package"]}}},
+            {"key": "WP-1", "fields": {"summary": "Full WP Details", "issuetype": {"id": config.PARENT_ISSUES_TYPE_ID["Work Package"], "name": "Work Package"}}}
         ]
-        
-        result = self.issue_finder.find_issue_on_page("123", config.WORK_PACKAGE_ISSUE_TYPE_ID)
+
+        # Pass the PARENT_ISSUES_TYPE_ID dictionary
+        result = self.issue_finder.find_issue_on_page("123", config.PARENT_ISSUES_TYPE_ID)
 
         self.assertIsNotNone(result)
         self.assertEqual(result["key"], "WP-1")
+        self.assertEqual(result["fields"]["issuetype"]["id"], config.PARENT_ISSUES_TYPE_ID["Work Package"])
         self.assertEqual(self.mock_jira_api.get_issue.call_count, 2)
-        
+        # Corrected assertion: Assert on the 'get_issue' method of the mock
+        self.mock_jira_api.get_issue.assert_any_call("WP-1", fields="issuetype")
+        self.mock_jira_api.get_issue.assert_any_call("WP-1", fields="key,issuetype,assignee,reporter")
+        self.mock_jira_api.reset_mock() # Reset for next test
+
+    def test_find_issue_on_page_success_risk(self):
+        """Test finding a Risk issue successfully."""
+        page_html = f"""
+            <div>
+                <ac:structured-macro ac:name="jira">
+                    <ac:parameter ac:name="key">RISK-1</ac:parameter>
+                </ac:structured-macro>
+            </div>
+        """
+        self.mock_confluence_api.get_page_by_id.return_value = {"body": {"storage": {"value": page_html}}}
+
+        self.mock_jira_api.get_issue.side_effect = [
+            {"fields": {"issuetype": {"id": config.PARENT_ISSUES_TYPE_ID["Risk"]}}},
+            {"key": "RISK-1", "fields": {"summary": "Full Risk Details", "issuetype": {"id": config.PARENT_ISSUES_TYPE_ID["Risk"], "name": "Risk"}}}
+        ]
+
+        result = self.issue_finder.find_issue_on_page("123", config.PARENT_ISSUES_TYPE_ID)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["key"], "RISK-1")
+        self.assertEqual(result["fields"]["issuetype"]["id"], config.PARENT_ISSUES_TYPE_ID["Risk"])
+        self.assertEqual(self.mock_jira_api.get_issue.call_count, 2)
+        # Corrected assertion: Assert on the 'get_issue' method of the mock
+        self.mock_jira_api.get_issue.assert_any_call("RISK-1", fields="issuetype")
+        self.mock_jira_api.get_issue.assert_any_call("RISK-1", fields="key,issuetype,assignee,reporter")
+        self.mock_jira_api.reset_mock()
+
+    def test_find_issue_on_page_success_deviation(self):
+        """Test finding a Deviation issue successfully."""
+        page_html = f"""
+            <div>
+                <ac:structured-macro ac:name="jira">
+                    <ac:parameter ac:name="key">DEV-1</ac:parameter>
+                </ac:structured-macro>
+            </div>
+        """
+        self.mock_confluence_api.get_page_by_id.return_value = {"body": {"storage": {"value": page_html}}}
+
+        self.mock_jira_api.get_issue.side_effect = [
+            {"fields": {"issuetype": {"id": config.PARENT_ISSUES_TYPE_ID["Deviation"]}}},
+            {"key": "DEV-1", "fields": {"summary": "Full Deviation Details", "issuetype": {"id": config.PARENT_ISSUES_TYPE_ID["Deviation"], "name": "Deviation"}}}
+        ]
+
+        result = self.issue_finder.find_issue_on_page("123", config.PARENT_ISSUES_TYPE_ID)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["key"], "DEV-1")
+        self.assertEqual(result["fields"]["issuetype"]["id"], config.PARENT_ISSUES_TYPE_ID["Deviation"])
+        self.assertEqual(self.mock_jira_api.get_issue.call_count, 2)
+        # Corrected assertion: Assert on the 'get_issue' method of the mock
+        self.mock_jira_api.get_issue.assert_any_call("DEV-1", fields="issuetype")
+        self.mock_jira_api.get_issue.assert_any_call("DEV-1", fields="key,issuetype,assignee,reporter")
+        self.mock_jira_api.reset_mock()
+
     def test_find_issue_on_page_not_found(self):
         """Test when no matching macro is on the page."""
         page_html = f"<p>No Jira macros here.</p>"
         self.mock_confluence_api.get_page_by_id.return_value = {"body": {"storage": {"value": page_html}}}
-        
-        result = self.issue_finder.find_issue_on_page("123", config.WORK_PACKAGE_ISSUE_TYPE_ID)
+
+        # Pass the PARENT_ISSUES_TYPE_ID dictionary
+        result = self.issue_finder.find_issue_on_page("123", config.PARENT_ISSUES_TYPE_ID)
 
         self.assertIsNone(result)
+        # Corrected assertion: Assert on the 'get_issue' method of the mock
         self.mock_jira_api.get_issue.assert_not_called()
+        self.mock_jira_api.reset_mock()
 
     def test_find_issue_on_page_wrong_issue_type(self):
-        """Test that a Jira macro with the wrong issue type is ignored."""
+        """Test that a Jira macro with an unsearched issue type is ignored."""
         page_html = f"""
             <ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">TASK-123</ac:parameter></ac:structured-macro>
         """
         self.mock_confluence_api.get_page_by_id.return_value = {"body": {"storage": {"value": page_html}}}
-        self.mock_jira_api.get_issue.return_value = {"fields": {"issuetype": {"id": "some_other_id"}}}
+        # Return an issue type ID that is NOT in PARENT_ISSUES_TYPE_ID values
+        self.mock_jira_api.get_issue.return_value = {"fields": {"issuetype": {"id": config.TASK_ISSUE_TYPE_ID}}}
 
-        result = self.issue_finder.find_issue_on_page("123", config.WORK_PACKAGE_ISSUE_TYPE_ID)
+        # Pass the PARENT_ISSUES_TYPE_ID dictionary
+        result = self.issue_finder.find_issue_on_page("123", config.PARENT_ISSUES_TYPE_ID)
 
         self.assertIsNone(result)
+        # Corrected assertion: Assert on the 'get_issue' method of the mock
         self.mock_jira_api.get_issue.assert_called_once_with("TASK-123", fields="issuetype")
+        self.mock_jira_api.reset_mock()
 
     def test_find_issue_on_page_in_ignored_macro(self):
         """Test that a Jira macro inside an aggregation macro is ignored."""
@@ -423,25 +501,24 @@ class TestIssueFinderService(unittest.TestCase):
                 """
                 self.mock_confluence_api.get_page_by_id.return_value = {"body": {"storage": {"value": page_html}}}
 
-                result = self.issue_finder.find_issue_on_page("123", config.WORK_PACKAGE_ISSUE_TYPE_ID)
+                # Pass the PARENT_ISSUES_TYPE_ID dictionary
+                result = self.issue_finder.find_issue_on_page("123", config.PARENT_ISSUES_TYPE_ID)
 
                 self.assertIsNone(result)
+                # Corrected assertion: Assert on the 'get_issue' method of the mock
                 self.mock_jira_api.get_issue.assert_not_called()
                 # Reset mock for the next sub-test
-                self.mock_jira_api.get_issue.reset_mock()
+                self.mock_jira_api.reset_mock()
 
     def test_find_issue_on_page_no_page_content(self):
         """Test the finder when the Confluence API returns no content for the page."""
         self.mock_confluence_api.get_page_by_id.return_value = None
-        result = self.issue_finder.find_issue_on_page("123", config.WORK_PACKAGE_ISSUE_TYPE_ID)
+        # Pass the PARENT_ISSUES_TYPE_ID dictionary
+        result = self.issue_finder.find_issue_on_page("123", config.PARENT_ISSUES_TYPE_ID)
         self.assertIsNone(result)
-   
-    def tearDown(self):
-        """Clean up logging handlers after each test."""
-        root_logger = logging.getLogger()
-        for handler in root_logger.handlers[:]:
-            handler.close()
-            root_logger.removeHandler(handler)
+        # Corrected assertion: Assert on the 'get_issue' method of the mock
+        self.mock_jira_api.get_issue.assert_not_called()
+        self.mock_jira_api.reset_mock()
             
 if __name__ == '__main__':
     unittest.main()

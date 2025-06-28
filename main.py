@@ -98,10 +98,11 @@ class AutomationOrchestrator:
         
     def _process_tasks(self, tasks: List[ConfluenceTask]):
         tasks_to_update_on_pages: Dict[str, List] = {}
+      
         for task in tasks:
             logging.info(f"\nProcessing task: '{task.task_summary}' from page ID: {task.confluence_page_id}")
             
-            closest_wp = self.issue_finder.find_issue_on_page(task.confluence_page_id, config.WORK_PACKAGE_ISSUE_TYPE_ID)
+            closest_wp = self.issue_finder.find_issue_on_page(task.confluence_page_id, config.PARENT_ISSUES_TYPE_ID)
             
             if not closest_wp:
                 self.results.append(AutomationResult(task, "Skipped - No Work Package found"))
