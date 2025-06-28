@@ -25,6 +25,7 @@ class TestDataGenerator:
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.all_created_pages: List[Dict[str, Any]] = []
         self.assignee_userkey: Optional[str] = None
+        self.task_counter = 0
 
     def _initialize_assignee(self, username: Optional[str]):
         """Resolves the user key via the service interface."""
@@ -39,17 +40,23 @@ class TestDataGenerator:
         else:
             logging.error(f"Could not find userkey for username '{username}'.")
     
-    def run(self, base_parent_id: str, wp_keys: List[str], max_depth: int = 2):
+    def run(self, base_parent_id: str, wp_keys: List[str], max_depth: int, tasks_per_page: int):
         """Main method to generate the entire test tree."""
         setup_logging("logs_generator", "confluence_generator_run")
         logging.info(f"\n--- Initiating Test Tree Generation under Parent ID: {base_parent_id} ---")
         
         if not wp_keys:
-            logging.error("ERROR: Must provide at least one Work Package key in config.py")
+            logging.error("ERROR: Must provide at least one Work Package key.")
             return
 
         self._initialize_assignee(config.ASSIGNEE_USERNAME_FOR_GENERATED_TASKS)
-        main_page_id, _ = self._create_main_test_page(base_parent_id, wp_keys[0])
+        
+        main_page_id = self._create_page(
+            parent_id=base_parent_id,
+            title=f"Gen {self.timestamp} - Main Test Page Root",
+            wp_key=wp_keys[0],
+            tasks_per_page=tasks_per_page
+        )
 
         if not main_page_id:
             logging.error("Failed to create the main test page. Aborting.")
@@ -57,60 +64,65 @@ class TestDataGenerator:
 
         logging.info(f"\n--- Generating sub-levels under '{self.all_created_pages[0]['title']}' ---")
         self._generate_tree_recursive(
-            parent_id=main_page_id, wp_keys=wp_keys, current_depth=1,
-            max_depth=max_depth, task_counter=2, wp_index=1, path_prefix=""
+            parent_id=main_page_id,
+            wp_keys=wp_keys,
+            current_depth=1,
+            max_depth=max_depth,
+            tasks_per_page=tasks_per_page,
+            wp_index=1
         )
         self._print_summary()
 
-    def _create_main_test_page(self, base_parent_id: str, wp_key: str) -> Tuple[Optional[str], int]:
-        """Creates the top-level page for the test tree using the service interface."""
-        title = f"Gen {self.timestamp} - Main Test Page Root"
-        tasks = [
-            self._generate_task_html(0, "Main Page Task A (Incomplete)"),
-            self._generate_task_html(1, "Main Page Task B (Complete)", status="complete"),
-        ]
+    def _generate_tree_recursive(self, parent_id: str, wp_keys: List[str], current_depth: int, max_depth: int, tasks_per_page: int, wp_index: int):
+        """Recursively generates diverse pages under a given parent."""
+        if current_depth > max_depth:
+            return
+            
+        page_title = f"Gen {self.timestamp} - L{current_depth}"
+        current_wp_key = wp_keys[wp_index % len(wp_keys)]
+        
+        new_page_id = self._create_page(
+            parent_id=parent_id,
+            title=page_title,
+            wp_key=current_wp_key,
+            tasks_per_page=tasks_per_page
+        )
+        
+        if new_page_id:
+            self._generate_tree_recursive(
+                parent_id=new_page_id,
+                wp_keys=wp_keys,
+                current_depth=current_depth + 1,
+                max_depth=max_depth,
+                tasks_per_page=tasks_per_page,
+                wp_index=wp_index + 1
+            )
+
+    def _create_page(self, parent_id: str, title: str, wp_key: str, tasks_per_page: int) -> Optional[str]:
+        """Creates a single Confluence page with a specified number of tasks."""
+        tasks = [self._generate_task_html(f"Task {i+1} on page {title}") for i in range(tasks_per_page)]
         content_html = self._create_page_body(
-            title=title, description=f"This page contains Work Package: {wp_key}.",
-            main_content_html=self._wrap_in_task_list(tasks), jira_macro_html=self._generate_jira_macro_html(wp_key),
+            title=title,
+            description=f"This page contains Work Package: {wp_key}.",
+            main_content_html=self._wrap_in_task_list(tasks),
+            jira_macro_html=self._generate_jira_macro_html(wp_key)
         )
+        
         page = self.confluence.create_page(
-            space=config.CONFLUENCE_SPACE_KEY, parent_id=base_parent_id, title=title, body=content_html, representation="storage"
+            space=config.CONFLUENCE_SPACE_KEY,
+            parent_id=parent_id,
+            title=title,
+            body=content_html,
+            representation="storage"
         )
+        
         if page and page.get('id'):
             logging.info(f"Created page \"{config.CONFLUENCE_SPACE_KEY}\" -> \"{title}\"")
             self.all_created_pages.append({
                 "id": page['id'], "url": page.get('_links', {}).get('webui'), "title": title, "wp_on_page": wp_key
             })
-            return page['id'], 2
-        return None, 0
-
-    def _generate_tree_recursive(self, parent_id: str, wp_keys: List[str], current_depth: int, max_depth: int, task_counter: int, wp_index: int, path_prefix: str) -> Tuple[int, int]:
-        """Recursively generates diverse pages under a given parent."""
-        if current_depth > max_depth:
-            return task_counter, wp_index
-        for i in range(2):
-            page_identifier = f"{path_prefix}{current_depth}.{i+1}"
-            page_title = f"Gen {self.timestamp} - L{page_identifier}"
-            current_wp_key = wp_keys[wp_index % len(wp_keys)]
-            wp_index += 1
-            page_content, task_counter = self._generate_diverse_content(task_counter, i)
-            content_html = self._create_page_body(
-                title=page_title, description=f"This page is linked to Work Package: {current_wp_key}.",
-                main_content_html=page_content, jira_macro_html=self._generate_jira_macro_html(current_wp_key)
-            )
-            new_page = self.confluence.create_page(
-                space=config.CONFLUENCE_SPACE_KEY, parent_id=parent_id, title=page_title, body=content_html, representation="storage"
-            )
-            if new_page and new_page.get('id'):
-                logging.info(f"Created page \"{config.CONFLUENCE_SPACE_KEY}\" -> \"{page_title}\"")
-                self.all_created_pages.append({
-                    "id": new_page['id'], "url": new_page.get('_links', {}).get('webui'), "title": page_title, "wp_on_page": current_wp_key
-                })
-                task_counter, wp_index = self._generate_tree_recursive(
-                    parent_id=new_page['id'], wp_keys=wp_keys, current_depth=current_depth + 1,
-                    max_depth=max_depth, task_counter=task_counter, wp_index=wp_index, path_prefix=f"{page_identifier}-"
-                )
-        return task_counter, wp_index
+            return page['id']
+        return None
 
     def _generate_diverse_content(self, task_counter: int, index: int) -> Tuple[str, int]:
         """Creates different sets of content based on an index to ensure test variety."""
@@ -158,13 +170,15 @@ class TestDataGenerator:
             <ac:parameter ac:name="key">{jira_key}</ac:parameter>
         </ac:structured-macro></p>"""
 
-    def _generate_task_html(self, task_id_suffix: int, summary: str, status: str = "incomplete", due_date: Optional[date] = None) -> str:
+    def _generate_task_html(self, summary: str, status: str = "incomplete", due_date: Optional[date] = None) -> str:
         """Generates the Confluence storage format for a single task item."""
+        self.task_counter += 1
         assignee_html = f'<ri:user ri:userkey="{self.assignee_userkey}"/>' if self.assignee_userkey else ""
         date_html = f'<time datetime="{due_date.strftime("%Y-%m-%d")}"/>' if due_date else ""
-        task_id = f"task-{uuid.uuid4().hex[:4]}-{task_id_suffix}"
+        task_id = f"task-{uuid.uuid4().hex[:4]}-{self.task_counter}"
         return f"""<ac:task><ac:task-id>{task_id}</ac:task-id>
             <ac:task-status>{status}</ac:task-status><ac:task-body><span>{summary} {assignee_html}{date_html}</span></ac:task-body></ac:task>"""
+
 
     def _wrap_in_task_list(self, tasks: List[str]) -> str:
         return f"<ac:task-list>{''.join(tasks)}</ac:task-list>"
@@ -184,9 +198,12 @@ class TestDataGenerator:
         return f"""<h1>{kwargs['title']}</h1><p>{kwargs['description']}</p>{kwargs.get('jira_macro_html', '')}{kwargs.get('main_content_html', '')}"""
 
 if __name__ == "__main__":
+
     if config.BASE_PARENT_CONFLUENCE_PAGE_ID == "YOUR_BASE_PARENT_PAGE_ID_HERE":
         logging.error("Please update BASE_PARENT_CONFLUENCE_PAGE_ID in config.py")
     else:
+        # Use new config variables
+        wp_keys_to_use = config.TEST_WORK_PACKAGE_KEYS_TO_DISTRIBUTE[:config.DEFAULT_NUM_WORK_PACKAGES]
         # 1. Initialize raw clients
         jira_client = Jira(url=config.JIRA_URL, token=config.JIRA_API_TOKEN, cloud=False, verify_ssl=False)
         confluence_client = Confluence(url=config.CONFLUENCE_URL, token=config.CONFLUENCE_API_TOKEN, cloud=False, verify_ssl=False)
@@ -202,6 +219,7 @@ if __name__ == "__main__":
         generator = TestDataGenerator(confluence_service)
         generator.run(
             base_parent_id=config.BASE_PARENT_CONFLUENCE_PAGE_ID,
-            wp_keys=config.TEST_WORK_PACKAGE_KEYS_TO_DISTRIBUTE,
-            max_depth=2
+            wp_keys=wp_keys_to_use,
+            max_depth=config.DEFAULT_MAX_DEPTH,
+            tasks_per_page=config.DEFAULT_TASKS_PER_PAGE
         )
