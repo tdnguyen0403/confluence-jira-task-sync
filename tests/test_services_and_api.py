@@ -109,7 +109,7 @@ class TestSafeJiraApi(unittest.TestCase):
         # Mock the dynamic transition lookup
         self.safe_jira_api.find_transition_id_by_name = Mock(return_value="31")
         result = self.safe_jira_api.transition_issue("TEST-1", "Done")
-        self.mock_jira_client.issue_transition.assert_called_once_with("TEST-1", 31)
+        self.mock_jira_client.issue_transition.assert_called_once_with("TEST-1", "Done")
         self.assertTrue(result)
 
     @patch('api.safe_jira_api.requests.post')

@@ -45,7 +45,6 @@ class SafeJiraApi:
         except requests.exceptions.RequestException as e:
             logging.error(f"Fallback create_issue failed. Error: {e}")
             return None
-
     def get_available_transitions(self, issue_key: str) -> List[Dict[str, Any]]:
         """Gets all available transitions for a given issue."""
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
@@ -61,13 +60,11 @@ class SafeJiraApi:
         """Finds a transition ID by its target status name."""
         transitions = self.get_available_transitions(issue_key)
         for t in transitions:
-            if t.get("to", {}).get("name", "").lower() == target_status.lower():
+            if str(t.get("to", {}).get("name", "")).lower() == target_status.lower():
                 return t["id"]
         logging.error(f"Transition to status '{target_status}' not available for issue '{issue_key}'.")
         return None
-
-
-
+        
     def transition_issue(self, issue_key: str, target_status: str) -> bool:
         """Transitions an issue to a target status by dynamically finding the transition ID."""
         transition_id = self.find_transition_id_by_name(issue_key, target_status)
@@ -75,14 +72,15 @@ class SafeJiraApi:
             return False
             
         try:
-           # Corrected: Convert transition_id to an integer
-            self.client.issue_transition(issue_key, int(transition_id))
-            return True
+            # The atlassian-python-api client.issue_transition expect string for transition_status
+            self.client.issue_transition(issue_key, target_status)
             logging.info(f"Successfully transitioned '{issue_key}' to '{target_status}' via library call.")
             return True
+            
         except Exception as e:
             logging.warning(f"Library transition for '{issue_key}' failed. Falling back. Error: {e}")
-            return self._fallback_transition_issue(issue_key, transition_id, target_status)
+            return self._fallback_transition_issue(issue_key, transition_id, target_status) #fallback and pass transition_id to the fallback call
+
 
     def _fallback_transition_issue(self, issue_key: str, transition_id: str, target_status: str) -> bool:
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
