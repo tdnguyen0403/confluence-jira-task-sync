@@ -9,6 +9,7 @@ class ConfluenceTask:
     confluence_page_url: str
     confluence_task_id: str
     task_summary: str
+    status: str
     assignee_name: Optional[str]
     due_date: str
     original_page_version: int
