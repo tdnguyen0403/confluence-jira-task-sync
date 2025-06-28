@@ -88,8 +88,19 @@ class AutomationOrchestrator:
 
             if new_issue and new_issue.get("key"):
                 new_key = new_issue["key"]
-                self.jira.transition_issue(new_key, config.JIRA_TARGET_STATUS_NAME, config.JIRA_TRANSITION_ID_BACKLOG)
-                self.results.append(AutomationResult(task, "Success", new_key, closest_wp_key))
+                
+                # Logic for handling completed vs. new tasks
+                if task.status == "complete":
+                    target_status = config.JIRA_TARGET_STATUSES["completed_task"]
+                    self.jira.transition_issue(new_key, target_status)
+                    self.results.append(AutomationResult(task, "Success - Completed Task Created", new_key, closest_wp_key))
+                else:
+                    # Logic for handling new tasks based on production mode
+                    if not config.PRODUCTION_MODE:
+                        target_status = config.JIRA_TARGET_STATUSES["new_task_dev"]
+                        self.jira.transition_issue(new_key, target_status)
+                    self.results.append(AutomationResult(task, "Success", new_key, closest_wp_key))
+
                 tasks_to_update_on_pages.setdefault(task.confluence_page_id, []).append({
                     "confluence_task_id": task.confluence_task_id, "jira_key": new_key
                 })

@@ -171,7 +171,7 @@ class SafeConfluenceApi:
         return all_ids
         
     def get_tasks_from_page(self, page_details: Dict) -> List[ConfluenceTask]:
-        """Extracts all incomplete Confluence tasks from a page's HTML content."""
+        """Extracts all Confluence tasks from a page's HTML content."""
         tasks: List[ConfluenceTask] = []
         html_content = page_details.get("body", {}).get("storage", {}).get("value", "")
         if not html_content:
@@ -180,26 +180,27 @@ class SafeConfluenceApi:
         soup = BeautifulSoup(html_content, "html.parser")
         
         for task_element in soup.find_all("ac:task"):
-            if task_element.find_parent("ac:structured-macro", {"ac:name": lambda x: x in config.AGGREGATE_MACRO_NAMES}):
+            if task_element.find_parent("ac:structured-macro", {"ac:name": lambda x: x in config.AGGREGATION_CONFLUENCE_MACRO}):
                 continue
 
-            if task_element.find("ac:task-status").get_text(strip=True) == "incomplete":
-                parsed_task = self._parse_single_task(task_element, page_details)
-                if parsed_task:
-                    tasks.append(parsed_task)
+            # Parse both complete and incomplete tasks
+            parsed_task = self._parse_single_task(task_element, page_details)
+            if parsed_task:
+                tasks.append(parsed_task)
         return tasks
 
     def _parse_single_task(self, task_element: Any, page_details: Dict) -> Optional[ConfluenceTask]:
         """Parses a single <ac:task> element into a ConfluenceTask object."""
         task_body = task_element.find("ac:task-body")
         task_id_tag = task_element.find("ac:task-id")
-        if not (task_body and task_id_tag):
+        task_status_tag = task_element.find("ac:task-status")
+
+        if not (task_body and task_id_tag and task_status_tag):
             return None
         
         assignee_name: Optional[str] = None
         if user_mention := task_element.find("ri:user"):
             if user_key := user_mention.get("ri:userkey"):
-                # This call now correctly uses another method from the same low-level class
                 user_details = self.get_user_details_by_userkey(user_key)
                 if user_details:
                     assignee_name = user_details.get("username")
@@ -214,7 +215,8 @@ class SafeConfluenceApi:
             confluence_page_title=page_details.get("title", "N/A"),
             confluence_page_url=page_details.get("_links", {}).get("webui", ""),
             confluence_task_id=task_id_tag.get_text(strip=True),
-            task_summary=' '.join(task_body.get_text(separator=' ').split()), # Corrected line
+            task_summary=' '.join(task_body.get_text(separator=' ').split()),
+            status=task_status_tag.get_text(strip=True), # Added status parsing
             assignee_name=assignee_name,
             due_date=due_date,
             original_page_version=int(page_version.get("number", -1)),
