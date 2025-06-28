@@ -15,6 +15,7 @@ class ConfluenceTask:
     original_page_version: int
     original_page_version_by: str
     original_page_version_when: str
+    context: Optional[str] = None
 
 @dataclass
 class PageUpdateMapping:
@@ -43,5 +44,8 @@ class AutomationResult:
         # and correctly unpack the nested ConfluenceTask dataclass
         for f in fields(self.task_data):
             d[f.name] = getattr(self.task_data, f.name)
-            
+        
+        # Add the context to the dictionary
+        d["context"] = self.task_data.context
+        
         return d

@@ -38,5 +38,6 @@ class ConfluenceService(ApiServiceInterface):
     # --- Methods from interface not applicable to Confluence ---
     def get_issue(self, issue_key: str, fields: str = "*all") -> Optional[Dict[str, Any]]: raise NotImplementedError
     def create_issue(self, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]: raise NotImplementedError
-    def transition_issue(self, issue_key: str, target_status: str, transition_id: str) -> bool: raise NotImplementedError
+    def transition_issue(self, issue_key: str, target_status: str) -> bool: raise NotImplementedError
     def prepare_jira_task_fields(self, task: ConfluenceTask, parent_key: str) -> Dict[str, Any]: raise NotImplementedError
+    def get_current_user_display_name(self) -> str: raise NotImplementedError

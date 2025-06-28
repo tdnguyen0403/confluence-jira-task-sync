@@ -20,11 +20,15 @@ class ApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    def transition_issue(self, issue_key: str, target_status: str, transition_id: str) -> bool:
+    def transition_issue(self, issue_key: str, target_status: str) -> bool:
         pass
 
     @abstractmethod
     def prepare_jira_task_fields(self, task: ConfluenceTask, parent_key: str) -> Dict[str, Any]:
+        pass
+   
+    @abstractmethod
+    def get_current_user_display_name(self) -> str: # <-- ADD THIS METHOD
         pass
 
     # Confluence Methods

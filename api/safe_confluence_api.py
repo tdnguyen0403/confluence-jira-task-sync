@@ -10,6 +10,8 @@ from bs4 import BeautifulSoup
 import config
 from models.data_models import ConfluenceTask
 
+from utils.context_extractor import get_task_context 
+
 class SafeConfluenceApi:
     """A resilient, low-level service for all Confluence operations."""
     def __init__(self, confluence_client: Confluence):
@@ -209,19 +211,31 @@ class SafeConfluenceApi:
         due_date = due_date_tag['datetime'] if due_date_tag and 'datetime' in due_date_tag.attrs else config.DEFAULT_DUE_DATE
         
         page_version = page_details.get("version", {})
+        context = get_task_context(task_element) #  <-- ADD THIS LINE
         
+        # Create a modifiable copy of the task_body element
+        task_body_copy = BeautifulSoup(str(task_body), 'html.parser')
+
+        # Remove all nested <ac:task-list> elements and their content
+        for nested_task_list in task_body_copy.find_all("ac:task-list"):
+            nested_task_list.decompose()
+
+        # Get the cleaned text, stripping leading/trailing whitespace and extra internal spaces
+        task_summary = ' '.join(task_body_copy.get_text(separator=' ').split()).strip()
+
         return ConfluenceTask(
             confluence_page_id=page_details.get("id", "N/A"),
             confluence_page_title=page_details.get("title", "N/A"),
             confluence_page_url=page_details.get("_links", {}).get("webui", ""),
             confluence_task_id=task_id_tag.get_text(strip=True),
-            task_summary=' '.join(task_body.get_text(separator=' ').split()),
-            status=task_status_tag.get_text(strip=True), # Added status parsing
+            task_summary=task_summary,
+            status=task_status_tag.get_text(strip=True), 
             assignee_name=assignee_name,
             due_date=due_date,
             original_page_version=int(page_version.get("number", -1)),
             original_page_version_by=page_version.get("by", {}).get("displayName", "Unknown"),
-            original_page_version_when=page_version.get("when", "N/A")
+            original_page_version_when=page_version.get("when", "N/A"),
+            context=context
             )
             
     def update_page_with_jira_links(self, page_id: str, mappings: List[Dict]) -> None:

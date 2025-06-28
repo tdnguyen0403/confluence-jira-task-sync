@@ -29,17 +29,17 @@ class SafeJiraApi:
             logging.error(f"Fallback get_issue for '{issue_key}' failed. Error: {e}")
             return None
 
-    def create_issue(self, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def create_issue(self, issue_fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         try:
-            return self.client.issue_create(fields=fields)
+            return self.client.issue_create(fields=issue_fields["fields"])
         except Exception as e:
             logging.warning(f"Library create_issue failed. Falling back. Error: {e}")
-            return self._fallback_create_issue(fields)
+            return self._fallback_create_issue(issue_fields)
 
-    def _fallback_create_issue(self, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _fallback_create_issue(self, issue_fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         url = f"{self.base_url}/rest/api/2/issue"
         try:
-            response = requests.post(url, headers=self.headers, json=fields, verify=False, timeout=15)
+            response = requests.post(url, headers=self.headers, json=issue_fields, verify=False, timeout=15)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -75,8 +75,9 @@ class SafeJiraApi:
             return False
             
         try:
-            # First, try the official library
-            self.client.transition_issue(issue_key, transition_id)
+           # Corrected: Convert transition_id to an integer
+            self.client.issue_transition(issue_key, int(transition_id))
+            return True
             logging.info(f"Successfully transitioned '{issue_key}' to '{target_status}' via library call.")
             return True
         except Exception as e:
@@ -94,3 +95,16 @@ class SafeJiraApi:
         except requests.exceptions.RequestException as e:
             logging.error(f"Fallback transition for '{issue_key}' failed. Error: {e}")
             return False
+            
+    def get_myself(self) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves the details of the currently authenticated user.
+        """
+        url = f"{self.base_url}/rest/api/2/myself"
+        try:
+            response = requests.get(url, headers=self.headers, verify=False, timeout=15)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Failed to get current user details. Error: {e}")
+            return None

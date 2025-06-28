@@ -1,9 +1,12 @@
 import unittest
 from unittest.mock import Mock, patch, MagicMock
+from datetime import datetime
 import requests
 import logging
-# Add this to disable logging during tests
+
+# Disable logging during tests
 logging.disable(logging.CRITICAL)
+
 
 # Add the project root to the path for testing
 import sys
@@ -38,6 +41,35 @@ class TestSafeJiraApi(unittest.TestCase):
         self.mock_jira_client.get_issue.assert_called_once_with("TEST-1", fields="*all")
 
     @patch('api.safe_jira_api.requests.get')
+    def test_get_myself_success(self, mock_requests_get):
+        """
+        Test the successful retrieval of the current user's details via fallback.
+        """
+        mock_response = Mock()
+        expected_user_data = {"name": "test_user", "displayName": "Test User"}
+        mock_response.json.return_value = expected_user_data
+        mock_response.raise_for_status = Mock()
+        mock_requests_get.return_value = mock_response
+
+        user_data = self.safe_jira_api.get_myself()
+
+        self.assertEqual(user_data, expected_user_data)
+        expected_url = f"{self.safe_jira_api.base_url}/rest/api/2/myself"
+        mock_requests_get.assert_called_once_with(expected_url, headers=self.safe_jira_api.headers, verify=False, timeout=15)
+
+
+    @patch('api.safe_jira_api.requests.get')
+    def test_get_myself_failure(self, mock_requests_get):
+        """
+        Test the graceful failure of get_myself when the API call fails.
+        """
+        mock_requests_get.side_effect = requests.exceptions.RequestException("API Down")
+        
+        user_data = self.safe_jira_api.get_myself()
+
+        self.assertIsNone(user_data)
+
+    @patch('api.safe_jira_api.requests.get')
     def test_get_issue_fallback_success(self, mock_get):
         """Test get_issue fallback after library raises an exception."""
         self.mock_jira_client.get_issue.side_effect = Exception("API Error")
@@ -56,7 +88,7 @@ class TestSafeJiraApi(unittest.TestCase):
         self.mock_jira_client.issue_create.return_value = {"key": "NEW-1"}
         result = self.safe_jira_api.create_issue({"fields": {}})
         self.assertEqual(result["key"], "NEW-1")
-        self.mock_jira_client.issue_create.assert_called_once_with(fields={"fields": {}})
+        self.mock_jira_client.issue_create.assert_called_once_with(fields={})
 
     @patch('api.safe_jira_api.requests.post')
     def test_create_issue_fallback_success(self, mock_post):
@@ -77,7 +109,7 @@ class TestSafeJiraApi(unittest.TestCase):
         # Mock the dynamic transition lookup
         self.safe_jira_api.find_transition_id_by_name = Mock(return_value="31")
         result = self.safe_jira_api.transition_issue("TEST-1", "Done")
-        self.mock_jira_client.transition_issue.assert_called_once_with("TEST-1", "31")
+        self.mock_jira_client.issue_transition.assert_called_once_with("TEST-1", 31)
         self.assertTrue(result)
 
     @patch('api.safe_jira_api.requests.post')
@@ -207,13 +239,121 @@ class TestJiraService(unittest.TestCase):
 
     @patch('api.safe_jira_api.SafeJiraApi')
     def setUp(self, MockSafeJiraApi):
-        self.mock_safe_api = MockSafeJiraApi.return_value
+        self.mock_safe_api = Mock(spec=SafeJiraApi)
         self.jira_service = JiraService(self.mock_safe_api)
 
     def test_get_issue_delegates_to_safe_api(self):
         """Verify get_issue calls the underlying safe_api method."""
         self.jira_service.get_issue("TEST-123")
         self.mock_safe_api.get_issue.assert_called_once_with("TEST-123", "*all")
+    
+    def test_get_current_user_display_name_success_and_cache(self):
+        """Test that the user's display name is fetched and then cached."""
+        self.mock_safe_api.get_myself.return_value = {"displayName": "Test User"}
+
+        # First call should call the API
+        name1 = self.jira_service.get_current_user_display_name()
+        self.assertEqual(name1, "Test User")
+        self.mock_safe_api.get_myself.assert_called_once()
+
+        # Second call should use the cached value
+        name2 = self.jira_service.get_current_user_display_name()
+        self.assertEqual(name2, "Test User")
+        self.mock_safe_api.get_myself.assert_called_once() # Should still be 1
+
+    def test_get_current_user_display_name_failure(self):
+        """Test the fallback to 'Unknown User' when the API fails."""
+        self.mock_safe_api.get_myself.return_value = None
+        name = self.jira_service.get_current_user_display_name()
+        self.assertEqual(name, "Unknown User")
+
+    @patch('services.jira_service.datetime')
+    def test_prepare_jira_task_fields_with_all_info(self, mock_datetime):
+        """Test preparing fields with context and a logged-in user."""
+        mock_datetime.now.return_value = datetime(2025, 1, 1, 12, 0, 0)
+        self.jira_service.get_current_user_display_name = Mock(return_value="Test User")
+        mock_task = ConfluenceTask(
+            confluence_page_id="1", confluence_page_title="My Page",
+            confluence_page_url="http://page.url", confluence_task_id="t1",
+            task_summary="My Summary", status="incomplete", assignee_name="assignee",
+            due_date="2025-01-15", original_page_version=1,
+            original_page_version_by="author", original_page_version_when="now",
+            context="This is the context."
+        )
+        result = self.jira_service.prepare_jira_task_fields(mock_task, "WP-1")
+        expected_description = (
+            "Context from Confluence:\nThis is the context.\n\n"
+            "Created by Test User on 2025-01-01 12:00:00" # Modified to remove the Source line
+        )
+        self.assertEqual(result['fields']['description'], expected_description)
+        
+    def tearDown(self):
+        """Clean up logging handlers after each test."""
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            handler.close()
+            root_logger.removeHandler(handler)
+
+class TestConfluenceService(unittest.TestCase):
+    """
+    Tests the ConfluenceService to ensure it correctly delegates calls
+    to the underlying SafeConfluenceApi.
+    """
+    def setUp(self):
+        """Set up a mock SafeConfluenceApi and the service for each test."""
+        self.mock_safe_api = Mock(spec=SafeConfluenceApi)
+        self.confluence_service = ConfluenceService(self.mock_safe_api)
+
+    def test_get_page_id_from_url_delegates(self):
+        """Verify get_page_id_from_url calls the underlying api method."""
+        test_url = "http://confluence.example.com/pages/12345"
+        self.confluence_service.get_page_id_from_url(test_url)
+        self.mock_safe_api.get_page_id_from_url.assert_called_once_with(test_url)
+
+    def test_get_all_descendants_delegates(self):
+        """Verify get_all_descendants calls the underlying api method."""
+        page_id = "12345"
+        self.confluence_service.get_all_descendants(page_id)
+        self.mock_safe_api.get_all_descendants.assert_called_once_with(page_id)
+
+    def test_get_page_by_id_delegates(self):
+        """Verify get_page_by_id calls the underlying api method."""
+        page_id = "12345"
+        self.confluence_service.get_page_by_id(page_id, expand="version")
+        self.mock_safe_api.get_page_by_id.assert_called_once_with(page_id, expand="version")
+
+    def test_update_page_content_delegates(self):
+        """Verify update_page_content calls the underlying api method."""
+        page_id = "12345"
+        title = "New Title"
+        body = "<p>New Body</p>"
+        self.confluence_service.update_page_content(page_id, title, body)
+        self.mock_safe_api.update_page.assert_called_once_with(page_id, title, body)
+
+    def test_get_tasks_from_page_delegates(self):
+        """Verify get_tasks_from_page calls the underlying api method."""
+        page_details = {"id": "12345", "body": {"storage": {"value": ""}}}
+        self.confluence_service.get_tasks_from_page(page_details)
+        self.mock_safe_api.get_tasks_from_page.assert_called_once_with(page_details)
+
+    def test_update_page_with_jira_links_delegates(self):
+        """Verify update_page_with_jira_links calls the underlying api method."""
+        page_id = "12345"
+        mappings = [{"confluence_task_id": "t1", "jira_key": "PROJ-1"}]
+        self.confluence_service.update_page_with_jira_links(page_id, mappings)
+        self.mock_safe_api.update_page_with_jira_links.assert_called_once_with(page_id, mappings)
+
+    def test_create_page_delegates(self):
+        """Verify create_page calls the underlying api method."""
+        page_args = {"space": "TEST", "title": "My Page", "parent_id": "123"}
+        self.confluence_service.create_page(**page_args)
+        self.mock_safe_api.create_page.assert_called_once_with(**page_args)
+
+    def test_get_user_details_by_username_delegates(self):
+        """Verify get_user_details_by_username calls the underlying api method."""
+        username = "testuser"
+        self.confluence_service.get_user_details_by_username(username)
+        self.mock_safe_api.get_user_details_by_username.assert_called_once_with(username)
 
 class TestIssueFinderService(unittest.TestCase):
     """Tests the specialized IssueFinderService."""

@@ -109,7 +109,7 @@ class AutomationOrchestrator:
 
             closest_wp_key = closest_wp["key"]
             issue_fields = self.jira.prepare_jira_task_fields(task, closest_wp_key)
-            new_issue = self.jira.create_issue(issue_fields)
+            new_issue = self.jira.create_issue(task, closest_wp_key)
 
             if new_issue and new_issue.get("key"):
                 new_key = new_issue["key"]
