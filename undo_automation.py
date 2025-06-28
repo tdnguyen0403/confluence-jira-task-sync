@@ -1,5 +1,6 @@
 import logging
 import os
+import json
 import pandas as pd
 from typing import Optional, Set, Dict, Tuple
 from datetime import datetime
@@ -69,20 +70,24 @@ class UndoOrchestrator:
     def _load_results_file(self, file_override: Optional[str]) -> Optional[pd.DataFrame]:
         if file_override: path = file_override
         else:
-            path = self._find_latest_results_file("output")
+            # Use the config variable here
+            path = self._find_latest_results_file(config.OUTPUT_DIRECTORY)
             if path: logging.info(f"Found latest results file: '{os.path.basename(path)}'")
         if not path or not os.path.exists(path):
             logging.error(f"ERROR: Results file not found. Aborting.")
             return None
         logging.info(f"Using results file: '{path}'")
-        try: return pd.read_excel(path)
-        except Exception as e:
-            logging.error(f"ERROR: Failed to read Excel file '{path}'. Details: {e}")
+        try:
+            with open(path, 'r') as f:
+                data = json.load(f)
+            return pd.DataFrame(data) # Convert JSON data to DataFrame for processing
+        except (json.JSONDecodeError, FileNotFoundError) as e:
+            logging.error(f"ERROR: Failed to read or parse JSON file '{path}'. Details: {e}")
             return None
 
     def _find_latest_results_file(self, folder: str) -> Optional[str]:
         if not os.path.exists(folder): return None
-        files = [os.path.join(folder, f) for f in os.listdir(folder) if f.startswith("automation_results_") and f.endswith(".xlsx")]
+        files = [os.path.join(folder, f) for f in os.listdir(folder) if f.startswith("automation_results_") and f.endswith(".json")]
         return max(files, key=os.path.getmtime) if files else None
 
     def _parse_results_for_undo(self, df: pd.DataFrame) -> Tuple[Set[str], Dict[str, int]]:

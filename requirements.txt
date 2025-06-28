@@ -2,6 +2,6 @@ atlassian-python-api
 pandas
 requests
 beautifulsoup4
-openpyxl
 lxml
 pre-commit
+python-dotenv

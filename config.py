@@ -1,17 +1,26 @@
+import os
+import json
 import datetime
+from dotenv import load_dotenv
 
-# --- Jira & Confluence Server Configuration --- .evn
-JIRA_URL = "https://pfjira.pepperl-fuchs.com/"
-CONFLUENCE_URL = "https://pfteamspace.pepperl-fuchs.com/"
+# Load environment variables from .env file
+load_dotenv()
 
-# --- Authentication --- .evn
-# Personal Access Tokens (PATs)
-JIRA_API_TOKEN = "MTA1NDExOTk0ODcxOl2MOjItIzTXbsHItvwOGYLm0Oz8"
-CONFLUENCE_API_TOKEN = "OTE4NzEyNDI3MjM5OpT8xf0edPlNYOh8hsHYXPUg3ah8"
+# --- Directory Configuration ---
+INPUT_DIRECTORY = "input"
+OUTPUT_DIRECTORY = "output"
 
-# --- Confluence Jira Macro Settings --- .evn
-JIRA_MACRO_SERVER_NAME = "P+F Jira"
-JIRA_MACRO_SERVER_ID = "a9986ca6-387c-3b09-9a85-450e12a1cf94"
+# --- Jira & Confluence Server Configuration ---
+JIRA_URL = os.getenv("JIRA_URL")
+CONFLUENCE_URL = os.getenv("CONFLUENCE_URL")
+
+# --- Authentication ---
+JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN")
+CONFLUENCE_API_TOKEN = os.getenv("CONFLUENCE_API_TOKEN")
+
+# --- Confluence Jira Macro Settings ---
+JIRA_MACRO_SERVER_NAME = os.getenv("JIRA_MACRO_SERVER_NAME")
+JIRA_MACRO_SERVER_ID = os.getenv("JIRA_MACRO_SERVER_ID")
 
 # --- Master Data / Custom IDs --- config.py
 JIRA_PROJECT_KEY = "SFSEA"
@@ -19,21 +28,19 @@ WORK_PACKAGE_ISSUE_TYPE_ID = "10100"
 TASK_ISSUE_TYPE_ID = "10002"
 JIRA_PARENT_WP_CUSTOM_FIELD_ID = "customfield_10207"
 
-# --- Automation Settings ---  config.py
-# Set to False for testing (transitions new tasks to Backlog)
-# Set to True for production (new tasks remain in the default 'Waiting' status)
+# --- Automation Settings ---
 PRODUCTION_MODE = False
-
 JIRA_TARGET_STATUSES = {
-    "new_task_dev": "Backlog", # Status for new tasks in dev mode
+    "new_task_dev": "Backlog",
     "completed_task": "Done",
     "undo": "Backlog"
 }
 
-
-# --- HTML Parsing Settings --- config.py
+# --- HTML Parsing Settings ---
 AGGREGATION_CONFLUENCE_MACRO = [
-    "jira", "jiraissues", "excerpt","excerpt-include", "include", "widget", "html", "content-report-table", "pagetree", "recently-updated", "table-excerpt", "table-excerpt-include", "table-filter", "table-pivot", "table-transformer"
+    "jira", "jiraissues", "excerpt", "excerpt-include", "include", "widget", "html", 
+    "content-report-table", "pagetree", "recently-updated", "table-excerpt", 
+    "table-excerpt-include", "table-filter", "table-pivot", "table-transformer"
 ]
 
 #--- Test Data Generation Settings --- config.py
@@ -42,5 +49,12 @@ CONFLUENCE_SPACE_KEY = "EUDEMHTM0589"
 ASSIGNEE_USERNAME_FOR_GENERATED_TASKS = "tdnguyen"
 TEST_WORK_PACKAGE_KEYS_TO_DISTRIBUTE = ["SFSEA-777", "SFSEA-882", "SFSEA-883"]
 
-# --- User Inputs --- .json
-DEFAULT_DUE_DATE = (datetime.date.today() + datetime.timedelta(days=14)).strftime('%Y-%m-%d')
+# --- User Inputs (Loaded from JSON) ---
+try:
+    with open('user_input.json', 'r') as f:
+        user_input_config = json.load(f)
+    DEFAULT_DUE_DATE_DAYS = user_input_config.get("DEFAULT_DUE_DATE_DAYS", 14)
+except FileNotFoundError:
+    DEFAULT_DUE_DATE_DAYS = 14 # Fallback if file doesn't exist
+
+DEFAULT_DUE_DATE = (datetime.date.today() + datetime.timedelta(days=DEFAULT_DUE_DATE_DAYS)).strftime('%Y-%m-%d')

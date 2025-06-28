@@ -295,6 +295,13 @@ class TestIssueFinderService(unittest.TestCase):
         self.mock_confluence_api.get_page_by_id.return_value = None
         result = self.issue_finder.find_issue_on_page("123", config.WORK_PACKAGE_ISSUE_TYPE_ID)
         self.assertIsNone(result)
-
+   
+    def tearDown(self):
+        """Clean up logging handlers after each test."""
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            handler.close()
+            root_logger.removeHandler(handler)
+            
 if __name__ == '__main__':
     unittest.main()

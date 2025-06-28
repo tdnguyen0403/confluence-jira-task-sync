@@ -1,6 +1,6 @@
 import logging
 import os
-import pandas as pd
+import json
 from typing import List, Dict
 import warnings
 from datetime import datetime
@@ -29,18 +29,43 @@ class AutomationOrchestrator:
         self.issue_finder = issue_finder
         self.results: List[AutomationResult] = []
 
-    def run(self, input_file: str = "input.xlsx"):
+
+    def _find_latest_input_file(self, folder: str = config.INPUT_DIRECTORY) -> str | None:
+        """Finds the most recently modified file in the input folder."""
+        if not os.path.exists(folder):
+            logging.error(f"ERROR: Input directory '{folder}' not found. Aborting.")
+            return None
+        
+        files = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".json")]
+        if not files:
+            logging.error(f"ERROR: No JSON input files found in the '{folder}' directory. Aborting.")
+            return None
+            
+        return max(files, key=os.path.getmtime)
+
+    def run(self):
         setup_logging("logs", "automation_run")
         logging.info("--- Starting Jira/Confluence Automation Script ---")
 
+        input_file = self._find_latest_input_file()
+        if not input_file:
+            return # Abort if no file is found
+
+        logging.info(f"Processing input file: '{input_file}'")
+
         try:
-            input_df = pd.read_excel(input_file)
-        except FileNotFoundError:
-            logging.error(f"ERROR: Input file not found at '{input_file}'. Aborting.")
+            with open(input_file, 'r') as f:
+                user_input = json.load(f)
+            page_urls = user_input.get("ConfluencePageURLs", [])
+            if not page_urls:
+                logging.error(f"ERROR: No ConfluencePageURLs found in '{input_file}'. Aborting.")
+                return
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logging.error(f"ERROR: Failed to read or parse JSON file '{input_file}'. Details: {e}")
             return
 
-        for _, row in input_df.iterrows():
-            self.process_page_hierarchy(row["ConfluencePageURL"])
+        for url in page_urls:
+            self.process_page_hierarchy(url)
 
         self._save_results()
         logging.info("\n--- Script Finished ---")
@@ -116,11 +141,16 @@ class AutomationOrchestrator:
         if not self.results:
             logging.info("No actionable tasks were found. No results file generated.")
             return
-        os.makedirs("output", exist_ok=True)
+        # Use the config variable for the output directory
+        output_dir = config.OUTPUT_DIRECTORY
+        os.makedirs(output_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_path = os.path.join("output", f"automation_results_{timestamp}.xlsx")
-        results_df = pd.DataFrame([res.to_dict() for res in self.results])
-        results_df.to_excel(file_path, index=False)
+        file_path = os.path.join(output_dir, f"automation_results_{timestamp}.json")
+        # Convert results to a list of dictionaries
+        results_data = [res.to_dict() for res in self.results]   
+        # Write to a JSON file
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(results_data, f, ensure_ascii=False, indent=4)    
         logging.info(f"Results have been saved to '{file_path}'")
 
 if __name__ == "__main__":
