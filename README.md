@@ -1,50 +1,47 @@
-# Jira Confluence Automator
+Jira Confluence AutomatorOverviewJira Confluence Automator is a Python-based tool designed to create a seamless workflow between Confluence documentation and Jira task management. Its primary function is to scan Confluence pages for tasks, automatically create corresponding issues in Jira under the appropriate parent (such as a work package, risk, or deviation), and then link the newly created Jira issue back into the Confluence page, replacing the original task description. This ensures that tasks defined in documentation are properly tracked in Jira with full context.The tool also includes administrative functions for generating a hierarchical structure of Confluence pages from Jira issues, primarily intended for setup or dry runs.FeaturesConfluence Task Scanning: Scans specified Confluence pages to identify and extract task descriptions.Context-Aware Jira Issue Creation: Creates Jira issues from Confluence tasks, placing them under the correct parent issue (e.g., Work Package, Risk, Deviation) and embedding the Confluence context.Two-Way Linking: Replaces the original task text in Confluence with a link to the newly created Jira issue for seamless navigation and tracking.Hierarchical Page Generation (Admin Function): Includes a utility to generate a tree of Confluence pages from Jira issues, useful for initial setup or dry-run validation.Flexible Configuration: Uses a simple JSON file (input/user_input.json) to define the scope of the automation.Undo Functionality: Provides a script to safely undo created Confluence pages, useful for testing or correcting errors.Detailed Logging: Maintains comprehensive logs for each run, making it easy to troubleshoot issues.PrerequisitesPython 3.8+Access credentials for your Jira and Confluence instances.InstallationClone the repository:git clone <your-repository-url>
+cd jira-confluence-automator
+Create a virtual environment (recommended):python -m venv venv
+source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+Install the required dependencies:pip install -r requirements.txt
+Set up environment variables:Create a .env file in the project root directory and add your Jira and Confluence credentials. The application uses python-dotenv to load these variables automatically.JIRA_SERVER=[https://your-domain.atlassian.net](https://your-domain.atlassian.net)
+JIRA_USERNAME=your-email@example.com
+JIRA_API_TOKEN=your_jira_api_token
 
-The Jira Confluence Automator is a Python script designed to streamline task management by automatically converting incomplete Confluence tasks into Jira issues. This tool enhances efficiency by integrating Confluence-based task tracking with Jira's robust issue management capabilities.
-
-## ✨ Features
-
-* **Task Scanning**: Identifies incomplete tasks within specified Confluence pages and their child pages.
-* **Jira Issue Creation**: Automatically creates a Jira issue for each identified incomplete task.
-* **Bi-directional Linking**: Establishes a link from the newly created Jira issue back to its originating Confluence page.
-* **Confluence Integration**: Replaces the original Confluence task with a Jira issue macro, providing a direct link to the Jira issue within Confluence.
-* **Comprehensive Logging**: Generates detailed logs for all operations, facilitating easy tracking, debugging, and auditing.
-* **Undo Capability**: Includes a dedicated script to revert all changes made during the automation process.
-* **Secure Configuration**: Utilizes environment variables for sensitive credentials and a JSON file for general configuration.
-
-## 🚀 Setup
-
-To get started with the Jira Confluence Automator, follow these steps:
-
-1.  **Clone the Repository**:
-    ```bash
-    git clone <repository-url>
-    cd jira_confluence_automator
-    ```
-2.  **Install Dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-3.  **Configure Environment Variables**:
-    * Create a `.env` file in the project's root directory.
-    * Refer to `.env.example` for the required format and add your sensitive credentials.
-    * Generate the environment variable setup script:
-        ```bash
-        python generate_env.py
-        ```
-    * Execute the generated script in your terminal to set the variables:
-        ```bash
-        set_env.bat  # On Windows
-        # Or for Linux/macOS, use:
-        # source set_env.sh
-        ```
-4.  **Define User Inputs**:
-    * Open `user_input.json`.
-    * Add the URLs of the Confluence pages you wish to process to the `ConfluencePageURLs` list.
-
-## 💡 Usage
-
-Once configured, run the automation script:
-
-```bash
-python main.py
+CONFLUENCE_URL=[https://your-domain.atlassian.net/wiki](https://your-domain.atlassian.net/wiki)
+CONFLUENCE_USERNAME=your-email@example.com
+CONFLUENCE_API_TOKEN=your_confluence_api_token
+Security Note: It is highly recommended to use API tokens instead of passwords for better security.ConfigurationAll automation tasks are configured through the input/user_input.json file. This file defines which Jira issues to process and where to create the pages in Confluence.{
+  "jira_project_key": "ENG",
+  "jira_issue_types": ["Epic", "Story", "Task", "Sub-task"],
+  "confluence_space_key": "TECHDOCS",
+  "confluence_parent_page_id": "887654321"
+}
+jira_project_key: The key of the Jira project to source issues from. (e.g., "ENG" for Engineering)jira_issue_types: A list of issue types to include in the automation.confluence_space_key: The key of the Confluence space where pages will be created. (e.g., "TECHDOCS" for Technical Documentation)confluence_parent_page_id: The ID of the parent page in Confluence under which the new page tree will be created. You can find this ID in the URL of the Confluence page.UsageThe application provides three main entry points for different tasks.1. Preview the Page Structure (Dry Run)To see what the Confluence page hierarchy will look like without creating any pages, run the generate_confluence_tree.py script. This is a safe way to validate your configuration.python -m src.generate_confluence_tree
+This script will generate a JSON file in the output/ directory that visualizes the page tree.2. Run the Synchronization TaskTo execute the automation and create the Confluence pages, run the sync_task.py script.python -m src.sync_task
+This script reads the configuration, finds matching Jira issues, and creates the corresponding pages in Confluence. The results of the run, including the IDs of created pages, are saved to a JSON file in the output/ directory.3. Undo the SynchronizationIf you need to remove the pages created by a specific run, use the undo_sync_task.py script. You can provide the path to the results file generated by the sync_task. If no file path is provided, the script will use the most recent results file from the output/ directory.python -m src.undo_sync_task [path/to/your/automation_results.json]
+This script will read the specified results file and delete all the Confluence pages listed within it.Project Structure.
+├── input/
+│   └── user_input.json       # Configuration for automation tasks
+├── logs/
+│   └── automation_run_...log # Logs for the main sync task
+├── logs_generator/
+│   └── ...log                # Logs for the tree generation script
+├── logs_undo/
+│   └── ...log                # Logs for the undo script
+├── output/
+│   └── automation_results_...json # JSON output of created pages
+├── src/
+│   ├── api/                  # Low-level API wrappers for Jira/Confluence
+│   ├── config/               # Application configuration loading
+│   ├── interfaces/           # Abstract base classes and interfaces
+│   ├── models/               # Pydantic data models
+│   ├── services/             # High-level business logic
+│   ├── utils/                # Utility functions (logging, context)
+│   ├── generate_confluence_tree.py # Entry point for the dry run
+│   ├── sync_task.py          # Entry point for the main sync task
+│   └── undo_sync_task.py     # Entry point for the undo task
+├── tests/                    # Unit and integration tests
+├── .env                      # Environment variables (credentials)
+├── pyproject.toml            # Project metadata
+└── requirements.txt          # Python dependencies
+input/: Contains the user_input.json file to configure the automation.output/: Stores the results of each automation run in a timestamped JSON file. This file is crucial for the undo functionality.logs/: Contains detailed log files for each execution of the main synchronization task.src/: The main application source code.tests/: Contains all unit tests for the project.

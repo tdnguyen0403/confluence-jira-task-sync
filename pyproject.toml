@@ -1,0 +1,21 @@
+[project]
+name = "jira_confluence_automator"
+version = "0.1.0"
+description = "Automate syncing between Jira and Confluence"
+authors = [
+  { name="Your Name", email="you@example.com" }
+]
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+
+[tool.ruff]
+line-length = 88
+
+[tool.mypy]
+python_version = "3.10"
+strict = true

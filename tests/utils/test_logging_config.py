@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch, mock_open
 import os
 import logging
+
 # Add this to disable logging during tests
 logging.disable(logging.CRITICAL)
 
