@@ -71,7 +71,7 @@ class UndoSyncTaskOrchestrator:
             InvalidInputError: If required input data is missing or malformed.
             UndoError: For general errors during the undo process.
         """
-        setup_logging("logs_undo", "undo_run")
+        setup_logging("logs/logs_undo", "undo_sync_task_run")
         logging.info("\n--- Starting Undo Automation Script ---")
 
         if not results_json_data:

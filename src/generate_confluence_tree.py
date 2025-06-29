@@ -98,7 +98,7 @@ class TestDataGenerator:
             max_depth (int): The maximum depth of the page hierarchy to create.
             tasks_per_page (int): The number of tasks to create on each page.
         """
-        setup_logging("logs_generator", "confluence_generator_run")
+        setup_logging("logs/logs_generator", "generator_confluence_tree_run")
         logging.info(
             f"\n--- Initiating Test Tree Generation under Parent ID: {base_parent_id} ---"
         )

@@ -29,7 +29,7 @@ warnings.filterwarnings(
 )
 
 # Initialize application-wide logging
-setup_logging("api_logs", "api_run")
+setup_logging("logs/logs_api", "api_run")
 logger = logging.getLogger(__name__)
 
 # --- FastAPI App Initialization ---

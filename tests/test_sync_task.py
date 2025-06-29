@@ -6,7 +6,7 @@ import os
 import logging
 import pandas as pd
 
-# Removed: logging.disable(logging.CRITICAL)
+logging.disable(logging.CRITICAL)
 
 from src.sync_task import SyncTaskOrchestrator
 from src.interfaces.api_service_interface import ApiServiceInterface

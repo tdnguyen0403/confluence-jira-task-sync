@@ -80,7 +80,7 @@ class SyncTaskOrchestrator:
             InvalidInputError: If required input data is missing or malformed.
             SyncError: For general errors during the synchronization process.
         """
-        setup_logging("logs", "automation_run")
+        setup_logging("logs/logs_sync", "sync_task_run")
         logging.info("--- Starting Jira/Confluence Automation Script ---")
 
         if not json_input:

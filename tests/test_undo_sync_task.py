@@ -6,7 +6,7 @@ import os
 import logging
 import pandas as pd
 
-# Removed: logging.disable(logging.CRITICAL)
+logging.disable(logging.CRITICAL)
 
 from src.undo_sync_task import UndoSyncTaskOrchestrator
 from src.interfaces.api_service_interface import ApiServiceInterface
@@ -42,7 +42,7 @@ class TestUndoSyncTaskOrchestrator(unittest.TestCase):
         }
         self.undo_orchestrator.run(results_json_data=mock_data)
 
-        mock_setup_logging.assert_called_once_with("logs_undo", "undo_run") # Verify setup_logging was called
+        mock_setup_logging.assert_called_once_with("logs/logs_undo", "undo_sync_task_run") # Verify setup_logging was called
         self.assertEqual(self.mock_jira_service.transition_issue.call_count, 2)
         self.assertEqual(self.mock_confluence_service.update_page_content.call_count, 1)
         self.mock_confluence_service.update_page_content.assert_called_with('12345', 'Test Page', 'Old content')
@@ -57,7 +57,7 @@ class TestUndoSyncTaskOrchestrator(unittest.TestCase):
         # No actions should be taken if the results JSON is empty.
         self.mock_jira_service.transition_issue.assert_not_called()
         self.mock_confluence_service.update_page_content.assert_not_called()
-        mock_setup_logging.assert_called_once_with("logs_undo", "undo_run") # Verify setup_logging was called
+        mock_setup_logging.assert_called_once_with("logs/logs_undo", "undo_sync_task_run") # Verify setup_logging was called
 
 
     @patch('src.undo_sync_task.setup_logging') # Patch setup_logging
@@ -72,7 +72,7 @@ class TestUndoSyncTaskOrchestrator(unittest.TestCase):
 
         self.mock_jira_service.transition_issue.assert_not_called()
         self.mock_confluence_service.update_page_content.assert_not_called()
-        mock_setup_logging.assert_called_once_with("logs_undo", "undo_run") # Verify setup_logging was called
+        mock_setup_logging.assert_called_once_with("logs/logs_undo", "undo_sync_task_run") # Verify setup_logging was called
 
     def tearDown(self):
         """Clean up logging handlers after each test."""
