@@ -46,18 +46,20 @@ class JiraService(ApiServiceInterface):
         return self._api.get_issue(issue_key, fields)
 
     def create_issue(self, task: ConfluenceTask,
-                     parent_key: str) -> Optional[str]:
+                     parent_key: str,
+                     request_user: Optional[str] = "jira-user") -> Optional[str]:
         """
         Creates a new Jira issue from a Confluence task.
 
         Args:
             task (ConfluenceTask): The task data from Confluence.
             parent_key (str): The key of the parent issue (e.g., Work Package).
+            request_user (Optional[str]): The user who initiated the sync request
 
         Returns:
             Optional[str]: The key of the newly created issue, or None on failure.
         """
-        issue_fields = self.prepare_jira_task_fields(task, parent_key)
+        issue_fields = self.prepare_jira_task_fields(task, parent_key, request_user)
         new_issue = self._api.create_issue(issue_fields)
         return new_issue if new_issue else None
 
@@ -84,7 +86,8 @@ class JiraService(ApiServiceInterface):
         return self._current_user_name
 
     def prepare_jira_task_fields(self, task: ConfluenceTask,
-                                 parent_key: str) -> Dict[str, Any]:
+                                 parent_key: str,
+                                 request_user: str) -> Dict[str, Any]:
         """
         Prepares the field structure for creating a new Jira issue.
 
@@ -96,6 +99,7 @@ class JiraService(ApiServiceInterface):
         Args:
             task (ConfluenceTask): The source Confluence task.
             parent_key (str): The key of the parent Jira issue (e.g., 'WP-1').
+            request_user: The user who initiated the sync request.
 
         Returns:
             Dict[str, Any]: A dictionary of fields ready for the API.
@@ -145,7 +149,7 @@ class JiraService(ApiServiceInterface):
             description_parts.append(f"Context from Confluence:\n{task.context}")
 
         # Add metadata about the task creation for traceability.
-        description_parts.append(f"Created by {user_name} on {creation_time}")
+        description_parts.append(f"Created by {user_name} on {creation_time} requested by {request_user}")
 
         final_description = "\n\n".join(description_parts)
 

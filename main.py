@@ -1,12 +1,15 @@
 import logging
 import warnings
+import json # Import json module
+import os # Import os module
 from typing import List, Dict, Any, Optional
+from datetime import datetime
 
 import requests
-from fastapi import FastAPI, HTTPException, status, Depends, Security # Corrected: Security imported from fastapi
+from fastapi import FastAPI, HTTPException, status, Depends, Security
 from pydantic import BaseModel, Field
 from atlassian import Confluence, Jira
-from fastapi.security import APIKeyHeader # Corrected: APIKeyHeader imported from fastapi.security
+from fastapi.security import APIKeyHeader
 
 # Import existing components
 from src.api.safe_confluence_api import SafeConfluenceApi
@@ -136,6 +139,21 @@ async def sync_confluence_tasks(request: SyncRequest):
     logger.info(f"Received /sync request for user: {request.request_user} with {len(request.confluence_page_urls)} URLs.")
     
     sync_input = request.dict()
+
+    # --- New code to save the input request to a file ---
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        input_filename = f"sync_request_{timestamp}_{request.request_user}.json"
+        input_filepath = os.path.join(config.INPUT_DIRECTORY, input_filename)
+        os.makedirs(config.INPUT_DIRECTORY, exist_ok=True)
+        with open(input_filepath, "w", encoding="utf-8") as f:
+            json.dump(sync_input, f, ensure_ascii=False, indent=4)
+        logger.info(f"Input request saved to '{input_filepath}'")
+    except Exception as e:
+        logger.error(f"Failed to save input request to file: {e}", exc_info=True)
+        # Decide if you want to raise an HTTPException here or just log and continue.
+        # For now, it will just log the error and continue processing the sync request.
+    # --- End of new code ---
     
     try:
         sync_orchestrator.run(sync_input)

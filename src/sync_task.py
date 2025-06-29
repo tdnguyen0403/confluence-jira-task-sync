@@ -188,7 +188,7 @@ class SyncTaskOrchestrator:
 
             closest_wp_key = closest_wp["key"]
             
-            new_issue = self.jira.create_issue(task, closest_wp_key)
+            new_issue = self.jira.create_issue(task, closest_wp_key, self.request_user)
 
             if new_issue and new_issue.get("key"):
                 new_key = new_issue["key"]
@@ -256,7 +256,7 @@ class SyncTaskOrchestrator:
         output_dir = config.OUTPUT_DIRECTORY
         os.makedirs(output_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_path = os.path.join(output_dir, f"sync_{timestamp}_{request_user}.json")
+        file_path = os.path.join(output_dir, f"sync_result_{timestamp}_{request_user}.json")
 
         # Convert result objects to a list of dictionaries for JSON serialization.
         results_data = [res.to_dict() for res in self.results]
