@@ -40,6 +40,7 @@ CONFLUENCE_URL: Optional[str] = os.getenv("CONFLUENCE_URL")
 # --- Authentication ---
 JIRA_API_TOKEN: Optional[str] = os.getenv("JIRA_API_TOKEN")
 CONFLUENCE_API_TOKEN: Optional[str] = os.getenv("CONFLUENCE_API_TOKEN")
+API_SECRET_KEY: Optional[str] = os.getenv("API_SECRET_KEY")
 
 # --- Confluence Jira Macro Settings ---
 # These values are specific to your Confluence instance's Jira integration.

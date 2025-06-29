@@ -3,9 +3,10 @@ import warnings
 from typing import List, Dict, Any, Optional
 
 import requests
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Depends, Security # Corrected: Security imported from fastapi
 from pydantic import BaseModel, Field
 from atlassian import Confluence, Jira
+from fastapi.security import APIKeyHeader # Corrected: APIKeyHeader imported from fastapi.security
 
 # Import existing components
 from src.api.safe_confluence_api import SafeConfluenceApi
@@ -17,7 +18,7 @@ from src.services.jira_service import JiraService
 from src.sync_task import SyncTaskOrchestrator
 from src.undo_sync_task import UndoSyncTaskOrchestrator
 from src.utils.logging_config import setup_logging
-from src.exceptions import SyncError, MissingRequiredDataError, InvalidInputError, UndoError # Import custom exceptions
+from src.exceptions import SyncError, MissingRequiredDataError, InvalidInputError, UndoError
 
 # Suppress insecure request warnings, common in corporate/dev environments.
 warnings.filterwarnings(
@@ -35,8 +36,40 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# --- API Key Authentication Setup ---
+# Define the header name for the API key
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
+
+# Dependency function to validate the API key
+def get_api_key(api_key: str = Security(api_key_header)):
+    if not config.API_SECRET_KEY:
+        logger.error("API_SECRET_KEY environment variable is not set!")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Server API key not configured."
+        )
+    if api_key == config.API_SECRET_KEY:
+        return api_key
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid API Key",
+    )
+
 # --- Initialize Services (Global instances for simplicity) ---
 try:
+    if not config.JIRA_URL or not config.JIRA_API_TOKEN or \
+       not config.CONFLUENCE_URL or not config.CONFLUENCE_API_TOKEN:
+        missing_vars = []
+        if not config.JIRA_URL: missing_vars.append("JIRA_URL")
+        if not config.JIRA_API_TOKEN: missing_vars.append("JIRA_API_TOKEN")
+        if not config.CONFLUENCE_URL: missing_vars.append("CONFLUENCE_URL")
+        if not config.CONFLUENCE_API_TOKEN: missing_vars.append("CONFLUENCE_API_TOKEN")
+        raise ValueError(f"Missing one or more required environment variables for Jira/Confluence API: {', '.join(missing_vars)}")
+
+    if not config.API_SECRET_KEY:
+        raise ValueError("API_SECRET_KEY environment variable is not set. API authentication will not work.")
+
+
     jira_client = Jira(
         url=config.JIRA_URL,
         token=config.JIRA_API_TOKEN,
@@ -64,14 +97,12 @@ try:
 
 except Exception as e:
     logger.error(f"Failed to initialize API services: {e}", exc_info=True)
-    raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail=f"Failed to initialize API services: {e}"
-    )
+    raise RuntimeError(f"Application failed to initialize due to configuration errors: {e}")
+
 
 # --- Pydantic Models for Request Bodies ---
 class SyncRequest(BaseModel):
-    confluence_page_urls: List[str] = Field(..., example=["https://your.confluence.com/display/SPACE/PageName"]) # Renamed
+    confluence_page_urls: List[str] = Field(..., example=["https://your.confluence.com/display/SPACE/PageName"])
     request_user: str = Field(..., example="your.username")
 
 class UndoRequestItem(BaseModel):
@@ -95,19 +126,20 @@ class UndoRequestItem(BaseModel):
 
 
 # --- API Endpoints ---
-@app.post("/sync", summary="Synchronize Confluence tasks to Jira", response_model=Dict[str, Any])
+@app.post("/sync", summary="Synchronize Confluence tasks to Jira", response_model=Dict[str, Any], dependencies=[Depends(get_api_key)])
 async def sync_confluence_tasks(request: SyncRequest):
     """
     Initiates the synchronization process to extract incomplete tasks from
     specified Confluence pages (and their descendants) and create corresponding
     Jira tasks.
     """
-    logger.info(f"Received /sync request for user: {request.request_user} with {len(request.confluence_page_urls)} URLs.") # Updated field access
+    logger.info(f"Received /sync request for user: {request.request_user} with {len(request.confluence_page_urls)} URLs.")
     
-    sync_input = request.dict() # This will now contain 'confluence_page_urls'
+    sync_input = request.dict()
     
     try:
         sync_orchestrator.run(sync_input)
+        
         response_results = [res.to_dict() for res in sync_orchestrator.results]
         
         if not response_results:
@@ -142,7 +174,7 @@ async def sync_confluence_tasks(request: SyncRequest):
             detail=f"An unexpected server error occurred: {e}"
         )
 
-@app.post("/undo", summary="Undo a previous synchronization run", response_model=Dict[str, str])
+@app.post("/undo", summary="Undo a previous synchronization run", response_model=Dict[str, str], dependencies=[Depends(get_api_key)])
 async def undo_sync_run(results_data: List[UndoRequestItem]):
     """
     Reverts actions from a previous synchronization run by transitioning
