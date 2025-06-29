@@ -93,20 +93,19 @@ The tool is designed with a clear separation of concerns, making it easy to unde
 The `input/user_input.json` file is used to configure the automation. The following parameters can be set:
 
 -   **`confluence_page_id`**: The ID of the Confluence page to scan for tasks.
--   **`jira_project_key`**: The key of the Jira project where the new issues will be created.
--   **`parent_issue_key`**: The key of the parent issue under which the new issues will be created.
+-   **`DEFAULT_DUE_DATE_DAYS`**: The default number of days to be added to today if the tasks does not have a due date defined.
 
 ### Running the Tool
 
 -   **To sync tasks**:
     ```bash
-    python src/sync_task.py
+    python src.sync_task
     ```
--   **To generate a Confluence page tree from Jira issues**:
+-   **To generate a Confluence page tree from Jira issues only for Dry Run**:
     ```bash
-    python src/generate_confluence_tree.py
+    python src.generate_confluence_tree
     ```
 -   **To undo the last sync**:
     ```bash
-    python src/undo_sync_task.py
+    python src.undo_sync_task
     ```
