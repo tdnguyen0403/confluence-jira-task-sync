@@ -3,7 +3,7 @@ name = "jira_confluence_automator"
 version = "0.1.0"
 description = "Automate syncing between Jira and Confluence"
 authors = [
-  { name="Your Name", email="you@example.com" }
+  { name="Nguyen Tuan Dat", email="tdnguyen@" }
 ]
 
 [build-system]
