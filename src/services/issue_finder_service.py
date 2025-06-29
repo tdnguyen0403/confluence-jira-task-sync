@@ -3,9 +3,9 @@ from typing import Optional, Dict, Any
 
 from bs4 import BeautifulSoup
 
-from api.safe_confluence_api import SafeConfluenceApi
-from api.safe_jira_api import SafeJiraApi
-import config
+from src.api.safe_confluence_api import SafeConfluenceApi
+from src.api.safe_jira_api import SafeJiraApi
+from src.config import config
 
 class IssueFinderService:
     """A dedicated service for finding specific Jira issues on Confluence pages."""

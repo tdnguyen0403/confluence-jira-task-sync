@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, List
 
-from models.data_models import ConfluenceTask
+from src.models.data_models import ConfluenceTask
 
 class ApiServiceInterface(ABC):
     """

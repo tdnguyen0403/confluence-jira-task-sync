@@ -7,10 +7,9 @@ import requests
 from atlassian import Confluence
 from bs4 import BeautifulSoup
 
-import config
-from models.data_models import ConfluenceTask
-
-from utils.context_extractor import get_task_context 
+from src.config import config
+from src.models.data_models import ConfluenceTask
+from src.utils.context_extractor import get_task_context 
 
 class SafeConfluenceApi:
     """A resilient, low-level service for all Confluence operations."""

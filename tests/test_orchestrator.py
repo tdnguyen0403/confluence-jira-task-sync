@@ -9,17 +9,17 @@ import pandas as pd
 # Disable logging for cleaner test output
 logging.disable(logging.CRITICAL)
 
-from main import AutomationOrchestrator
-from undo_automation import UndoOrchestrator
-from interfaces.api_service_interface import ApiServiceInterface
-from services.issue_finder_service import IssueFinderService
-from models.data_models import ConfluenceTask
-import config
+from src.sync_task import AutomationOrchestrator
+from src.undo_sync_task import UndoOrchestrator
+from src.interfaces.api_service_interface import ApiServiceInterface
+from src.services.issue_finder_service import IssueFinderService
+from src.models.data_models import ConfluenceTask
+from src.config import config
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 class TestAutomationOrchestrator(unittest.TestCase):
-    """Tests the main high-level automation workflow."""
+    """Tests the sync_task high-level automation workflow."""
 
     def setUp(self):
         self.mock_confluence_service = Mock(spec=ApiServiceInterface)
@@ -32,9 +32,9 @@ class TestAutomationOrchestrator(unittest.TestCase):
             self.mock_issue_finder
         )
 
-    @patch('main.open', new_callable=unittest.mock.mock_open, read_data='{}')
-    @patch('main.json.load')
-    @patch('main.AutomationOrchestrator._save_results')
+    @patch('src.sync_task.open', new_callable=unittest.mock.mock_open, read_data='{}')
+    @patch('src.sync_task.json.load')
+    @patch('src.sync_task.AutomationOrchestrator._save_results')
     def test_run_with_incomplete_task_in_dev_mode(self, mock_save, mock_json_load, mock_open):
         """Verify an incomplete task is created and transitioned to Backlog in dev mode."""
         config.PRODUCTION_MODE = False
@@ -66,9 +66,9 @@ class TestAutomationOrchestrator(unittest.TestCase):
 
         self.mock_jira_service.transition_issue.assert_called_once_with("JIRA-1", config.JIRA_TARGET_STATUSES['new_task_dev'])
 
-    @patch('main.open', new_callable=unittest.mock.mock_open, read_data='{}')
-    @patch('main.json.load')
-    @patch('main.AutomationOrchestrator._save_results')
+    @patch('src.sync_task.open', new_callable=unittest.mock.mock_open, read_data='{}')
+    @patch('src.sync_task.json.load')
+    @patch('src.sync_task.AutomationOrchestrator._save_results')
     def test_run_with_incomplete_task_in_prod_mode(self, mock_save, mock_json_load, mock_open):
         """Verify an incomplete task is created and NOT transitioned in production mode."""
         config.PRODUCTION_MODE = True
@@ -121,15 +121,15 @@ class TestInputFileHandling(unittest.TestCase):
             self.mock_issue_finder
         )
 
-    @patch('main.open')
+    @patch('src.sync_task.open')
     def test_run_input_file_not_found(self, mock_open):
         """Verify the script handles a missing user_input.json file gracefully."""
         mock_open.side_effect = FileNotFoundError
         self.orchestrator.run()
         self.mock_confluence_service.get_page_id_from_url.assert_not_called()
 
-    @patch('main.open', new_callable=unittest.mock.mock_open, read_data='{"bad json"}')
-    @patch('main.json.load')
+    @patch('src.sync_task.open', new_callable=unittest.mock.mock_open, read_data='{"bad json"}')
+    @patch('src.sync_task.json.load')
     def test_run_bad_json_format(self, mock_json_load, mock_open):
         """Verify the script handles a malformed JSON file."""
         mock_json_load.side_effect = json.JSONDecodeError("Expecting value", "doc", 0)
@@ -155,10 +155,10 @@ class TestUndoOrchestrator(unittest.TestCase):
             self.mock_jira_service
         )
 
-    @patch('undo_automation.os.path.exists', return_value=True)
-    @patch('undo_automation.UndoOrchestrator._find_latest_results_file', return_value="dummy_path.json")
-    @patch('undo_automation.open')
-    @patch('undo_automation.json.load')
+    @patch('src.undo_sync_task.os.path.exists', return_value=True)
+    @patch('src.undo_sync_task.UndoOrchestrator._find_latest_results_file', return_value="dummy_path.json")
+    @patch('src.undo_sync_task.open')
+    @patch('src.undo_sync_task.json.load')
     def test_undo_run(self, mock_json_load, mock_open, mock_find_file, mock_exists):
         """Verify the full undo workflow."""
         mock_data = [
@@ -177,7 +177,7 @@ class TestUndoOrchestrator(unittest.TestCase):
         self.assertEqual(self.mock_confluence_service.update_page_content.call_count, 1)
         self.mock_confluence_service.update_page_content.assert_called_with('12345', 'Test Page', 'Old content')
     
-    @patch('undo_automation.UndoOrchestrator._find_latest_results_file', return_value=None)
+    @patch('src.undo_sync_task.UndoOrchestrator._find_latest_results_file', return_value=None)
     def test_undo_run_no_results_file(self, mock_find_file):
         """Verify the undo script handles a missing results file."""
         self.undo_orchestrator.run()
@@ -192,5 +192,5 @@ class TestUndoOrchestrator(unittest.TestCase):
             handler.close()
             root_logger.removeHandler(handler)
 
-if __name__ == '__main__':
-    unittest.main()
+if __name__ == '__sync_task__':
+    unittest.sync_task()

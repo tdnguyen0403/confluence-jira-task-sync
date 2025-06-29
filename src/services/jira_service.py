@@ -2,10 +2,10 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 from atlassian import Jira
-import config
-from interfaces.api_service_interface import ApiServiceInterface
-from models.data_models import ConfluenceTask
-from api.safe_jira_api import SafeJiraApi
+from src.config import config
+from src.interfaces.api_service_interface import ApiServiceInterface
+from src.models.data_models import ConfluenceTask
+from src.api.safe_jira_api import SafeJiraApi
 
 class JiraService(ApiServiceInterface):
     """Thin service layer for Jira, implementing the unified API interface."""

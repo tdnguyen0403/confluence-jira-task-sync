@@ -7,10 +7,9 @@ import logging
 # Disable logging for cleaner test output
 logging.disable(logging.CRITICAL)
 
-from generate_confluence_tree import TestDataGenerator
-from interfaces.api_service_interface import ApiServiceInterface
-import config
-
+from src.generate_confluence_tree import TestDataGenerator
+from src.interfaces.api_service_interface import ApiServiceInterface
+from src.config import config
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 class TestTestDataGenerator(unittest.TestCase):
@@ -27,7 +26,7 @@ class TestTestDataGenerator(unittest.TestCase):
             handler.close()
             root_logger.removeHandler(handler)
 
-    @patch('generate_confluence_tree.setup_logging')
+    @patch('src.generate_confluence_tree.setup_logging')
     def test_run_successful_generation(self, mock_setup_logging):
         """Verify the full workflow for generating a test data tree."""
         self.mock_confluence_service.get_user_details_by_username.return_value = {"userKey": "test-user-key"}
@@ -47,7 +46,7 @@ class TestTestDataGenerator(unittest.TestCase):
         self.assertEqual(len(self.generator.all_created_pages), 2)
         self.assertEqual(self.generator.task_counter, 10)
 
-    @patch('generate_confluence_tree.setup_logging')
+    @patch('src.generate_confluence_tree.setup_logging')
     def test_run_no_wp_keys(self, mock_setup_logging):
         """Verify that the generator handles cases where no work package keys are provided."""
         

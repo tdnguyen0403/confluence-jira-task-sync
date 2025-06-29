@@ -14,13 +14,13 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from atlassian import Jira, Confluence
-from api.safe_jira_api import SafeJiraApi
-from api.safe_confluence_api import SafeConfluenceApi
-from services.jira_service import JiraService
-from services.confluence_service import ConfluenceService
-from services.issue_finder_service import IssueFinderService
-from models.data_models import ConfluenceTask
-import config
+from src.api.safe_jira_api import SafeJiraApi
+from src.api.safe_confluence_api import SafeConfluenceApi
+from src.services.jira_service import JiraService
+from src.services.confluence_service import ConfluenceService
+from src.services.issue_finder_service import IssueFinderService
+from src.models.data_models import ConfluenceTask
+from src.config import config
 
 # --- API Layer Tests ---
 
@@ -40,7 +40,7 @@ class TestSafeJiraApi(unittest.TestCase):
         self.assertEqual(result["key"], "TEST-1")
         self.mock_jira_client.get_issue.assert_called_once_with("TEST-1", fields="*all")
 
-    @patch('api.safe_jira_api.requests.get')
+    @patch('src.api.safe_jira_api.requests.get')
     def test_get_myself_success(self, mock_requests_get):
         """
         Test the successful retrieval of the current user's details via fallback.
@@ -58,7 +58,7 @@ class TestSafeJiraApi(unittest.TestCase):
         mock_requests_get.assert_called_once_with(expected_url, headers=self.safe_jira_api.headers, verify=False, timeout=15)
 
 
-    @patch('api.safe_jira_api.requests.get')
+    @patch('src.api.safe_jira_api.requests.get')
     def test_get_myself_failure(self, mock_requests_get):
         """
         Test the graceful failure of get_myself when the API call fails.
@@ -69,7 +69,7 @@ class TestSafeJiraApi(unittest.TestCase):
 
         self.assertIsNone(user_data)
 
-    @patch('api.safe_jira_api.requests.get')
+    @patch('src.api.safe_jira_api.requests.get')
     def test_get_issue_fallback_success(self, mock_get):
         """Test get_issue fallback after library raises an exception."""
         self.mock_jira_client.get_issue.side_effect = Exception("API Error")
@@ -90,7 +90,7 @@ class TestSafeJiraApi(unittest.TestCase):
         self.assertEqual(result["key"], "NEW-1")
         self.mock_jira_client.issue_create.assert_called_once_with(fields={})
 
-    @patch('api.safe_jira_api.requests.post')
+    @patch('src.api.safe_jira_api.requests.post')
     def test_create_issue_fallback_success(self, mock_post):
         """Test create_issue fallback after library raises an exception."""
         self.mock_jira_client.issue_create.side_effect = Exception("API Error")
@@ -112,7 +112,7 @@ class TestSafeJiraApi(unittest.TestCase):
         self.mock_jira_client.issue_transition.assert_called_once_with("TEST-1", "Done")
         self.assertTrue(result)
 
-    @patch('api.safe_jira_api.requests.post')
+    @patch('src.api.safe_jira_api.requests.post')
     def test_transition_issue_fallback_success(self, mock_post):
         """Test transition_issue fallback after library raises an exception."""
         self.mock_jira_client.transition_issue.side_effect = Exception("API Error")
@@ -125,7 +125,7 @@ class TestSafeJiraApi(unittest.TestCase):
         result = self.safe_jira_api.transition_issue("TEST-1", "Done")
         self.assertTrue(result)
 
-    @patch('api.safe_jira_api.requests.get')
+    @patch('src.api.safe_jira_api.requests.get')
     def test_get_issue_fallback_failure(self, mock_get):
         """Test get_issue when both primary and fallback attempts fail."""
         self.mock_jira_client.get_issue.side_effect = Exception("API Error")
@@ -211,7 +211,7 @@ class TestSafeConfluenceApi(unittest.TestCase):
         self.assertEqual(tasks[2].task_summary, "Task 3 with and")
         self.assertEqual(tasks[2].status, "incomplete")
 
-    @patch('api.safe_confluence_api.requests.get')
+    @patch('src.api.safe_confluence_api.requests.get')
     def test_get_page_by_id_fallback_failure(self, mock_get):
         """Test get_page_by_id when both primary and fallback attempts fail."""
         self.mock_confluence_client.get_page_by_id.side_effect = Exception("API Error")
@@ -237,7 +237,7 @@ class TestSafeConfluenceApi(unittest.TestCase):
 class TestJiraService(unittest.TestCase):
     """Tests the high-level JiraService pass-through."""
 
-    @patch('api.safe_jira_api.SafeJiraApi')
+    @patch('src.api.safe_jira_api.SafeJiraApi')
     def setUp(self, MockSafeJiraApi):
         self.mock_safe_api = Mock(spec=SafeJiraApi)
         self.jira_service = JiraService(self.mock_safe_api)
@@ -267,7 +267,7 @@ class TestJiraService(unittest.TestCase):
         name = self.jira_service.get_current_user_display_name()
         self.assertEqual(name, "Unknown User")
 
-    @patch('services.jira_service.datetime')
+    @patch('src.services.jira_service.datetime')
     def test_prepare_jira_task_fields_with_all_info(self, mock_datetime):
         """Test preparing fields with context and a logged-in user."""
         mock_datetime.now.return_value = datetime(2025, 1, 1, 12, 0, 0)

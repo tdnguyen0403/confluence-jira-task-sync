@@ -9,13 +9,13 @@ import warnings
 from atlassian import Confluence, Jira
 import requests
 
-import config
-from interfaces.api_service_interface import ApiServiceInterface
-from services.confluence_service import ConfluenceService
-from services.jira_service import JiraService
-from api.safe_jira_api import SafeJiraApi
-from api.safe_confluence_api import SafeConfluenceApi
-from utils.logging_config import setup_logging
+from src.config import config
+from src.interfaces.api_service_interface import ApiServiceInterface
+from src.services.confluence_service import ConfluenceService
+from src.services.jira_service import JiraService
+from src.api.safe_jira_api import SafeJiraApi
+from src.api.safe_confluence_api import SafeConfluenceApi
+from src.utils.logging_config import setup_logging
 
 warnings.filterwarnings("ignore", category=requests.packages.urllib3.exceptions.InsecureRequestWarning)
 

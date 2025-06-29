@@ -3,7 +3,7 @@ import requests
 from typing import Optional, Dict, Any, List
 
 from atlassian import Jira
-import config
+from src.config import config
 
 class SafeJiraApi:
     """A resilient, low-level service for all Jira operations."""

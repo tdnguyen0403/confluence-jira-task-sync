@@ -1,9 +1,9 @@
 from typing import Optional, Dict, Any, List
 
 from atlassian import Confluence
-from interfaces.api_service_interface import ApiServiceInterface
-from models.data_models import ConfluenceTask
-from api.safe_confluence_api import SafeConfluenceApi
+from src.interfaces.api_service_interface import ApiServiceInterface
+from src.models.data_models import ConfluenceTask
+from src.api.safe_confluence_api import SafeConfluenceApi
 
 class ConfluenceService(ApiServiceInterface):
     """Thin service layer for Confluence, implementing the unified API interface."""

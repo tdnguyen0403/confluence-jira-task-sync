@@ -1,6 +1,6 @@
 import json
 from bs4 import BeautifulSoup
-from utils.context_extractor import get_task_context
+from src.utils.context_extractor import get_task_context
 
 # --- Test Data ---
 CONFLUENCE_PAGE_JSON = """
