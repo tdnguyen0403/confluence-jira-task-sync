@@ -5,3 +5,5 @@ beautifulsoup4
 lxml
 pre-commit
 python-dotenv
+fastapi
+uvicorn
