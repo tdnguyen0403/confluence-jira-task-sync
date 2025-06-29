@@ -38,6 +38,7 @@ warnings.filterwarnings(
     "ignore", category=requests.packages.urllib3.exceptions.InsecureRequestWarning
 )
 
+logger = logging.getLogger(__name__)
 
 class SyncTaskOrchestrator:
     """
@@ -182,7 +183,13 @@ class SyncTaskOrchestrator:
                 f"\nProcessing task: '{task.task_summary}' from page ID: "
                 f"{task.confluence_page_id}"
             )
-
+            
+            if not task.task_summary or not task.task_summary.strip():
+                logger.warning(
+                    "Skipping empty task on page ID: %s.", task.confluence_page_id
+                )
+                continue  # Skip to the next task.
+                
             # Find the parent Work Package on the same page as the task.
             closest_wp = self.issue_finder.find_issue_on_page(
                 task.confluence_page_id, config.PARENT_ISSUES_TYPE_ID
@@ -195,6 +202,7 @@ class SyncTaskOrchestrator:
                 continue
 
             closest_wp_key = closest_wp["key"]
+            
             new_issue = self.jira.create_issue(task, closest_wp_key)
 
             if new_issue and new_issue.get("key"):

@@ -108,7 +108,40 @@ class JiraService(ApiServiceInterface):
         project_key = parent_key.split("-")[0]
 
         description_parts = []
-        if task.context:
+
+        if task.context and task.context.startswith("JIRA_KEY_CONTEXT::"):
+            context_key = task.context.split("::")[1]
+            
+            # Fetch the parent issue, requesting both description and summary.
+            context_issue = self._api.get_issue(context_key, fields="description,summary")
+            
+            context_found = False
+            if context_issue:
+                fields = context_issue.get("fields", {})
+                description = fields.get("description")
+                summary = fields.get("summary")
+
+                # Priority 1: Use the full description if it exists.
+                if description and description.strip():
+                    description_parts.append(
+                        f"Context from parent issue {context_key}:\n----\n{description}\n----"
+                    )
+                    context_found = True
+                # Fallback: Use the summary if the description is missing.
+                elif summary:
+                    description_parts.append(
+                        f"Context from parent issue {context_key}: {summary}"
+                    )
+                    context_found = True
+            
+            # Final Fallback: If the issue or context could not be found.
+            if not context_found:
+                description_parts.append(
+                    f"Context from parent issue: {context_key} (Could not retrieve details)."
+                )
+        
+        elif task.context:
+            # Original logic for plain text context from Confluence.
             description_parts.append(f"Context from Confluence:\n{task.context}")
 
         # Add metadata about the task creation for traceability.

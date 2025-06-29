@@ -30,18 +30,55 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
             self.mock_jira_service,
             self.mock_issue_finder
         )
+        
+    @patch('src.sync_task.open', new_callable=unittest.mock.mock_open, read_data='{}')
+    @patch('src.sync_task.json.load')
+    @patch('src.sync_task.SyncTaskOrchestrator._save_results')
+    def test_run_skips_empty_task(self, mock_save, mock_json_load, mock_open):
+        """
+        Verify that a task with an empty summary is skipped.
+        """
+        # 1. Arrange
+        # Mock the input file to provide a URL for the orchestrator to run.
+        mock_json_load.return_value = {"ConfluencePageURLs": ["http://test.url/12345"]}
+        
+        # Create a task with an empty summary.
+        empty_task = ConfluenceTask(
+            confluence_page_id='12345',
+            task_summary='',  # This is the important part
+            confluence_task_id='empty_task_id',
+            status='incomplete',
+            assignee_name=None,
+            due_date=None,
+            original_page_version=1,
+            confluence_page_title='Test Page',
+            confluence_page_url='/test-page',
+            original_page_version_by='test_user',
+            original_page_version_when='now'
+        )
 
+        # Set up the mock service calls that happen before task processing.
+        self.mock_confluence_service.get_page_id_from_url.return_value = "12345"
+        self.mock_confluence_service.get_all_descendants.return_value = []
+        self.mock_confluence_service.get_tasks_from_page.return_value = [empty_task]
+
+        # 2. Act
+        # Run the main orchestration logic.
+        self.orchestrator.run()
+
+        # 3. Assert
+        # The main check: Ensure that no attempt was ever made to create a Jira issue.
+        self.mock_jira_service.create_issue.assert_not_called()
+        
     @patch('src.sync_task.open', new_callable=unittest.mock.mock_open, read_data='{}')
     @patch('src.sync_task.json.load')
     @patch('src.sync_task.SyncTaskOrchestrator._save_results')
     def test_run_with_incomplete_task_in_dev_mode(self, mock_save, mock_json_load, mock_open):
         """Verify an incomplete task is created and transitioned to Backlog in dev mode."""
         config.PRODUCTION_MODE = False
-        mock_json_load.return_value = {"ConfluencePageURLs": ["http://test.url/123"]}
-        
+        mock_json_load.return_value = {"ConfluencePageURLs": ["http://test.url/123"]}        
         self.mock_confluence_service.get_page_id_from_url.return_value = "123"
-        self.mock_confluence_service.get_all_descendants.return_value = []
-        
+        self.mock_confluence_service.get_all_descendants.return_value = []        
         task1 = ConfluenceTask(
             confluence_page_id='123',
             task_summary='Task 1',
@@ -55,14 +92,11 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
             original_page_version_by='user',
             original_page_version_when='now'
         )
-        
         self.mock_confluence_service.get_tasks_from_page.return_value = [task1]
         self.mock_issue_finder.find_issue_on_page.return_value = {"key": "WP-1"}
         self.mock_jira_service.create_issue.return_value = {"key": "JIRA-1"}
         self.mock_jira_service.prepare_jira_task_fields.return_value = {}
-
         self.orchestrator.run()
-
         self.mock_jira_service.transition_issue.assert_called_once_with("JIRA-1", config.JIRA_TARGET_STATUSES['new_task_dev'])
 
     @patch('src.sync_task.open', new_callable=unittest.mock.mock_open, read_data='{}')
