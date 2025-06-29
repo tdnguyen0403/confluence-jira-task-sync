@@ -1,7 +1,6 @@
 {
-  "DEFAULT_DUE_DATE_DAYS": 14,
-  "ConfluencePageURLs": [
-	"https://pfteamspace.pepperl-fuchs.com/x/W-T3GQ",
-	"https://pfteamspace.pepperl-fuchs.com/x/NgVPGg"
-  ]
+  "confluence_page_urls": [
+	"https://pfteamspace.pepperl-fuchs.com/x/W-T3GQ"
+  ],
+   "request_user": "tdnguyen"
 }

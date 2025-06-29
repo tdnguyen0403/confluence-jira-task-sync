@@ -2,22 +2,21 @@
 Orchestrates the process of undoing a synchronization run.
 
 This module provides the `UndoSyncTaskOrchestrator`, which is responsible for
-reversing the actions of a previous automation run. It reads a results file
+reversing the actions of a previous automation run. It reads a results object
 (in JSON format, processed via pandas for robustness) and performs two main
 actions:
 1. Transitions any created Jira tasks back to a 'Backlog' status.
 2. Reverts the modified Confluence pages to their state before the script ran,
-   using the version number captured in the results file.
+   using the version number captured in the results data.
 
-This script can be run with a specific results file path or, if none is
-provided, it will automatically find and use the most recent results file.
+This script expects a JSON object containing the results data.
 """
 
 import json
 import logging
 import os
 import warnings
-from typing import Dict, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import pandas as pd
 import requests
@@ -30,11 +29,15 @@ from src.interfaces.api_service_interface import ApiServiceInterface
 from src.services.confluence_service import ConfluenceService
 from src.services.jira_service import JiraService
 from src.utils.logging_config import setup_logging
+from src.exceptions import UndoError, InvalidInputError, MissingRequiredDataError # Import custom exceptions
 
 # Suppress insecure request warnings for local/dev environments.
 warnings.filterwarnings(
     "ignore", category=requests.packages.urllib3.exceptions.InsecureRequestWarning
 )
+
+# Initialize logger for this module
+logger = logging.getLogger(__name__)
 
 
 class UndoSyncTaskOrchestrator:
@@ -57,23 +60,30 @@ class UndoSyncTaskOrchestrator:
         self.confluence = confluence_service
         self.jira = jira_service
 
-    def run(self, results_file_override: Optional[str] = None) -> None:
+    def run(self, results_json_data: List[Dict[str, Any]]) -> None:
         """
         Main entry point for the undo workflow.
 
         Args:
-            results_file_override (Optional[str]): A specific path to a results
-                file. If None, the latest results file will be used.
+            results_json_data (List[Dict[str, Any]]): A JSON object (list of dicts)
+                containing the results data directly. This is a mandatory input.
+        Raises:
+            InvalidInputError: If required input data is missing or malformed.
+            UndoError: For general errors during the undo process.
         """
         setup_logging("logs_undo", "undo_run")
         logging.info("\n--- Starting Undo Automation Script ---")
 
-        results_df = self._load_results_file(results_file_override)
+        if not results_json_data:
+            logger.error("ERROR: No results JSON data provided. Aborting.")
+            raise InvalidInputError("No results JSON data provided for undo operation.")
+
+        results_df = self._load_results_from_json(results_json_data)
         if results_df is None or results_df.empty:
-            logging.warning(
-                "Results file is empty or could not be read. No actions to perform."
+            logger.error(
+                "ERROR: Provided JSON data is empty or could not be processed. No actions to perform."
             )
-            return
+            raise InvalidInputError("Provided JSON data is empty or could not be processed for undo operation.")
 
         jira_keys, pages_to_rollback = self._parse_results_for_undo(results_df)
         self._transition_jira_tasks(jira_keys)
@@ -93,7 +103,12 @@ class UndoSyncTaskOrchestrator:
         )
         target_status = config.JIRA_TARGET_STATUSES["undo"]
         for key in sorted(list(jira_keys)):
-            self.jira.transition_issue(key, target_status)
+            try:
+                self.jira.transition_issue(key, target_status)
+            except Exception as e:
+                logger.error(f"Failed to transition Jira issue '{key}' to '{target_status}': {e}", exc_info=True)
+                # Decide if this is critical enough to stop the whole undo and raise UndoError
+                # For now, it will log and continue with other transitions.
 
     def _rollback_confluence_pages(self, pages: Dict[str, int]) -> None:
         """Rolls back a set of Confluence pages to a specific version."""
@@ -109,64 +124,41 @@ class UndoSyncTaskOrchestrator:
         )
         for page_id, version in sorted(pages.items()):
             logging.info(f"Attempting to roll back page {page_id} to version {version}")
-            historical_page = self.confluence.get_page_by_id(
-                page_id, version=version, expand="body.storage"
-            )
-            current_page = self.confluence.get_page_by_id(page_id)
-
-            if (
-                historical_page
-                and current_page
-                and "body" in historical_page
-                and "storage" in historical_page["body"]
-            ):
-                historical_content = historical_page["body"]["storage"]["value"]
-                self.confluence.update_page_content(
-                    page_id, current_page["title"], historical_content
+            try:
+                historical_page = self.confluence.get_page_by_id(
+                    page_id, version=version, expand="body.storage"
                 )
-            else:
-                logging.error(
-                    f"Failed to get content for page '{page_id}' version {version}. "
-                    "Skipping rollback."
-                )
+                current_page = self.confluence.get_page_by_id(page_id)
 
-    def _load_results_file(
-        self, file_override: Optional[str]
-    ) -> Optional[pd.DataFrame]:
-        """Loads the specified or latest results file into a pandas DataFrame."""
-        if file_override:
-            path = file_override
-        else:
-            path = self._find_latest_results_file(config.OUTPUT_DIRECTORY)
-            if path:
-                logging.info(f"Found latest results file: '{os.path.basename(path)}'")
+                if (
+                    historical_page
+                    and current_page
+                    and "body" in historical_page
+                    and "storage" in historical_page["body"]
+                ):
+                    historical_content = historical_page["body"]["storage"]["value"]
+                    self.confluence.update_page_content(
+                        page_id, current_page["title"], historical_content
+                    )
+                else:
+                    error_msg = f"Failed to get content for page '{page_id}' version {version}. Skipping rollback."
+                    logger.error(error_msg)
+                    # Decide if this failure should halt the entire undo process.
+                    # For now, it just logs and skips this page.
+            except Exception as e:
+                logger.error(f"Error rolling back page '{page_id}' to version {version}: {e}", exc_info=True)
+                # Similar to Jira transition, decide if this should halt everything.
 
-        if not path or not os.path.exists(path):
-            logging.error("ERROR: Results file not found. Aborting.")
-            return None
 
-        logging.info(f"Using results file: '{path}'")
-        try:
-            with open(path, "r") as f:
-                data = json.load(f)
-            # Convert to DataFrame for easier and more robust data handling.
-            return pd.DataFrame(data)
-        except (json.JSONDecodeError, FileNotFoundError) as e:
-            logging.error(
-                f"ERROR: Failed to read or parse JSON file '{path}'. Details: {e}"
-            )
-            return None
-
-    def _find_latest_results_file(self, folder: str) -> Optional[str]:
-        """Finds the most recent automation results file in a directory."""
-        if not os.path.exists(folder):
-            return None
-        files = [
-            os.path.join(folder, f)
-            for f in os.listdir(folder)
-            if f.startswith("automation_results_") and f.endswith(".json")
-        ]
-        return max(files, key=os.path.getmtime) if files else None
+    def _load_results_from_json(
+        self, json_data: List[Dict[str, Any]]
+    ) -> pd.DataFrame:
+        """Loads results data from a JSON object into a pandas DataFrame."""
+        logging.info("Using provided JSON data for undo.")
+        # No explicit error handling here, as InvalidInputError is raised higher up if json_data is empty.
+        # Errors during DataFrame creation (e.g., malformed dicts) might raise pandas errors,
+        # which would be caught by the run method's general exception.
+        return pd.DataFrame(json_data)
 
     def _parse_results_for_undo(
         self, df: pd.DataFrame
@@ -175,13 +167,15 @@ class UndoSyncTaskOrchestrator:
         Parses the results DataFrame to extract data needed for the undo actions.
 
         Args:
-            df (pd.DataFrame): The DataFrame loaded from the results file.
+            df (pd.DataFrame): The DataFrame loaded from the results data.
 
         Returns:
             A tuple containing:
             - A set of Jira issue keys to be transitioned.
             - A dictionary mapping Confluence page IDs to the version number
               they should be rolled back to.
+        Raises:
+            MissingRequiredDataError: If essential columns are missing from the results data.
         """
         jira_keys: Set[str] = set()
         pages: Dict[str, int] = {}
@@ -193,11 +187,9 @@ class UndoSyncTaskOrchestrator:
         ]
 
         if not all(col in df.columns for col in required_cols):
-            logging.error(
-                f"Results file is missing required columns. Expected: {required_cols}, "
-                f"Found: {list(df.columns)}"
-            )
-            return jira_keys, pages
+            error_msg = f"Results data is missing required columns. Expected: {required_cols}, Found: {list(df.columns)}"
+            logger.error(f"ERROR: {error_msg}")
+            raise MissingRequiredDataError(error_msg) # <-- Raise custom exception
 
         for _, row in df.iterrows():
             if str(row.get("Status")).startswith("Success"):
@@ -210,33 +202,3 @@ class UndoSyncTaskOrchestrator:
                         row["original_page_version"]
                     )
         return jira_keys, pages
-
-
-if __name__ == "__main__":
-    # 1. Initialize raw API clients.
-    jira_client = Jira(
-        url=config.JIRA_URL,
-        token=config.JIRA_API_TOKEN,
-        cloud=False,
-        verify_ssl=False,
-    )
-    confluence_client = Confluence(
-        url=config.CONFLUENCE_URL,
-        token=config.CONFLUENCE_API_TOKEN,
-        cloud=False,
-        verify_ssl=False,
-    )
-
-    # 2. Instantiate the low-level, resilient API handlers.
-    safe_jira_api = SafeJiraApi(jira_client)
-    safe_confluence_api = SafeConfluenceApi(confluence_client)
-
-    # 3. Instantiate the high-level service implementations.
-    jira_service = JiraService(safe_jira_api)
-    confluence_service = ConfluenceService(safe_confluence_api)
-
-    # 4. Inject services into the orchestrator and run it.
-    undo_orchestrator = UndoSyncTaskOrchestrator(
-        confluence_service, jira_service
-    )
-    undo_orchestrator.run()

@@ -12,8 +12,6 @@ The configuration is organized into logical sections for clarity:
 - Automation behavior
 - Test data generation settings
 
-It also loads user-configurable parameters from a `user_input.json` file,
-with sensible fallbacks if the file is not present.
 """
 
 import datetime
@@ -104,26 +102,8 @@ DEFAULT_MAX_DEPTH: int = 2
 DEFAULT_TASKS_PER_PAGE: int = 1
 DEFAULT_NUM_WORK_PACKAGES: int = 3
 
-# --- User Inputs (Loaded from JSON) ---
-# Tries to load user-defined settings from a JSON file.
-try:
-    user_input_path = os.path.join(INPUT_DIRECTORY, "user_input.json")
-    with open(user_input_path, "r") as f:
-        user_input_config = json.load(f)
-    DEFAULT_DUE_DATE_DAYS: int = user_input_config.get("DEFAULT_DUE_DATE_DAYS", 14)
-except FileNotFoundError:
-    logger.warning(
-        f"'{user_input_path}' not found. Using fallback of 14 for "
-        "DEFAULT_DUE_DATE_DAYS."
-    )
-    DEFAULT_DUE_DATE_DAYS = 14  # Fallback if file doesn't exist
-except json.JSONDecodeError:
-    logger.error(
-        f"Error decoding JSON from '{user_input_path}'. Using fallback of 14 for "
-        "DEFAULT_DUE_DATE_DAYS."
-    )
-    
-# Calculate the default due date based on the loaded or fallback setting.
+# --- Fixed Default Due Date ---
+DEFAULT_DUE_DATE_DAYS: int = 14
 DEFAULT_DUE_DATE: str = (
     datetime.date.today() + datetime.timedelta(days=DEFAULT_DUE_DATE_DAYS)
 ).strftime("%Y-%m-%d")

@@ -6,14 +6,14 @@ import os
 import logging
 import pandas as pd
 
-# Disable logging for cleaner test output
-logging.disable(logging.CRITICAL)
+# Removed: logging.disable(logging.CRITICAL)
 
 from src.sync_task import SyncTaskOrchestrator
 from src.interfaces.api_service_interface import ApiServiceInterface
 from src.services.issue_finder_service import IssueFinderService
-from src.models.data_models import ConfluenceTask
+from src.models.data_models import ConfluenceTask, AutomationResult
 from src.config import config
+from src.exceptions import InvalidInputError, SyncError # Import InvalidInputError
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -31,16 +31,15 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
             self.mock_issue_finder
         )
         
-    @patch('src.sync_task.open', new_callable=unittest.mock.mock_open, read_data='{}')
-    @patch('src.sync_task.json.load')
     @patch('src.sync_task.SyncTaskOrchestrator._save_results')
-    def test_run_skips_empty_task(self, mock_save, mock_json_load, mock_open):
+    def test_run_skips_empty_task(self, mock_save):
         """
         Verify that a task with an empty summary is skipped.
         """
         # 1. Arrange
-        # Mock the input file to provide a URL for the orchestrator to run.
-        mock_json_load.return_value = {"ConfluencePageURLs": ["http://test.url/12345"]}
+        # Mock the input to provide a URL for the orchestrator to run.
+        # Changed key from "ConfluencePageURLs" to "confluence_page_urls"
+        json_input = {"confluence_page_urls": ["http://test.url/12345"], "request_user": "test_user"}
         
         # Create a task with an empty summary.
         empty_task = ConfluenceTask(
@@ -49,7 +48,7 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
             confluence_task_id='empty_task_id',
             status='incomplete',
             assignee_name=None,
-            due_date=None,
+            due_date="2025-01-01", # Added a default due date as config no longer reads from file
             original_page_version=1,
             confluence_page_title='Test Page',
             confluence_page_url='/test-page',
@@ -64,19 +63,20 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
 
         # 2. Act
         # Run the main orchestration logic.
-        self.orchestrator.run()
+        self.orchestrator.run(json_input)
 
         # 3. Assert
         # The main check: Ensure that no attempt was ever made to create a Jira issue.
         self.mock_jira_service.create_issue.assert_not_called()
+        self.assertEqual(len(self.orchestrator.results), 0) # No result should be appended for empty task
         
-    @patch('src.sync_task.open', new_callable=unittest.mock.mock_open, read_data='{}')
-    @patch('src.sync_task.json.load')
     @patch('src.sync_task.SyncTaskOrchestrator._save_results')
-    def test_run_with_incomplete_task_in_dev_mode(self, mock_save, mock_json_load, mock_open):
+    def test_run_with_incomplete_task_in_dev_mode(self, mock_save):
         """Verify an incomplete task is created and transitioned to Backlog in dev mode."""
         config.PRODUCTION_MODE = False
-        mock_json_load.return_value = {"ConfluencePageURLs": ["http://test.url/123"]}        
+        # Changed key from "ConfluencePageURLs" to "confluence_page_urls"
+        json_input = {"confluence_page_urls": ["http://test.url/123"], "request_user": "test_user"}
+        
         self.mock_confluence_service.get_page_id_from_url.return_value = "123"
         self.mock_confluence_service.get_all_descendants.return_value = []        
         task1 = ConfluenceTask(
@@ -95,17 +95,19 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
         self.mock_confluence_service.get_tasks_from_page.return_value = [task1]
         self.mock_issue_finder.find_issue_on_page.return_value = {"key": "WP-1"}
         self.mock_jira_service.create_issue.return_value = {"key": "JIRA-1"}
-        self.mock_jira_service.prepare_jira_task_fields.return_value = {}
-        self.orchestrator.run()
+        
+        self.orchestrator.run(json_input)
+        
         self.mock_jira_service.transition_issue.assert_called_once_with("JIRA-1", config.JIRA_TARGET_STATUSES['new_task_dev'])
+        self.assertEqual(len(self.orchestrator.results), 1)
+        self.assertEqual(self.orchestrator.results[0].request_user, "test_user")
 
-    @patch('src.sync_task.open', new_callable=unittest.mock.mock_open, read_data='{}')
-    @patch('src.sync_task.json.load')
     @patch('src.sync_task.SyncTaskOrchestrator._save_results')
-    def test_run_with_incomplete_task_in_prod_mode(self, mock_save, mock_json_load, mock_open):
+    def test_run_with_incomplete_task_in_prod_mode(self, mock_save):
         """Verify an incomplete task is created and NOT transitioned in production mode."""
         config.PRODUCTION_MODE = True
-        mock_json_load.return_value = {"ConfluencePageURLs": ["http://test.url/123"]}
+        # Changed key from "ConfluencePageURLs" to "confluence_page_urls"
+        json_input = {"confluence_page_urls": ["http://test.url/123"], "request_user": "test_user"}
         
         self.mock_confluence_service.get_page_id_from_url.return_value = "123"
         self.mock_confluence_service.get_all_descendants.return_value = []
@@ -128,11 +130,33 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
         self.mock_issue_finder.find_issue_on_page.return_value = {"key": "WP-1"}
         self.mock_jira_service.create_issue.return_value = {"key": "JIRA-1"}
 
-        self.orchestrator.run()
+        self.orchestrator.run(json_input)
 
         self.mock_jira_service.create_issue.assert_called_once()
         self.mock_jira_service.transition_issue.assert_not_called()
+        self.assertEqual(len(self.orchestrator.results), 1)
+        self.assertEqual(self.orchestrator.results[0].request_user, "test_user")
     
+    @patch('src.sync_task.SyncTaskOrchestrator._save_results')
+    def test_run_no_confluence_page_urls_in_input(self, mock_save):
+        """Verify the script handles missing 'confluence_page_urls' in input JSON by raising InvalidInputError."""
+        json_input = {"request_user": "test_user"}
+        with self.assertRaises(InvalidInputError) as cm: # Assert it raises the specific error
+            self.orchestrator.run(json_input)
+        self.assertIn("No 'confluence_page_urls' found", str(cm.exception)) # Check exception message
+        self.mock_confluence_service.get_page_id_from_url.assert_not_called()
+        self.assertEqual(len(self.orchestrator.results), 0)
+
+    @patch('src.sync_task.SyncTaskOrchestrator._save_results')
+    def test_run_empty_input_json(self, mock_save):
+        """Verify the script handles an empty input JSON by raising InvalidInputError."""
+        json_input = {}
+        with self.assertRaises(InvalidInputError) as cm: # Assert it raises the specific error
+            self.orchestrator.run(json_input)
+        self.assertIn("No input JSON provided", str(cm.exception)) # Check exception message
+        self.mock_confluence_service.get_page_id_from_url.assert_not_called()
+        self.assertEqual(len(self.orchestrator.results), 0)
+
     def tearDown(self):
         """Clean up logging handlers to release file resources."""
         root_logger = logging.getLogger()
@@ -140,43 +164,7 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
             handler.close()
             root_logger.removeHandler(handler)
             
-class TestInputFileHandling(unittest.TestCase):
-    """Tests for handling of the user_input.json file."""
+# Removed TestInputFileHandling class as file input is no longer used.
 
-    def setUp(self):
-        self.mock_confluence_service = Mock(spec=ApiServiceInterface)
-        self.mock_jira_service = Mock(spec=ApiServiceInterface)
-        self.mock_issue_finder = Mock(spec=IssueFinderService)
-        
-        self.orchestrator = SyncTaskOrchestrator(
-            self.mock_confluence_service,
-            self.mock_jira_service,
-            self.mock_issue_finder
-        )
-
-    @patch('src.sync_task.open')
-    def test_run_input_file_not_found(self, mock_open):
-        """Verify the script handles a missing user_input.json file gracefully."""
-        mock_open.side_effect = FileNotFoundError
-        self.orchestrator.run()
-        self.mock_confluence_service.get_page_id_from_url.assert_not_called()
-
-    @patch('src.sync_task.open', new_callable=unittest.mock.mock_open, read_data='{"bad json"}')
-    @patch('src.sync_task.json.load')
-    def test_run_bad_json_format(self, mock_json_load, mock_open):
-        """Verify the script handles a malformed JSON file."""
-        mock_json_load.side_effect = json.JSONDecodeError("Expecting value", "doc", 0)
-        self.orchestrator.run()
-        self.mock_confluence_service.get_page_id_from_url.assert_not_called()
-
-    def tearDown(self):
-        """Clean up logging handlers after each test."""
-        root_logger = logging.getLogger()
-        for handler in root_logger.handlers[:]:
-            handler.close()
-            root_logger.removeHandler(handler)
-
-
-
-if __name__ == '__sync_task__':
-    unittest.sync_task()
+if __name__ == '__main__': # Changed from '__sync_task__'
+    unittest.main() # Changed from unittest.sync_task()

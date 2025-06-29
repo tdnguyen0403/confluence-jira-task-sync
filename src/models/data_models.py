@@ -83,12 +83,14 @@ class AutomationResult:
                                       this task, if any.
         linked_work_package (Optional[str]): The parent work package the new
                                              Jira issue was linked to.
+        request_user (Optional[str]): The name of the user who requested the sync.
     """
 
     task_data: ConfluenceTask
     status: str
     new_jira_key: Optional[str] = None
     linked_work_package: Optional[str] = None
+    request_user: Optional[str] = None # Renamed from requested_by
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -106,6 +108,7 @@ class AutomationResult:
             "Status": self.status,
             "New Jira Task Key": self.new_jira_key,
             "Linked Work Package": self.linked_work_package,
+            "Request User": self.request_user, # Renamed key for output
         }
 
         # Iterate over the fields of the nested ConfluenceTask dataclass
