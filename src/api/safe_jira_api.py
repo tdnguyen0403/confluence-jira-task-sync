@@ -72,7 +72,13 @@ class SafeJiraApi:
                                       or None if retrieval fails.
         """
         try:
-            return self.client.get_issue(issue_key, fields=fields)
+            return self.client.get_issue(issue_key, fields=fields)   
+        except requests.exceptions.RequestException as e:
+            logger.warning(
+                f"A network error occurred while getting issue '{issue_key}'. "
+                f"Falling back. Error: {e}"
+            )
+            return self._fallback_get_issue(issue_key, fields)        
         except Exception as e:
             logger.warning(
                 f"Library get_issue for '{issue_key}' failed. "
@@ -116,6 +122,12 @@ class SafeJiraApi:
         try:
             # The library expects the fields directly, not nested.
             return self.client.issue_create(fields=issue_fields["fields"])
+        except requests.exceptions.RequestException as e:
+            logger.warning(
+                f"A network error occurred while creating issue '{issue_key}'. "
+                f"Falling back. Error: {e}"
+            )
+            return self._fallback_create_issue(issue_key, fields) 
         except Exception as e:
             logger.warning(f"Library create_issue failed. Falling back. Error: {e}")
             return self._fallback_create_issue(issue_fields)
@@ -212,6 +224,12 @@ class SafeJiraApi:
                 "via library call."
             )
             return True
+        except requests.exceptions.RequestException as e:
+            logger.warning(
+                f"A network error occurred while transitioning issue '{issue_key}'. "
+                f"Falling back. Error: {e}"
+            )
+            return self._fallback_transition_issue(issue_key, fields) 
         except Exception as e:
             logger.warning(
                 f"Library transition for '{issue_key}' failed. Falling back. Error: {e}"

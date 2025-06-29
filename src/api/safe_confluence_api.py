@@ -129,6 +129,12 @@ class SafeConfluenceApi:
         """
         try:
             return self.client.get_page_by_id(page_id, **kwargs)
+        except requests.exceptions.RequestException as e:
+            logger.warning(
+                f"A network error occurred while get page '{page_id}'. "
+                f"Falling back. Error: {e}"
+            )
+            return self._fallback_get_page_by_id(page_id, **kwargs)
         except Exception as e:
             logger.warning(
                 f"Library call get_page_by_id for '{page_id}' failed. "
@@ -212,6 +218,12 @@ class SafeConfluenceApi:
             self.client.update_page(page_id=page_id, title=title, body=body)
             logger.info(f"Successfully updated page {page_id} via library call.")
             return True
+        except requests.exceptions.RequestException as e:
+            logger.warning(
+                f"A network error occurred while update page '{page_id}'. "
+                f"Falling back. Error: {e}"
+            )
+            return self._fallback_update_page(page_id, **kwargs)
         except Exception as e:
             logger.warning(
                 f"Library update_page for '{page_id}' failed. "
@@ -258,6 +270,12 @@ class SafeConfluenceApi:
         """
         try:
             return self.client.create_page(**kwargs)
+        except requests.exceptions.RequestException as e:
+            logger.warning(
+                f"A network error occurred while create page '{page_id}'. "
+                f"Falling back. Error: {e}"
+            )
+            return self._fallback_create_page(page_id, **kwargs)
         except Exception as e:
             logger.warning(f"Library create_page failed. Falling back. Error: {e}")
             return self._fallback_create_page(**kwargs)

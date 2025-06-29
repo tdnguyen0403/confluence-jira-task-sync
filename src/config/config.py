@@ -117,7 +117,12 @@ except FileNotFoundError:
         "DEFAULT_DUE_DATE_DAYS."
     )
     DEFAULT_DUE_DATE_DAYS = 14  # Fallback if file doesn't exist
-
+except json.JSONDecodeError:
+    logger.error(
+        f"Error decoding JSON from '{user_input_path}'. Using fallback of 14 for "
+        "DEFAULT_DUE_DATE_DAYS."
+    )
+    
 # Calculate the default due date based on the loaded or fallback setting.
 DEFAULT_DUE_DATE: str = (
     datetime.date.today() + datetime.timedelta(days=DEFAULT_DUE_DATE_DAYS)
