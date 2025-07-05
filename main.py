@@ -129,7 +129,7 @@ class UndoRequestItem(BaseModel):
 
 
 # --- API Endpoints ---
-@app.post("/sync", summary="Synchronize Confluence tasks to Jira", response_model=Dict[str, Any], dependencies=[Depends(get_api_key)])
+@app.post("/sync", summary="Synchronize Confluence tasks to Jira", response_model=List[UndoRequestItem], dependencies=[Depends(get_api_key)])
 async def sync_confluence_tasks(request: SyncRequest):
     """
     Initiates the synchronization process to extract incomplete tasks from
@@ -162,11 +162,10 @@ async def sync_confluence_tasks(request: SyncRequest):
         
         if not response_results:
             logger.info("Sync run completed, but no actionable tasks were processed.")
-            return {"message": "Sync run completed. No actionable tasks found or processed.", "details": []}
-        
+            return []
         logger.info(f"Sync run completed. Processed {len(response_results)} tasks.")
-        return {"message": "Sync run completed successfully.", "details": response_results}
-
+        return response_results
+        
     except InvalidInputError as e:
         logger.error(f"Invalid input for sync operation: {e}", exc_info=True)
         raise HTTPException(
