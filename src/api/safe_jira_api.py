@@ -19,7 +19,7 @@ from atlassian import Jira
 
 # Local application imports
 from src.config import config
-from src.utils.https_helper import make_request
+from src.api.https_helper import make_request
 
 # Configure logging for this module
 logger = logging.getLogger(__name__)

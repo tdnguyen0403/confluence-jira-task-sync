@@ -26,7 +26,7 @@ from bs4 import BeautifulSoup
 from src.config import config
 from src.models.data_models import ConfluenceTask
 from src.utils.context_extractor import get_task_context
-from src.utils.https_helper import make_request
+from src.api.https_helper import make_request
 
 # Configure logging for this module
 logger = logging.getLogger(__name__)
