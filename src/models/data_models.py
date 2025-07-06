@@ -151,3 +151,4 @@ class ConfluenceUpdateProjectRequest(BaseModel):
     root_project_issue_key: str = Field(..., json_schema_extra={"example": "PROJ-1"}) # CHANGED
     project_issue_type_id: Optional[str] = Field(None, json_schema_extra={"example": "10000"})
     phase_issue_type_id: Optional[str] = Field(None, json_schema_extra={"example": "10001"})
+    request_user: Optional[str] = Field(None, json_schema_extra={"example": "unknown_user"})

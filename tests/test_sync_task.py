@@ -32,8 +32,7 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
             self.mock_issue_finder
         )
         
-    @patch('src.sync_task.SyncTaskOrchestrator._save_results')
-    def test_run_skips_empty_task(self, mock_save):
+    def test_run_skips_empty_task(self):
         """
         Verify that a task with an empty summary is skipped.
         """
@@ -71,8 +70,7 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
         self.mock_jira_service.create_issue.assert_not_called()
         self.assertEqual(len(self.orchestrator.results), 0) # No result should be appended for empty task
         
-    @patch('src.sync_task.SyncTaskOrchestrator._save_results')
-    def test_run_with_incomplete_task_in_dev_mode(self, mock_save):
+    def test_run_with_incomplete_task_in_dev_mode(self):
         """Verify an incomplete task is created and transitioned to Backlog in dev mode."""
         config.PRODUCTION_MODE = False
         # Changed key from "ConfluencePageURLs" to "confluence_page_urls"
@@ -103,8 +101,7 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
         self.assertEqual(len(self.orchestrator.results), 1)
         self.assertEqual(self.orchestrator.results[0].request_user, "test_user")
 
-    @patch('src.sync_task.SyncTaskOrchestrator._save_results')
-    def test_run_with_incomplete_task_in_prod_mode(self, mock_save):
+    def test_run_with_incomplete_task_in_prod_mode(self):
         """Verify an incomplete task is created and NOT transitioned in production mode."""
         config.PRODUCTION_MODE = True
         # Changed key from "ConfluencePageURLs" to "confluence_page_urls"
@@ -138,8 +135,7 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
         self.assertEqual(len(self.orchestrator.results), 1)
         self.assertEqual(self.orchestrator.results[0].request_user, "test_user")
     
-    @patch('src.sync_task.SyncTaskOrchestrator._save_results')
-    def test_run_no_confluence_page_urls_in_input(self, mock_save):
+    def test_run_no_confluence_page_urls_in_input(self):
         """Verify the script handles missing 'confluence_page_urls' in input JSON by raising InvalidInputError."""
         json_input = {"request_user": "test_user"}
         with self.assertRaises(InvalidInputError) as cm: # Assert it raises the specific error
@@ -148,8 +144,7 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
         self.mock_confluence_service.get_page_id_from_url.assert_not_called()
         self.assertEqual(len(self.orchestrator.results), 0)
 
-    @patch('src.sync_task.SyncTaskOrchestrator._save_results')
-    def test_run_empty_input_json(self, mock_save):
+    def test_run_empty_input_json(self):
         """Verify the script handles an empty input JSON by raising InvalidInputError."""
         json_input = {}
         with self.assertRaises(InvalidInputError) as cm: # Assert it raises the specific error

@@ -17,7 +17,7 @@ from src.interfaces.confluence_service_interface import ConfluenceApiServiceInte
 from src.services.confluence_service import ConfluenceService
 from src.services.issue_finder_service import IssueFinderService
 from src.services.jira_service import JiraService
-from src.utils.logging_config import setup_logging
+from src.utils.logging_config import setup_logging_local
 
 # Suppress insecure request warnings for local/dev environments
 warnings.filterwarnings(
@@ -219,7 +219,7 @@ class ConfluenceTreeGenerator:
 
 # The __main__ block is only for standalone execution.
 if __name__ == "__main__":
-    setup_logging("logs/logs_generate", "generate_tree_run")
+    setup_logging_local("logs/logs_generate", "generate_tree_run")
     logging.info("--- Starting Confluence Test Data Generation Script ---")
 
     args = ConfluenceTreeGenerator._parse_args()
@@ -266,13 +266,11 @@ if __name__ == "__main__":
         )
 
         if generated_page_info:
-            output_dir = config.OUTPUT_DIRECTORY
-            os.makedirs(output_dir, exist_ok=True)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_filepath = os.path.join(output_dir, f"generated_pages_{timestamp}.json")
-            with open(output_filepath, "w", encoding="utf-8") as f:
+            output_filename = config.generate_timestamped_filename("generate_page_result", suffix=".json")
+            output_path = config.get_output_path("generate", output_filename)
+            with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(generated_page_info, f, ensure_ascii=False, indent=4)
-            logger.info(f"Generated page info saved to: {output_filepath}")
+            logger.info(f"Generated page info saved to: {output_path}")
         else:
             logger.info("No pages were generated.")
 

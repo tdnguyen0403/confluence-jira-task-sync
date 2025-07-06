@@ -3,7 +3,7 @@ import warnings
 import json
 import os
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, date
 
 import requests
 from fastapi import FastAPI, HTTPException, status, Depends
@@ -20,10 +20,6 @@ from src.models.data_models import SyncRequest, UndoRequestItem, ConfluenceUpdat
 warnings.filterwarnings(
     "ignore", category=requests.packages.urllib3.exceptions.InsecureRequestWarning
 )
-
-# Initialize application-wide logging
-setup_logging("logs/logs_api", "api_run")
-logger = logging.getLogger(__name__)
 
 # --- FastAPI App Initialization ---
 app = FastAPI(
@@ -47,17 +43,18 @@ async def sync_confluence_tasks(
     specified Confluence pages (and their descendants) and create corresponding
     Jira tasks.
     """
+    # Setup logging specific to the 'sync' endpoint
+    setup_logging(log_level=logging.INFO, log_file_prefix="sync_task_run", endpoint_name="sync_task")
+    logger = logging.getLogger('') # Get the configured root logger
     logger.info(f"Received /sync request for user: {request.request_user} with {len(request.confluence_page_urls)} URLs.")
     
     sync_input = request.model_dump() # Corrected: Use model_dump() for Pydantic V2
 
     # --- Code to save the input request to a file ---
     try:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        input_filename = f"sync_request_{timestamp}_{request.request_user}.json"
-        input_filepath = os.path.join(config.INPUT_DIRECTORY, input_filename)
-        os.makedirs(config.INPUT_DIRECTORY, exist_ok=True)
-        with open(input_filepath, "w", encoding="utf-8") as f:
+        input_filename = config.generate_timestamped_filename("sync_task_request", suffix=".json", user=request.request_user)
+        input_path = config.get_input_path("sync_task", input_filename)
+        with open(input_path, "w", encoding="utf-8") as f:
             json.dump(sync_input, f, ensure_ascii=False, indent=4)
         logger.info(f"Input request saved to '{input_filepath}'")
     except Exception as e:
@@ -65,14 +62,19 @@ async def sync_confluence_tasks(
     
     try:
         sync_orchestrator.run(sync_input)
-        
         response_results = [res.to_dict() for res in sync_orchestrator.results]
-        
-        if not response_results:
+
+        if response_results:
+            output_filename = config.generate_timestamped_filename("sync_task_result", suffix=".json", user=request.request_user)
+            output_path = config.get_output_path("sync_task", output_filename)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(response_results, f, indent=4)
+            logger.info(f"Results have been saved to '{output_path}'")
+            logger.info(f"Sync run completed. Processed {len(response_results)} tasks.")
+            return response_results
+        else:
             logger.info("Sync run completed, but no actionable tasks were processed.")
             return []
-        logger.info(f"Sync run completed. Processed {len(response_results)} tasks.")
-        return response_results
         
     except InvalidInputError as e:
         logger.error(f"Invalid input for sync operation: {e}", exc_info=True)
@@ -101,7 +103,7 @@ async def sync_confluence_tasks(
 
 @app.post("/undo_sync_task", summary="Undo a previous synchronization run", response_model=Dict[str, str], dependencies=[Depends(get_api_key)])
 async def undo_sync_run(
-    results_data: List[UndoRequestItem],
+    undo_data: List[UndoRequestItem],
     undo_orchestrator = Depends(container.undo_orchestrator) # Corrected: Use container
 ):
     """
@@ -109,12 +111,19 @@ async def undo_sync_run(
     created Jira tasks back to 'Backlog' and rolling back modified Confluence pages.
     Requires the full JSON results from a previous /sync run.
     """
-    logger.info(f"Received /undo request for {len(results_data)} entries.")
+    setup_logging(log_level=logging.INFO, log_file_prefix="undo_sync_task_run", endpoint_name="undo_sync_task")
+    logger = logging.getLogger('') # Get the configured root logger
+    logger.info(f"Received /undo request for {len(undo_data)} entries.")
 
-    try:
-        undo_orchestrator.run([item.model_dump(by_alias=True) for item in results_data]) # Corrected: Use model_dump()
+    try:  
+        input_filename = config.generate_timestamped_filename("undo_sync_task_request", suffix=".json")
+        input_path = config.get_input_path("undo_sync_task", input_filename)
+        with open(input_path, 'w', encoding='utf-8') as f:
+            json.dump([item.model_dump(by_alias=True) for item in undo_data], f, indent=4)   
+        undo_orchestrator.run([item.model_dump(by_alias=True) for item in undo_data])
+
         logger.info("Undo run completed.")
-        return {"message": "Undo operation completed successfully. Please check logs for details."}
+        return {"message": "Undo operation completed successfully."}
     except InvalidInputError as e:
         logger.error(f"Invalid input for undo operation: {e}", exc_info=True)
         raise HTTPException(
@@ -150,22 +159,34 @@ async def update_confluence_project(
     Updates existing Jira issue macros (Project, Phase, Work Package types)
     on a Confluence page hierarchy to link to a new Jira project key.
     """
-    logger.info(f"Received /update-confluence-project request for root URL: {request.root_confluence_page_url} to find issues under root project: {request.root_project_issue_key}")
+    setup_logging(log_level=logging.INFO,log_file_prefix="sync_project_run", endpoint_name="sync_project")
+    logger = logging.getLogger('') # Get the configured root logger
+    logger.info(f"Received /sync_project request for root URL: {request.root_confluence_page_url} to find issues under root project: {request.root_project_issue_key}")
 
-    try:
+    try:            
+        input_filename = config.generate_timestamped_filename("sync_project_request", suffix=".json")
+        input_path = config.get_input_path("sync_project", input_filename)
+        with open(input_path, 'w', encoding='utf-8') as f:
+             json.dump(request.model_dump(), f, indent=4)
+        logger.info(f"Undo request saved to '{input_path}'")
+
         updated_pages_summary = confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
             root_confluence_page_url=request.root_confluence_page_url,
             root_project_issue_key=request.root_project_issue_key, # CHANGED
             project_issue_type_id=request.project_issue_type_id,
             phase_issue_type_id=request.phase_issue_type_id
         )
-        if not updated_pages_summary:
+        if updated_pages_summary:
+            output_filename = config.generate_timestamped_filename("sync_project_result", suffix=".json")
+            output_path = config.get_output_path("sync_project", output_filename)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(updated_pages_summary, f, indent=4)
+            logger.info(f"Update process completed. Modified {len(updated_pages_summary)} pages.")
+            return updated_pages_summary
+        else:
             logger.info("Update process completed, but no pages were modified.")
             return []
-        
-        logger.info(f"Update process completed. Modified {len(updated_pages_summary)} pages.")
-        return updated_pages_summary
-
+      
     except InvalidInputError as e:
         logger.error(f"Invalid input for update operation: {e}", exc_info=True)
         raise HTTPException(

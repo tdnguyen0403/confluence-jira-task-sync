@@ -29,7 +29,6 @@ from src.interfaces.confluence_service_interface import ConfluenceApiServiceInte
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.services.confluence_service import ConfluenceService
 from src.services.jira_service import JiraService
-from src.utils.logging_config import setup_logging
 from src.exceptions import UndoError, InvalidInputError, MissingRequiredDataError # Import custom exceptions
 
 # Suppress insecure request warnings for local/dev environments.
@@ -72,7 +71,6 @@ class UndoSyncTaskOrchestrator:
             InvalidInputError: If required input data is missing or malformed.
             UndoError: For general errors during the undo process.
         """
-        setup_logging("logs/logs_undo", "undo_sync_task_run")
         logging.info("\n--- Starting Undo Automation Script ---")
 
         if not results_json_data:

@@ -81,7 +81,6 @@ class SyncTaskOrchestrator:
             InvalidInputError: If required input data is missing or malformed.
             SyncError: For general errors during the synchronization process.
         """
-        setup_logging("logs/logs_sync", "sync_task_run")
         logging.info("--- Starting Jira/Confluence Automation Script ---")
 
         if not json_input:
@@ -102,7 +101,6 @@ class SyncTaskOrchestrator:
         for url in page_urls:
             self.process_page_hierarchy(url)
 
-        self._save_results(self.request_user)
         logging.info("\n--- Script Finished ---")
 
     def process_page_hierarchy(self, root_page_url: str) -> None:
@@ -249,29 +247,3 @@ class SyncTaskOrchestrator:
             )
             for page_id, mappings in tasks_to_update_on_pages.items():
                 self.confluence.update_page_with_jira_links(page_id, mappings)
-
-    def _save_results(self, request_user) -> None:
-        """Saves the accumulated automation results to a timestamped JSON file.
-        Raises:
-            SyncError: If saving the results to a file fails.
-        """
-        if not self.results:
-            logging.info("No actionable tasks were found. No results file generated.")
-            return
-
-        output_dir = config.OUTPUT_DIRECTORY
-        os.makedirs(output_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_path = os.path.join(output_dir, f"sync_result_{timestamp}_{request_user}.json")
-
-        # Convert result objects to a list of dictionaries for JSON serialization.
-        results_data = [res.to_dict() for res in self.results]
-
-        try:
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(results_data, f, ensure_ascii=False, indent=4)
-            logging.info(f"Results have been saved to '{file_path}'")
-        except Exception as e:
-            error_msg = f"Failed to save results to file '{file_path}': {e}"
-            logger.error(f"ERROR: {error_msg}", exc_info=True)
-            raise SyncError(error_msg)
