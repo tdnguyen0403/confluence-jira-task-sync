@@ -1,7 +1,7 @@
 # jira_confluence_automator_/src/models/data_models.py
 
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field # Use BaseModel and Field from pydantic
+from pydantic import BaseModel, Field
 
 class ConfluenceTask(BaseModel):
     """
@@ -152,3 +152,10 @@ class ConfluenceUpdateProjectRequest(BaseModel):
     project_issue_type_id: Optional[str] = Field(None, json_schema_extra={"example": "10000"})
     phase_issue_type_id: Optional[str] = Field(None, json_schema_extra={"example": "10001"})
     request_user: Optional[str] = Field(..., json_schema_extra={"example": "your.username"})
+
+class SyncProjectPageDetail(BaseModel):
+    """Represents the result of updating a single Confluence page during a project sync."""
+    page_id: str = Field(..., description="The ID of the Confluence page.")
+    page_title: str = Field(..., description="The title of the Confluence page.")
+    new_jira_keys: List[str] = Field(..., description="The Jira issue keys that were created or updated on this page.")
+    root_project_linked:  str = Field(..., description="The Jira issue key of the main project linked to the root.")

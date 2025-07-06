@@ -10,6 +10,7 @@ from src.config import config
 from src.exceptions import InvalidInputError, SyncError
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.models.data_models import SyncProjectPageDetail
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class ConfluenceIssueUpdaterService:
         root_project_issue_key: str,
         project_issue_type_id: Optional[str] = None,
         phase_issue_type_id: Optional[str] = None,
-    ) -> List[Dict[str, str]]:
+    ) -> List[SyncProjectPageDetail]:
         """
         Updates Jira issue macros on a Confluence page hierarchy.
 
@@ -47,8 +48,8 @@ class ConfluenceIssueUpdaterService:
             phase_issue_type_id (Optional[str]): The Jira issue type ID for 'Phase'. Defaults to config.
 
         Returns:
-            List[Dict[str, str]]: A list of dictionaries, each indicating which
-                                  page was updated and with what new Jira key.
+            List[SyncProjectPageDetail]: A list of SyncProjectPageDetail objects summarizing the updates made.
+
         Raises:
             InvalidInputError: If the root Confluence page ID cannot be resolved.
             SyncError: For other errors during the update process.
@@ -114,7 +115,8 @@ class ConfluenceIssueUpdaterService:
                         updated_pages_summary.append({
                             "page_id": page_id,
                             "page_title": page_details.get('title', 'N/A'),
-                            "root_project_linked": root_project_issue_key
+                            "new_jira_keys": [issue.get("key") for issue in candidate_new_issues if issue.get("key") in modified_html],
+                            "root_project_linked": root_project_issue_key,
                         })
                     else:
                         logger.error(f"Failed to update page '{page_details.get('title', page_id)}' (ID: {page_id}).")
@@ -208,7 +210,6 @@ class ConfluenceIssueUpdaterService:
 
         return best_match
 
-
     def _find_and_replace_jira_macros_on_page(
         self,
         page_details: Dict[str, Any],
@@ -235,7 +236,7 @@ class ConfluenceIssueUpdaterService:
         soup = BeautifulSoup(html_content, "html.parser")
         modified = False
         
-        FUZZY_MATCH_THRESHOLD = 0.6 
+        FUZZY_MATCH_THRESHOLD = 0.7  # Set a threshold for fuzzy matching summaries
 
         for macro in soup.find_all("ac:structured-macro", {"ac:name": "jira"}):
             key_param = macro.find("ac:parameter", {"ac:name": "key"})

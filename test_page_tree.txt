@@ -1,0 +1,13 @@
+project: SFSEA-1720 (new)
+	phase SFSEA-1724
+		workpackage SFSEA-1725
+	phase 2 SFSEA-1755
+		workpackage 2 SFSEA-1756
+	workpackage (same level) SFSEA-1754
+project tempate: SFSEA-1721 (old)
+	phase template SFSEA-1722
+		workpackage template SFSEA-1723
+	phase 2 temp SFSEA-1757
+		workpackage 2 temporary SFSEA-1760
+	workpackage same level SFSEA-1758
+	workpackage 3 obsoleted SFSEA-1759

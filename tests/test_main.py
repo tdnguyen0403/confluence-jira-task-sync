@@ -153,7 +153,12 @@ class TestFastAPIDecoupledEndpoints:
         client, mock_confluence_updater_service
     ):
         app.dependency_overrides[container.confluence_issue_updater_service] = lambda: mock_confluence_updater_service
-        mock_confluence_updater_service.update_confluence_hierarchy_with_new_jira_project.return_value = [{"page_id": "p1"}]
+        mock_confluence_updater_service.update_confluence_hierarchy_with_new_jira_project.return_value = [{
+            "page_id": "p1",
+            "page_title": "Mock Page Title",
+            "new_jira_keys": ["JIRA-123","JIRA-456"],
+            "root_project_linked": "PROJ-ROOT"
+        }]
         
         request_payload = {
             "root_confluence_page_url": "http://mock.confluence.com/root",

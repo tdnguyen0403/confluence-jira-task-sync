@@ -14,7 +14,7 @@ from src.config import config
 from src.utils.logging_config import setup_logging
 from src.exceptions import SyncError, MissingRequiredDataError, InvalidInputError, UndoError
 from src.dependencies import get_api_key, container 
-from src.models.data_models import SyncRequest, UndoRequestItem, ConfluenceUpdateProjectRequest
+from src.models.data_models import SyncRequest, UndoRequestItem, ConfluenceUpdateProjectRequest, SyncProjectPageDetail
 
 # Suppress insecure request warnings, common in corporate/dev environments.
 warnings.filterwarnings(
@@ -150,7 +150,7 @@ async def undo_sync_run(
         )
 
 @app.post("/sync_project", summary="Update embedded Jira project/phase/work package issues on Confluence pages", 
-    response_model=List[Dict[str, str]], dependencies=[Depends(get_api_key)])
+    response_model=List[SyncProjectPageDetail], dependencies=[Depends(get_api_key)])
 async def update_confluence_project(
     request: ConfluenceUpdateProjectRequest,
     confluence_issue_updater_service = Depends(container.confluence_issue_updater_service)
