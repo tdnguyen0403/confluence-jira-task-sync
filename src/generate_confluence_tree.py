@@ -1,24 +1,9 @@
-"""
-Provides a utility for generating a tree of test data in Confluence.
-
-This module contains the `TestDataGenerator` class, which is designed to
-create a hierarchical structure of Confluence pages populated with various
-types of content, including Jira issue macros and task lists. This is
-essential for creating a consistent and realistic test environment for the main
-automation script.
-
-The generator is configurable via the `config.py` file and can create a
-multi-level page tree with a specified number of tasks per page, linked to
-different work packages.
-
-Usage:
-    This script is intended to be run directly from the command line:
-    `python -m your_module.test_data_generator`
-"""
-
+import argparse
+import json
 import logging
 import uuid
 import warnings
+import os, sys
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -30,6 +15,8 @@ from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.services.confluence_service import ConfluenceService
+from src.services.issue_finder_service import IssueFinderService
+from src.services.jira_service import JiraService
 from src.utils.logging_config import setup_logging
 
 # Suppress insecure request warnings for local/dev environments
@@ -37,260 +24,211 @@ warnings.filterwarnings(
     "ignore", category=requests.packages.urllib3.exceptions.InsecureRequestWarning
 )
 
+logger = logging.getLogger(__name__)
+
 
 class ConfluenceTreeGenerator:
     """
-    Generates a Confluence test page structure using a service interface.
-
-    This class orchestrates the creation of a hierarchy of test pages,
-    each containing a Jira macro for a work package and a configurable number
-    of Confluence tasks.
+    Generates a hierarchy of Confluence pages with embedded tasks for testing.
     """
 
-    def __init__(self, confluence_service: ConfluenceApiServiceInterface):
-        """
-        Initializes the TestDataGenerator.
-
-        Args:
-            confluence_service (ApiServiceInterface): An implementation of the
-                API service interface, used to interact with Confluence.
-        """
-        self.confluence = confluence_service
-        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.all_created_pages: List[Dict[str, Any]] = []
-        self.assignee_userkey: Optional[str] = None
-        self.task_counter = 0
-
-    def _initialize_assignee(self, username: Optional[str]) -> None:
-        """
-        Resolves the Confluence user key for the assignee username.
-
-        This user key is required to correctly assign tasks in the generated
-        Confluence pages. The result is cached for the duration of the run.
-
-        Args:
-            username (Optional[str]): The username of the assignee.
-        """
-        if not username:
-            logging.warning("No assignee username provided; tasks will be unassigned.")
-            return
-
-        logging.info(f"Attempting to resolve userkey for username: '{username}'...")
-        user_details = self.confluence.get_user_details_by_username(username=username)
-        if user_details and "userKey" in user_details:
-            self.assignee_userkey = user_details["userKey"]
-            logging.info(f"Successfully resolved userkey '{self.assignee_userkey}'.")
-        else:
-            logging.error(f"Could not find userkey for username '{username}'.")
-
-    def run(
-        self, base_parent_id: str, wp_keys: List[str], max_depth: int,
-        tasks_per_page: int
-    ) -> None:
-        """
-        Main method to generate the entire test tree.
-
-        Args:
-            base_parent_id (str): The ID of the top-level Confluence page
-                under which the test tree will be created.
-            wp_keys (List[str]): A list of Jira Work Package keys to embed in
-                the generated pages.
-            max_depth (int): The maximum depth of the page hierarchy to create.
-            tasks_per_page (int): The number of tasks to create on each page.
-        """
-        setup_logging("logs/logs_generator", "generator_confluence_tree_run")
-        logging.info(
-            f"\n--- Initiating Test Tree Generation under Parent ID: {base_parent_id} ---"
-        )
-
-        if not wp_keys:
-            logging.error("ERROR: Must provide at least one Work Package key.")
-            return
-
-        self._initialize_assignee(config.ASSIGNEE_USERNAME_FOR_GENERATED_TASKS)
-
-        # Create the root page of the test tree.
-        main_page_id = self._create_page(
-            parent_id=base_parent_id,
-            title=f"Gen {self.timestamp} - Main Test Page Root",
-            wp_key=wp_keys[0],
-            tasks_per_page=tasks_per_page,
-        )
-
-        if not main_page_id:
-            logging.error("Failed to create the main test page. Aborting.")
-            return
-
-        logging.info(
-            f"\n--- Generating sub-levels under '{self.all_created_pages[0]['title']}' ---"
-        )
-        self._generate_tree_recursive(
-            parent_id=main_page_id,
-            wp_keys=wp_keys,
-            current_depth=1,
-            max_depth=max_depth,
-            tasks_per_page=tasks_per_page,
-            wp_index=1,
-        )
-        self._print_summary()
-
-    def _generate_tree_recursive(
+    def __init__(
         self,
-        parent_id: str,
-        wp_keys: List[str],
-        current_depth: int,
+        confluence_service: ConfluenceService,
+        jira_service: JiraService,
+        issue_finder_service: IssueFinderService,
+        base_parent_page_id: str,
+        confluence_space_key: str,
+        assignee_username: str,
+        test_work_package_keys: List[str],
         max_depth: int,
         tasks_per_page: int,
-        wp_index: int,
-    ) -> None:
+    ):
         """
-        Recursively generates pages under a given parent to build a tree.
+        Initializes the ConfluenceTreeGenerator.
 
         Args:
-            parent_id (str): The ID of the parent page for this level.
-            wp_keys (List[str]): The list of work package keys to cycle through.
-            current_depth (int): The current depth in the hierarchy.
-            max_depth (int): The maximum depth to generate.
-            tasks_per_page (int): The number of tasks per page.
-            wp_index (int): The current index for selecting a work package key.
+            confluence_service (ConfluenceService): Service for Confluence operations.
+            jira_service (JiraService): Service for Jira operations.
+            issue_finder_service (IssueFinderService): Service for finding Jira issues.
+            base_parent_page_id (str): ID of the existing parent page under which
+                                       new pages will be created.
+            confluence_space_key (str): Key of the Confluence space.
+            assignee_username (str): Username to assign tasks to.
+            test_work_package_keys (List[str]): List of Jira Work Package keys to
+                                                 distribute among tasks.
+            max_depth (int): Maximum depth of the page hierarchy to generate.
+            tasks_per_page (int): Number of tasks to generate per page.
         """
-        if current_depth > max_depth:
-            return
+        self.confluence = confluence_service
+        self.jira = jira_service
+        self.issue_finder = issue_finder_service
+        self.base_parent_page_id = base_parent_page_id
+        self.confluence_space_key = confluence_space_key
+        self.assignee_username = assignee_username
+        self.test_work_package_keys = test_work_package_keys
+        self.max_depth = max_depth
+        self.tasks_per_page = tasks_per_page
+        self.generated_page_ids: List[str] = []
 
-        page_title = f"Gen {self.timestamp} - L{current_depth}"
-        # Cycle through the provided work package keys.
-        current_wp_key = wp_keys[wp_index % len(wp_keys)]
+        # Get assignee account ID once for efficiency
+        self.assignee_account_id = None
+        user_details = self.confluence.get_user_details_by_username(assignee_username)
+        if user_details:
+            self.assignee_account_id = user_details.get("accountId")
+            logger.info(f"Assignee '{assignee_username}' account ID: {self.assignee_account_id}")
+        else:
+            logger.warning(f"Could not find account ID for assignee: {assignee_username}. Tasks might not be assignable.")
 
-        new_page_id = self._create_page(
-            parent_id=parent_id,
-            title=page_title,
-            wp_key=current_wp_key,
-            tasks_per_page=tasks_per_page,
-        )
+    def generate_page_hierarchy(
+        self, parent_page_id: str, current_depth: int = 0
+    ) -> List[Dict[str, str]]:
+        """
+        Recursively generates a hierarchy of pages and adds tasks.
 
-        if new_page_id:
-            # Recursive call for the next level down.
-            self._generate_tree_recursive(
-                parent_id=new_page_id,
-                wp_keys=wp_keys,
-                current_depth=current_depth + 1,
-                max_depth=max_depth,
-                tasks_per_page=tasks_per_page,
-                wp_index=wp_index + 1,
+        Args:
+            parent_page_id (str): The ID of the current parent page.
+            current_depth (int): The current depth in the hierarchy.
+
+        Returns:
+            List[Dict[str, str]]: A list of dictionaries, each mapping a
+                                  generated Confluence page URL to its linked
+                                  Jira Work Package.
+        """
+        if current_depth >= self.max_depth:
+            return []
+
+        results: List[Dict[str, str]] = []
+
+        num_children = 1  # Always create one child page for simplicity
+
+        for i in range(num_children):
+            page_title = f"Test Page (Depth {current_depth}-{i}) {datetime.now().strftime('%Y%m%d%H%M%S')}"
+            logger.info(f"Creating page: '{page_title}' under parent {parent_page_id}")
+
+            # Include a Jira macro for a Work Package on the page for _issue_finder_service
+            # Assign a random Work Package from the predefined list
+            wp_key = self.test_work_package_keys[i % len(self.test_work_package_keys)]
+            
+            # Confluence storage format for Jira macro
+            jira_macro_html = (
+                f'<p><ac:structured-macro ac:name="jira" ac:schema-version="1" ac:macro-id="{uuid.uuid4()}">'
+                f'<ac:parameter ac:name="server">{config.JIRA_MACRO_SERVER_NAME}</ac:parameter>'
+                f'<ac:parameter ac:name="serverId">{config.JIRA_MACRO_SERVER_ID}</ac:parameter>'
+                f'<ac:parameter ac:name="key">{wp_key}</ac:parameter>'
+                f"</ac:structured-macro></p>"
             )
 
-    def _create_page(
-        self, parent_id: str, title: str, wp_key: str, tasks_per_page: int
-    ) -> Optional[str]:
-        """Creates a single Confluence page with specified content."""
-        tasks = [
-            self._generate_task_html(f"Task {i + 1} on page {title}")
-            for i in range(tasks_per_page)
-        ]
-        content_html = self._create_page_body(
-            title=title,
-            description=f"This page contains Work Package: {wp_key}.",
-            main_content_html=self._wrap_in_task_list(tasks),
-            jira_macro_html=self._generate_jira_macro_html(wp_key),
-        )
+            # Generate tasks with random completion status
+            tasks_html_parts = []
+            for t_idx in range(self.tasks_per_page):
+                task_status = "incomplete" # Force incomplete for sync script testing
+                task_summary = f"Generated Task {t_idx} for {wp_key} ({datetime.now().strftime('%H%M%S')})"
+                assignee_html = ""
+                if self.assignee_account_id:
+                    assignee_html = (
+                        f'<ac:task-assignee ac:account-id="{self.assignee_account_id}"></ac:task-assignee>'
+                    )
+                
+                tasks_html_parts.append(
+                    f'<ac:task-list><ac:task><ac:task-id>{uuid.uuid4().hex[:8]}</ac:task-id>'
+                    f'<ac:task-status>{task_status}</ac:task-status>'
+                    f'<ac:task-body><span>{task_summary} {assignee_html}</span><time datetime="{config.DEFAULT_DUE_DATE}"></time>'
+                    f'</ac:task-body></ac:task></ac:task-list>'
+                )
 
-        page = self.confluence.create_page(
-            space=config.CONFLUENCE_SPACE_KEY,
-            parent_id=parent_id,
-            title=title,
-            body=content_html,
-            representation="storage",
-        )
+            # Combine Jira macro and tasks into the page body
+            page_body = f"{jira_macro_html}\n{''.join(tasks_html_parts)}"
 
-        if page and page.get("id"):
-            logging.info(
-                f"Created page \"{config.CONFLUENCE_SPACE_KEY}\" -> \"{title}\""
-            )
-            self.all_created_pages.append(
-                {
-                    "id": page["id"],
-                    "url": page.get("_links", {}).get("webui"),
-                    "title": title,
-                    "wp_on_page": wp_key,
-                }
-            )
-            return page["id"]
-        return None
-
-    def _print_summary(self) -> None:
-        """Prints a final summary of all created pages to the console."""
-        logging.info("\n--- Final Confluence Test Tree Generation Summary ---")
-        logging.info(f"Total {len(self.all_created_pages)} pages generated.")
-        for page in self.all_created_pages:
-            wp_status = (
-                f"(WP: {page['wp_on_page']})" if page.get("wp_on_page") else "(No WP)"
-            )
-            url = page.get("url", "URL not available")
-            logging.info(f"- {page['title']} {wp_status}: {url}")
-
-        if self.all_created_pages:
-            main_url = self.all_created_pages[0].get("url", "N/A")
-            logging.info(
-                f"\nTo test, add the Main Test Page URL to input file: {main_url}"
+            new_page = self.confluence.create_page(
+                space=self.confluence_space_key,
+                title=page_title,
+                body=page_body,
+                parent_id=parent_page_id,
             )
 
-    def _generate_jira_macro_html(self, jira_key: str) -> str:
-        """Generates the Confluence storage format for a Jira macro."""
-        macro_id = str(uuid.uuid4())
-        return (
-            f'<p><ac:structured-macro ac:name="jira" ac:schema-version="1" '
-            f'ac:macro-id="{macro_id}">'
-            f'<ac:parameter ac:name="server">{config.JIRA_MACRO_SERVER_NAME}</ac:parameter>'
-            f'<ac:parameter ac:name="serverId">{config.JIRA_MACRO_SERVER_ID}</ac:parameter>'
-            f'<ac:parameter ac:name="key">{jira_key}</ac:parameter>'
-            f"</ac:structured-macro></p>"
+            if new_page:
+                new_page_id = new_page["id"]
+                new_page_url = new_page["_links"]["webui"]
+                self.generated_page_ids.append(new_page_id)
+                logger.info(f"Created page '{page_title}' (ID: {new_page_id})")
+                results.append(
+                    {"url": new_page_url, "linked_work_package": wp_key}
+                )
+
+                # Recursively generate children
+                results.extend(
+                    self.generate_page_hierarchy(new_page_id, current_depth + 1)
+                )
+            else:
+                logger.error(f"Failed to create page '{page_title}'. Skipping children.")
+
+        return results
+
+    # Removed the cleanup_generated_pages method
+
+    @staticmethod
+    def _parse_args() -> argparse.Namespace:
+        """Parses command-line arguments."""
+        parser = argparse.ArgumentParser(
+            description="Generate a Confluence page hierarchy with tasks for testing."
         )
-
-    def _generate_task_html(
-        self,
-        summary: str,
-        status: str = "incomplete",
-        due_date: Optional[date] = None,
-    ) -> str:
-        """Generates the Confluence storage format for a single task item."""
-        self.task_counter += 1
-        assignee_html = (
-            f'<ri:user ri:userkey="{self.assignee_userkey}"/>'
-            if self.assignee_userkey
-            else ""
+        parser.add_argument(
+            "--base-parent-page-id",
+            type=str,
+            default=config.BASE_PARENT_CONFLUENCE_PAGE_ID,
+            help="ID of the existing Confluence parent page to create test pages under.",
         )
-        date_html = f'<time datetime="{due_date.strftime("%Y-%m-%d")}"/>' if due_date else ""
-        task_id = f"task-{uuid.uuid4().hex[:4]}-{self.task_counter}"
-        return (
-            f"<ac:task><ac:task-id>{task_id}</ac:task-id>"
-            f"<ac:task-status>{status}</ac:task-status>"
-            f"<ac:task-body><span>{summary} {assignee_html}{date_html}</span></ac:task-body></ac:task>"
+        parser.add_argument(
+            "--confluence-space-key",
+            type=str,
+            default=config.CONFLUENCE_SPACE_KEY,
+            help="Key of the Confluence space to create pages in.",
         )
-
-    def _wrap_in_task_list(self, tasks: List[str]) -> str:
-        """Wraps a list of task HTML strings in a task list container."""
-        return f"<ac:task-list>{''.join(tasks)}</ac:task-list>"
-
-    def _create_page_body(self, **kwargs: Any) -> str:
-        """Constructs the full HTML body for a Confluence page."""
-        return (
-            f"<h1>{kwargs['title']}</h1>"
-            f"<p>{kwargs['description']}</p>"
-            f"{kwargs.get('jira_macro_html', '')}"
-            f"{kwargs.get('main_content_html', '')}"
+        parser.add_argument(
+            "--assignee-username",
+            type=str,
+            default=config.ASSIGNEE_USERNAME_FOR_GENERATED_TASKS,
+            help="Confluence username to assign generated tasks to.",
         )
+        parser.add_argument(
+            "--test-work-package-keys",
+            nargs="+",
+            default=config.TEST_WORK_PACKAGE_KEYS_TO_DISTRIBUTE,
+            help="Space-separated list of Jira Work Package keys to distribute among tasks.",
+        )
+        parser.add_argument(
+            "--max-depth",
+            type=int,
+            default=config.DEFAULT_MAX_DEPTH,
+            help="Maximum depth of the page hierarchy (e.g., 2 for parent -> child).",
+        )
+        parser.add_argument(
+            "--tasks-per-page",
+            type=int,
+            default=config.DEFAULT_TASKS_PER_PAGE,
+            help="Number of tasks to generate per page.",
+        )
+        parser.add_argument(
+            "--num-work-packages",
+            type=int,
+            default=config.DEFAULT_NUM_WORK_PACKAGES,
+            help="Number of Work Packages to distribute tasks among. (Used by config for default WP keys).",
+        )
+        return parser.parse_args()
 
-
+# The __main__ block is only for standalone execution.
 if __name__ == "__main__":
-    if config.BASE_PARENT_CONFLUENCE_PAGE_ID == "YOUR_BASE_PARENT_PAGE_ID_HERE":
-        logging.error("Please update BASE_PARENT_CONFLUENCE_PAGE_ID in config.py")
-    else:
-        # Use new config variables for customization.
-        wp_keys_to_use = config.TEST_WORK_PACKAGE_KEYS_TO_DISTRIBUTE[
-            : config.DEFAULT_NUM_WORK_PACKAGES
-        ]
+    setup_logging("logs/logs_generate", "generate_tree_run")
+    logging.info("--- Starting Confluence Test Data Generation Script ---")
 
-        # 1. Initialize raw API clients.
+    args = ConfluenceTreeGenerator._parse_args()
+
+    if args.base_parent_page_id == "YOUR_BASE_PARENT_PAGE_ID_HERE" or not args.base_parent_page_id:
+        logging.error("Please provide a valid --base-parent-page-id via command line or update config.py")
+        sys.exit(1)
+
+    try:
         jira_client = Jira(
             url=config.JIRA_URL,
             token=config.JIRA_API_TOKEN,
@@ -304,18 +242,45 @@ if __name__ == "__main__":
             verify_ssl=False,
         )
 
-        # 2. Instantiate the low-level, resilient API handlers.
         safe_jira_api = SafeJiraApi(jira_client)
         safe_confluence_api = SafeConfluenceApi(confluence_client)
 
-        # 3. Instantiate the high-level service implementation.
+        jira_service = JiraService(safe_jira_api)
         confluence_service = ConfluenceService(safe_confluence_api)
+        issue_finder_service = IssueFinderService(safe_confluence_api, safe_jira_api)
 
-        # 4. Inject the service into the generator and run it.
-        generator = TestDataGenerator(confluence_service)
-        generator.run(
-            base_parent_id=config.BASE_PARENT_CONFLUENCE_PAGE_ID,
-            wp_keys=wp_keys_to_use,
-            max_depth=config.DEFAULT_MAX_DEPTH,
-            tasks_per_page=config.DEFAULT_TASKS_PER_PAGE,
+        generator = ConfluenceTreeGenerator(
+            confluence_service=confluence_service,
+            jira_service=jira_service,
+            issue_finder_service=issue_finder_service,
+            base_parent_page_id=args.base_parent_page_id,
+            confluence_space_key=args.confluence_space_key,
+            assignee_username=args.assignee_username,
+            test_work_package_keys=args.test_work_package_keys,
+            max_depth=args.max_depth,
+            tasks_per_page=args.tasks_per_page,
         )
+
+        generated_page_info = generator.generate_page_hierarchy(
+            parent_page_id=args.base_parent_page_id
+        )
+
+        if generated_page_info:
+            output_dir = config.OUTPUT_DIRECTORY
+            os.makedirs(output_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_filepath = os.path.join(output_dir, f"generated_pages_{timestamp}.json")
+            with open(output_filepath, "w", encoding="utf-8") as f:
+                json.dump(generated_page_info, f, ensure_ascii=False, indent=4)
+            logger.info(f"Generated page info saved to: {output_filepath}")
+        else:
+            logger.info("No pages were generated.")
+
+    except Exception as e:
+        logger.error(f"An error occurred during generation: {e}", exc_info=True)
+        sys.exit(1)
+
+    finally:
+        # Removed the call to generator.cleanup_generated_pages()
+        pass # The finally block now just passes if cleanup is not needed
+        logging.info("--- Confluence Test Data Generation Script Finished ---")
