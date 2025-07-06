@@ -19,6 +19,7 @@ from atlassian import Jira
 
 # Local application imports
 from src.config import config
+from src.utils.https_helper import make_request
 
 # Configure logging for this module
 logger = logging.getLogger(__name__)
@@ -91,15 +92,10 @@ class SafeJiraApi:
     ) -> Optional[Dict[str, Any]]:
         """Fallback method to get an issue by key using a direct REST call."""
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}?fields={fields}"
-        try:
-            response = requests.get(
-                url, headers=self.headers, verify=False, timeout=15
-            )
-            response.raise_for_status()
+        response = make_request("GET", url, headers=self.headers, verify_ssl=False)
+        if response:
             return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Fallback get_issue for '{issue_key}' failed. Error: {e}")
-            return None
+        return None
 
     def create_issue(
         self, issue_fields: Dict[str, Any]
@@ -121,6 +117,7 @@ class SafeJiraApi:
         """
         try:
             # The library expects the fields directly, not nested.
+            # Assuming issue_fields comes with 'fields' key as per prepare_jira_task_fields
             return self.client.issue_create(fields=issue_fields["fields"])
         except requests.exceptions.RequestException as e:
             logger.warning(
@@ -137,15 +134,10 @@ class SafeJiraApi:
     ) -> Optional[Dict[str, Any]]:
         """Fallback method to create an issue using a direct REST call."""
         url = f"{self.base_url}/rest/api/2/issue"
-        try:
-            response = requests.post(
-                url, headers=self.headers, json=issue_fields, verify=False, timeout=15
-            )
-            response.raise_for_status()
+        response = make_request("POST", url, headers=self.headers, json_data=issue_fields, verify_ssl=False)
+        if response:
             return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Fallback create_issue failed. Error: {e}")
-            return None
+        return None
 
     def get_available_transitions(self, issue_key: str) -> List[Dict[str, Any]]:
         """
@@ -159,15 +151,10 @@ class SafeJiraApi:
                                   empty list on failure.
         """
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
-        try:
-            response = requests.get(
-                url, headers=self.headers, verify=False, timeout=15
-            )
-            response.raise_for_status()
+        response = make_request("GET", url, headers=self.headers, verify_ssl=False)
+        if response:
             return response.json().get("transitions", [])
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Could not get transitions for '{issue_key}'. Error: {e}")
-            return []
+        return []
 
     def find_transition_id_by_name(
         self, issue_key: str, target_status: str
@@ -245,19 +232,14 @@ class SafeJiraApi:
         """Fallback method to transition an issue using a direct REST call."""
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
         payload = {"transition": {"id": transition_id}}
-        try:
-            response = requests.post(
-                url, headers=self.headers, json=payload, verify=False, timeout=15
-            )
-            response.raise_for_status()
+        response = make_request("POST", url, headers=self.headers, json_data=payload, verify_ssl=False)
+        if response:
             logger.info(
                 f"Successfully transitioned '{issue_key}' to '{target_status}' "
                 f"via REST call (ID: {transition_id})."
             )
             return True
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Fallback transition for '{issue_key}' failed. Error: {e}")
-            return False
+        return False
 
     def get_myself(self) -> Optional[Dict[str, Any]]:
         """
@@ -270,12 +252,7 @@ class SafeJiraApi:
                                       or None on failure.
         """
         url = f"{self.base_url}/rest/api/2/myself"
-        try:
-            response = requests.get(
-                url, headers=self.headers, verify=False, timeout=15
-            )
-            response.raise_for_status()
+        response = make_request("GET", url, headers=self.headers, verify_ssl=False)
+        if response:
             return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to get current user details. Error: {e}")
-            return None
+        return None
