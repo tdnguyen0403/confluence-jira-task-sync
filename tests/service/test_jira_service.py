@@ -1,11 +1,4 @@
-# codebase/tests/service/test_jira_service.py
-
-"""
-Unit tests for the JiraService class.
-
-This module tests the high-level JiraService, ensuring that it correctly
-handles business logic and delegates calls to its underlying API wrapper.
-"""
+# jira_confluence_automator_/tests/service/test_jira_service.py
 
 import logging
 import os
@@ -21,7 +14,7 @@ from src.api.safe_jira_api import SafeJiraApi
 from src.models.data_models import ConfluenceTask
 from src.services.jira_service import JiraService
 from src.config import config
-from src.exceptions import AutomationError # Import AutomationError
+from src.exceptions import AutomationError
 
 
 # Disable logging during tests for cleaner output.
@@ -51,14 +44,14 @@ class TestJiraService(unittest.TestCase):
         self.jira_service = JiraService(self.mock_safe_api)
         # Mock get_myself for get_current_user_display_name dependency (for most tests)
         self.mock_safe_api.get_myself.return_value = {"displayName": "AutomationBot"}
-        # get_user_by_name is NOT called by JiraService (in provided code), so no need to mock it in setUp.
 
 
     def tearDown(self):
         """Clean up mocks after each test."""
         self.mock_config_patcher.stop()
         self.mock_safe_api.get_myself.reset_mock()
-        # No get_user_by_name mock to reset in setUp.
+        # Ensure the service's internal cache is reset for each test
+        self.jira_service._current_user_name = None 
 
 
     def test_get_issue_delegates_to_safe_api(self):
@@ -68,10 +61,9 @@ class TestJiraService(unittest.TestCase):
 
     def test_get_current_user_display_name_success_and_cache(self):
         """Test that the user's display name is fetched and then cached."""
-        # FIX: Mock the dependency get_myself, not the method itself, to test caching
-        self.mock_safe_api.get_myself.reset_mock(return_value=True, side_effect=True) # Clear any previous mocks
+        self.mock_safe_api.get_myself.reset_mock() # Reset to ensure no prior calls interfere
         self.mock_safe_api.get_myself.return_value = {"displayName": "Test User"}
-
+        
         # First call should hit the API.
         name1 = self.jira_service.get_current_user_display_name()
         self.assertEqual(name1, "Test User")
@@ -82,14 +74,14 @@ class TestJiraService(unittest.TestCase):
         self.assertEqual(name2, "Test User")
         self.mock_safe_api.get_myself.assert_called_once() # get_myself still called only once
 
-    @patch('src.services.jira_service.JiraService.get_current_user_display_name', return_value="Unknown User") # FIX: Patch directly for this test
-    def test_get_current_user_display_name_failure(self, mock_get_current_user_display_name):
+    def test_get_current_user_display_name_failure(self):
         """Test the fallback to 'Unknown User' when the API fails."""
-        # This test now directly patches the method to control its output
-        # No need to call self.mock_safe_api.get_myself.reset_mock or side_effect here
+        self.mock_safe_api.get_myself.reset_mock()
+        self.mock_safe_api.get_myself.return_value = None # Simulate API failure
+        
         name = self.jira_service.get_current_user_display_name()
         self.assertEqual(name, "Unknown User")
-        mock_get_current_user_display_name.assert_called_once() # Verify the patched method was called
+        self.mock_safe_api.get_myself.assert_called_once()
 
 
     @patch("src.services.jira_service.datetime")
@@ -111,7 +103,7 @@ class TestJiraService(unittest.TestCase):
             task_summary="My Summary",
             status="incomplete",
             assignee_name="assignee_user_name", # Provided assignee name
-            due_date="2025-01-15",
+            due_date="2025-01-15", # Corrected: provide a valid string
             original_page_version=1,
             original_page_version_by="ConfluenceUser",
             original_page_version_when="now",
@@ -130,18 +122,16 @@ class TestJiraService(unittest.TestCase):
         self.assertEqual(result["fields"]["summary"], "My Summary")
         self.assertEqual(result["fields"]["issuetype"]["id"], self.mock_config.TASK_ISSUE_TYPE_ID)
         self.assertEqual(result["fields"]["duedate"], "2025-01-15")
-        # Assert for 'name' key, as provided jira_service.py directly uses that for assignee
         self.assertEqual(result["fields"]["assignee"]["name"], "assignee_user_name") 
-        # get_user_by_name is NOT called by JiraService (in provided code), so no assertion on it.
         
         self.assertEqual(result["fields"][self.mock_config.JIRA_PARENT_WP_CUSTOM_FIELD_ID], parent_key)
-        # Assert custom fields are not present based on provided jira_service.py's behavior
-        self.assertNotIn(self.mock_config.JIRA_CUSTOM_FIELDS["Confluence URL"], result["fields"]) 
-        self.assertNotIn(self.mock_config.JIRA_CUSTOM_FIELDS["Request User"], result["fields"])
+        self.assertNotIn("customfield_10001", result["fields"])
+        self.assertNotIn("customfield_10002", result["fields"])
+
 
         expected_description = (
             "Context from Confluence:\nThis is the context.\n\n"
-            f"Created by AutomationBot on 2025-01-01 12:00:00 requested by {test_request_user}" # FIX: Use AutomationBot
+            f"Created by AutomationBot on 2025-01-01 12:00:00 requested by {test_request_user}" 
         )
         self.assertEqual(result["fields"]["description"], expected_description)
 
@@ -163,8 +153,8 @@ class TestJiraService(unittest.TestCase):
             confluence_task_id="t1",
             task_summary="My Summary",
             status="incomplete",
-            assignee_name=None, # No assignee name
-            due_date=None, # No due date
+            assignee_name=None, 
+            due_date=config.DEFAULT_DUE_DATE, # Corrected: provide a valid string
             original_page_version=1,
             original_page_version_by="AnotherConfluenceUser",
             original_page_version_when="now",
@@ -180,21 +170,18 @@ class TestJiraService(unittest.TestCase):
         self.assertEqual(result["fields"]["project"]["key"], "ANOTHER")
         self.assertEqual(result["fields"]["summary"], "My Summary")
         self.assertEqual(result["fields"]["issuetype"]["id"], self.mock_config.TASK_ISSUE_TYPE_ID)
-        # Assert duedate key is present with None value, as per provided jira_service.py
-        self.assertEqual(result["fields"]["duedate"], None) 
-        # Assert assignee field is NOT present if assignee_name is None, as per provided jira_service.py
+        self.assertEqual(result["fields"]["duedate"], config.DEFAULT_DUE_DATE)
         self.assertNotIn("assignee", result["fields"])
-        # get_user_by_name is NOT called by JiraService (in provided code), so no assertion on it.
         
-        # Assert custom fields are not present based on provided jira_service.py's behavior
-        self.assertNotIn(self.mock_config.JIRA_CUSTOM_FIELDS["Confluence URL"], result["fields"])
-        self.assertNotIn(self.mock_config.JIRA_CUSTOM_FIELDS["Request User"], result["fields"])
+        self.assertEqual(result["fields"][self.mock_config.JIRA_PARENT_WP_CUSTOM_FIELD_ID], parent_key)
+        self.assertNotIn("customfield_10001", result["fields"])
+        self.assertNotIn("customfield_10002", result["fields"])
+
 
         expected_description = (
-            f"Created by AutomationBot on 2025-01-01 12:00:00 requested by {test_default_user}" # FIX: Use AutomationBot
+            f"Created by AutomationBot on 2025-01-01 12:00:00 requested by {test_default_user}" 
         )
         self.assertEqual(result["fields"]["description"], expected_description)
-
 
 
     @patch("src.services.jira_service.JiraService.prepare_jira_task_fields")
@@ -212,16 +199,15 @@ class TestJiraService(unittest.TestCase):
             task_summary="Test Task",
             status="incomplete",
             assignee_name="test_assignee",
-            due_date="2025-01-01",
+            due_date="2025-01-01", 
             original_page_version=1,
             original_page_version_by="original_author",
             original_page_version_when="now",
             context="test context"
         )
         parent_key = "PARENT-1"
-        expected_jira_key_dict = {'key': "NEWISSUE-1"} # Expect dictionary
+        expected_jira_key_dict = {'key': "NEWISSUE-1"}
         
-        # This is the payload that prepare_jira_task_fields *returns*
         prepared_fields_payload = {
             "fields": {
                 "project": {"key": "PARENT"},
@@ -229,7 +215,7 @@ class TestJiraService(unittest.TestCase):
                 "issuetype": {"id": self.mock_config.TASK_ISSUE_TYPE_ID},
                 "description": "Prepared description",
                 "parent": {"key": parent_key},
-                "assignee": {"name": "test_assignee"} # Expecting 'name' here
+                "assignee": {"name": "test_assignee"}
             }
         }
         mock_prepare_fields.return_value = prepared_fields_payload
@@ -240,9 +226,7 @@ class TestJiraService(unittest.TestCase):
         jira_key_explicit = self.jira_service.create_issue(mock_task, parent_key, explicit_request_user)
 
         self.assertEqual(jira_key_explicit, expected_jira_key_dict) 
-        # Assert prepare_jira_task_fields was called with positional args
         mock_prepare_fields.assert_called_once_with(mock_task, parent_key, explicit_request_user)
-        # Assert mock_safe_api.create_issue was called with the full prepared_fields_payload
         self.mock_safe_api.create_issue.assert_called_once_with(prepared_fields_payload) 
         
         mock_prepare_fields.reset_mock()
@@ -252,9 +236,7 @@ class TestJiraService(unittest.TestCase):
         jira_key_default = self.jira_service.create_issue(mock_task, parent_key)
 
         self.assertEqual(jira_key_default, expected_jira_key_dict)
-        # Pass request_user positionally
         mock_prepare_fields.assert_called_once_with(mock_task, parent_key, "jira-user")
-        # Assert mock_safe_api.create_issue was called with the full prepared_fields_payload
         self.mock_safe_api.create_issue.assert_called_once_with(prepared_fields_payload) 
 
 
@@ -268,7 +250,7 @@ class TestJiraService(unittest.TestCase):
             task_summary="Failing Task",
             status="incomplete",
             assignee_name=None,
-            due_date=None,
+            due_date=config.DEFAULT_DUE_DATE, # Corrected: provide a valid string
             original_page_version=1,
             original_page_version_by="author",
             original_page_version_when="now",

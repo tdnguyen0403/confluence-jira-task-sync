@@ -1,7 +1,7 @@
 """
-Unit tests for the Confluence Test Data Generator.
+Unit tests for the Confluence ConfluenceTreeGenerator.
 
-This module contains tests for the `TestDataGenerator` class, which is used
+This module contains tests for the `ConfluenceTreeGenerator` class, which is used
 to create a hierarchy of test pages in Confluence. The tests use mocking to
 isolate the generator from its service dependencies, allowing for focused
 testing of its logic without making real API calls.
@@ -17,14 +17,14 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.config import config
-from src.generate_confluence_tree import TestDataGenerator
+from src.generate_confluence_tree import ConfluenceTreeGenerator
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 
 # Disable logging during tests for cleaner output.
 logging.disable(logging.CRITICAL)
 
 
-class TestTestDataGenerator(unittest.TestCase):
+class TestConfluenceTreeGenerator (unittest.TestCase):
     """
     Test suite for the Confluence test data generator.
     """
@@ -34,10 +34,10 @@ class TestTestDataGenerator(unittest.TestCase):
         Set up the test environment before each test case.
 
         This method creates a mock object for the Confluence service and
-        initializes the `TestDataGenerator` with this mock.
+        initializes the `ConfluenceTreeGenerator` with this mock.
         """
         self.mock_confluence_service = Mock(spec=ConfluenceApiServiceInterface)
-        self.generator = TestDataGenerator(self.mock_confluence_service)
+        self.generator = ConfluenceTreeGenerator(self.mock_confluence_service)
 
     def tearDown(self):
         """

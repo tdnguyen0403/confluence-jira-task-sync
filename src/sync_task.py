@@ -28,7 +28,7 @@ from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.models.data_models import AutomationResult, ConfluenceTask
+from src.models.data_models import AutomationResult, ConfluenceTask # These are now Pydantic BaseModels
 from src.services.confluence_service import ConfluenceService
 from src.services.issue_finder_service import IssueFinderService
 from src.services.jira_service import JiraService
@@ -68,7 +68,7 @@ class SyncTaskOrchestrator:
         self.jira = jira_service
         self.issue_finder = issue_finder
         self.results: List[AutomationResult] = []
-        self.request_user: Optional[str] = None # Renamed from request_person_name
+        self.request_user: Optional[str] = None
 
     def run(self, json_input: Dict[str, Any]) -> None:
         """
@@ -88,12 +88,12 @@ class SyncTaskOrchestrator:
             logger.error("ERROR: No input JSON provided. Aborting.")
             raise InvalidInputError("No input JSON provided for sync operation.")
 
-        page_urls = json_input.get("confluence_page_urls", []) # Changed from "ConfluencePageURLs"
+        page_urls = json_input.get("confluence_page_urls", [])
         if not page_urls:
-            logger.error("ERROR: No 'confluence_page_urls' found in the input. Aborting.") # Changed
-            raise InvalidInputError("No 'confluence_page_urls' found in the input for sync operation.") # Changed
+            logger.error("ERROR: No 'confluence_page_urls' found in the input. Aborting.")
+            raise InvalidInputError("No 'confluence_page_urls' found in the input for sync operation.")
         
-        self.request_user = json_input.get("request_user") # Renamed from request_person_name
+        self.request_user = json_input.get("request_user")
         if not self.request_user:
             logger.warning("No 'request_user' found in the input. Results will not include who requested the sync.")
 
@@ -102,7 +102,7 @@ class SyncTaskOrchestrator:
         for url in page_urls:
             self.process_page_hierarchy(url)
 
-        self._save_results(self.request_user) # This method can now raise SyncError
+        self._save_results(self.request_user)
         logging.info("\n--- Script Finished ---")
 
     def process_page_hierarchy(self, root_page_url: str) -> None:
@@ -128,7 +128,7 @@ class SyncTaskOrchestrator:
         all_tasks = self._collect_tasks(all_page_ids)
         if not all_tasks:
             logging.info("No incomplete tasks found across all pages.")
-            return # This is a valid scenario, no error to raise
+            return
 
         logging.info(f"\nDiscovered {len(all_tasks)} incomplete tasks. Now processing...")
         self._process_tasks(all_tasks)
@@ -163,7 +163,7 @@ class SyncTaskOrchestrator:
                 logger.warning(
                     "Skipping empty task on page ID: %s.", task.confluence_page_id
                 )
-                continue  # This is a valid skip, no error to raise
+                continue
                 
             # Find the parent Work Package on the same page as the task.
             closest_wp = self.issue_finder.find_issue_on_page(
@@ -171,19 +171,18 @@ class SyncTaskOrchestrator:
             )
 
             if not closest_wp:
-                # Log and raise an error if a Work Package is required but not found
                 error_msg = (
                     f"Skipped task '{task.task_summary}' (ID: {task.confluence_task_id}) "
                     f"on page ID: {task.confluence_page_id} - No Work Package found."
                 )
                 logger.error(f"ERROR: {error_msg}")
                 self.results.append(
-                    AutomationResult(task, "Skipped - No Work Package found", request_user=self.request_user)
+                    AutomationResult(
+                        task_data=task, # Corrected: Use keyword arguments
+                        status="Skipped - No Work Package found",
+                        request_user=self.request_user
+                    )
                 )
-                # Instead of just appending to results and continuing, raise an exception
-                # if the absence of a WP is considered a critical error for the task.
-                # For now, we'll log, append, and *continue*, but if it must stop, uncomment below:
-                # raise MissingRequiredDataError(error_msg)
                 continue
 
 
@@ -200,10 +199,10 @@ class SyncTaskOrchestrator:
                     self.jira.transition_issue(new_key, target_status)
                     self.results.append(
                         AutomationResult(
-                            task,
-                            "Success - Completed Task Created",
-                            new_key,
-                            closest_wp_key,
+                            task_data=task, # Corrected: Use keyword arguments
+                            status="Success - Completed Task Created",
+                            new_jira_key=new_key,
+                            linked_work_package=closest_wp_key,
                             request_user=self.request_user,
                         )
                     )
@@ -213,7 +212,13 @@ class SyncTaskOrchestrator:
                         target_status = config.JIRA_TARGET_STATUSES["new_task_dev"]
                         self.jira.transition_issue(new_key, target_status)
                     self.results.append(
-                        AutomationResult(task, "Success", new_key, closest_wp_key, request_user=self.request_user)
+                        AutomationResult(
+                            task_data=task, # Corrected: Use keyword arguments
+                            status="Success",
+                            new_jira_key=new_key,
+                            linked_work_package=closest_wp_key,
+                            request_user=self.request_user
+                        )
                     )
 
                 # Group the successful mappings by page ID for batch updates.
@@ -230,13 +235,13 @@ class SyncTaskOrchestrator:
                 logger.error(f"ERROR: {error_msg}")
                 self.results.append(
                     AutomationResult(
-                        task,
-                        "Failed - Jira task creation",
+                        task_data=task, # Corrected: Use keyword arguments
+                        status="Failed - Jira task creation",
                         linked_work_package=closest_wp_key,
                         request_user=self.request_user,
                     )
                 )
-                raise SyncError(error_msg) # <-- Raise an exception for critical failure
+                raise SyncError(error_msg)
 
         if tasks_to_update_on_pages:
             logging.info(
@@ -252,7 +257,7 @@ class SyncTaskOrchestrator:
         """
         if not self.results:
             logging.info("No actionable tasks were found. No results file generated.")
-            return # No error to raise if nothing was processed
+            return
 
         output_dir = config.OUTPUT_DIRECTORY
         os.makedirs(output_dir, exist_ok=True)
@@ -269,9 +274,4 @@ class SyncTaskOrchestrator:
         except Exception as e:
             error_msg = f"Failed to save results to file '{file_path}': {e}"
             logger.error(f"ERROR: {error_msg}", exc_info=True)
-            raise SyncError(error_msg) # <-- Raise SyncError if saving fails
-
-
-# The __main__ block will be removed when integrated with FastAPI.
-# if __name__ == "__main__":
-#     # ... (code will be removed)
+            raise SyncError(error_msg)

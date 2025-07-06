@@ -38,7 +38,7 @@ warnings.filterwarnings(
 )
 
 
-class TestDataGenerator:
+class ConfluenceTreeGenerator:
     """
     Generates a Confluence test page structure using a service interface.
 

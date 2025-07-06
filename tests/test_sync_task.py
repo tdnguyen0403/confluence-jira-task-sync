@@ -49,7 +49,7 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
             confluence_task_id='empty_task_id',
             status='incomplete',
             assignee_name=None,
-            due_date="2025-01-01", # Added a default due date as config no longer reads from file
+            due_date=config.DEFAULT_DUE_DATE,
             original_page_version=1,
             confluence_page_title='Test Page',
             confluence_page_url='/test-page',

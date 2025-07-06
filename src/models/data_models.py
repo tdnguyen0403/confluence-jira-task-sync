@@ -1,20 +1,12 @@
-"""
-Defines the data structures used throughout the application.
+# jira_confluence_automator_/src/models/data_models.py
 
-This module contains dataclasses that represent the core entities of the
-automation workflow, such as tasks found in Confluence and the results of
-processing those tasks. Using dataclasses provides a clear, concise, and
-type-safe way to manage this data.
-"""
-
-from dataclasses import dataclass, fields
 from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, Field # Use BaseModel and Field from pydantic
 
-
-@dataclass
-class ConfluenceTask:
+class ConfluenceTask(BaseModel):
     """
     Represents a single, structured task item extracted from a Confluence page.
+    Now a Pydantic BaseModel for enhanced validation and serialization.
 
     Attributes:
         confluence_page_id (str): The ID of the page where the task was found.
@@ -49,10 +41,10 @@ class ConfluenceTask:
     context: Optional[str] = None
 
 
-@dataclass
-class PageUpdateMapping:
+class PageUpdateMapping(BaseModel):
     """
     Maps a Confluence task to the Jira issue key it was replaced with.
+    Now a Pydantic BaseModel for consistency.
 
     This structure is used to track which tasks have been successfully
     processed and converted into Jira issues, so the Confluence page can be
@@ -67,10 +59,10 @@ class PageUpdateMapping:
     jira_key: str
 
 
-@dataclass
-class AutomationResult:
+class AutomationResult(BaseModel):
     """
     Represents the final outcome of processing a single Confluence task.
+    Now a Pydantic BaseModel.
 
     This class encapsulates the original task data along with the results of
     the automation, such as the status of the operation and the key of any
@@ -90,15 +82,13 @@ class AutomationResult:
     status: str
     new_jira_key: Optional[str] = None
     linked_work_package: Optional[str] = None
-    request_user: Optional[str] = None # Renamed from requested_by
+    request_user: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """
         Converts the automation result into a dictionary for reporting.
-
-        This method flattens the nested `ConfluenceTask` object to create a
-        single-level dictionary, which is ideal for writing to CSV or other
-        tabular formats.
+        Leverages Pydantic's model_dump() for the nested task_data,
+        and flattens the structure.
 
         Returns:
             Dict[str, Any]: A dictionary representing the flattened result.
@@ -108,15 +98,47 @@ class AutomationResult:
             "Status": self.status,
             "New Jira Task Key": self.new_jira_key,
             "Linked Work Package": self.linked_work_package,
-            "Request User": self.request_user, # Renamed key for output
+            "Request User": self.request_user,
         }
 
-        # Iterate over the fields of the nested ConfluenceTask dataclass
-        # and add them to the dictionary.
-        for f in fields(self.task_data):
-            result_dict[f.name] = getattr(self.task_data, f.name)
+        # Use model_dump() on the nested Pydantic model for task_data
+        # This will convert all fields of ConfluenceTask into a dictionary.
+        task_data_dict = self.task_data.model_dump()
 
-        # Ensure the context is included.
-        result_dict["context"] = self.task_data.context
+        # Merge task_data fields into the result_dict
+        result_dict.update(task_data_dict)
 
         return result_dict
+
+
+class SyncRequest(BaseModel):
+    """
+    Represents the request body for the /sync endpoint.
+    """
+    confluence_page_urls: List[str] = Field(..., json_schema_extra={"example": ["https://your.confluence.com/display/SPACE/PageName"]})
+    request_user: str = Field(..., json_schema_extra={"example": "your.username"})
+
+
+class UndoRequestItem(BaseModel):
+    """
+    Represents an item in the request body for the /undo endpoint.
+    This model is used to parse the results from a previous sync operation
+    to identify Jira tasks to undo and Confluence pages to rollback.
+    """
+    Status: str
+    confluence_page_id: str
+    original_page_version: int
+    
+    New_Jira_Task_Key: Optional[str] = Field(None, alias="New Jira Task Key", json_schema_extra={"example": "JIRA-123"})
+    Linked_Work_Package: Optional[str] = Field(None, alias="Linked Work Package", json_schema_extra={"example": "WP-456"})
+    Request_User: Optional[str] = Field(None, alias="Request User", json_schema_extra={"example": "username"})
+    confluence_page_title: Optional[str] = Field(None, json_schema_extra={"example": "My Confluence Page"})
+    confluence_page_url: Optional[str] = Field(None, json_schema_extra={"example": "https://confluence.example.com/page/123"})
+    confluence_task_id: Optional[str] = Field(None, json_schema_extra={"example": "task-abc"})
+    task_summary: Optional[str] = Field(None, json_schema_extra={"example": "Complete this task"})
+    status: Optional[str] = Field(None, json_schema_extra={"example": "Success"})
+    assignee_name: Optional[str] = Field(None, json_schema_extra={"example": "jdoe"})
+    due_date: Optional[str] = Field(None, json_schema_extra={"example": "2025-12-31"})
+    original_page_version_by: Optional[str] = Field(None, json_schema_extra={"example": "jdoe"})
+    original_page_version_when: Optional[str] = Field(None, json_schema_extra={"example": "2024-07-05T10:00:00.000Z"})
+    context: Optional[str] = Field(None, json_schema_extra={"example": "Task within Section A"})
