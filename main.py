@@ -36,7 +36,7 @@ app = FastAPI(
 # The actual Pydantic models for request/response bodies are defined in src/models/data_models.py
 
 # --- API Endpoints ---
-@app.post("/sync", summary="Synchronize Confluence tasks to Jira", 
+@app.post("/sync_task", summary="Synchronize Confluence tasks to Jira", 
     response_model=List[UndoRequestItem], dependencies=[Depends(get_api_key)])
 async def sync_confluence_tasks(
     request: SyncRequest,
@@ -99,7 +99,7 @@ async def sync_confluence_tasks(
             detail=f"An unexpected server error occurred: {e}"
         )
 
-@app.post("/undo", summary="Undo a previous synchronization run", response_model=Dict[str, str], dependencies=[Depends(get_api_key)])
+@app.post("/undo_sync_task", summary="Undo a previous synchronization run", response_model=Dict[str, str], dependencies=[Depends(get_api_key)])
 async def undo_sync_run(
     results_data: List[UndoRequestItem],
     undo_orchestrator = Depends(container.undo_orchestrator) # Corrected: Use container
@@ -140,7 +140,7 @@ async def undo_sync_run(
             detail=f"An unexpected server error occurred: {e}"
         )
 
-@app.post("/update-confluence-project", summary="Update embedded Jira project/phase/work package issues on Confluence pages", 
+@app.post("/sync_project", summary="Update embedded Jira project/phase/work package issues on Confluence pages", 
     response_model=List[Dict[str, str]], dependencies=[Depends(get_api_key)])
 async def update_confluence_project(
     request: ConfluenceUpdateProjectRequest,

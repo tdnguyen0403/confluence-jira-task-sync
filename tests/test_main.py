@@ -8,7 +8,7 @@ from main import app
 # Import the container and get_api_key from src/dependencies.py
 from src.dependencies import get_api_key, container
 
-# Import the Pydantic models from src/models/data_models.py
+# Import the Pydantic models from src/models.data_models.py
 from src.models.data_models import AutomationResult, ConfluenceTask, UndoRequestItem, SyncRequest
 from src.config import config # Import config for direct patching if needed elsewhere, though not for API_SECRET_KEY here
 from src.exceptions import SyncError, MissingRequiredDataError, InvalidInputError, UndoError
@@ -53,6 +53,11 @@ def mock_undo_orchestrator():
     """Fixture to create a mock UndoSyncTaskOrchestrator."""
     return MagicMock()
 
+@pytest.fixture
+def mock_confluence_updater_service():
+    """Fixture to create a mock ConfluenceIssueUpdaterService."""
+    return MagicMock()
+
 class TestFastAPIDecoupledEndpoints:
 
     @pytest.mark.usefixtures("api_key_override")
@@ -62,7 +67,7 @@ class TestFastAPIDecoupledEndpoints:
     def test_sync_confluence_tasks_success(self, mock_json_dump, mock_open, mock_os_makedirs,
                                            client, mock_sync_orchestrator):
         """
-        Tests successful /sync endpoint behavior with a mocked orchestrator.
+        Tests successful /sync_task endpoint behavior with a mocked orchestrator.
         """
         app.dependency_overrides[container.sync_orchestrator] = lambda: mock_sync_orchestrator
 
@@ -97,7 +102,7 @@ class TestFastAPIDecoupledEndpoints:
 
         headers = {"X-API-Key": TEST_API_KEY}
         
-        response = client.post("/sync", json=request_payload_dict, headers=headers)
+        response = client.post("/sync_task", json=request_payload_dict, headers=headers)
 
         assert response.status_code == 200
         assert len(response.json()) == 1
@@ -128,7 +133,7 @@ class TestFastAPIDecoupledEndpoints:
     def test_sync_confluence_tasks_no_results(self, mock_json_dump, mock_open, mock_os_makedirs,
                                                client, mock_sync_orchestrator):
         """
-        Tests /sync endpoint when no tasks are processed (empty results).
+        Tests /sync_task endpoint when no tasks are processed (empty results).
         """
         app.dependency_overrides[container.sync_orchestrator] = lambda: mock_sync_orchestrator
         mock_sync_orchestrator.run.return_value = None
@@ -142,7 +147,7 @@ class TestFastAPIDecoupledEndpoints:
 
         headers = {"X-API-Key": TEST_API_KEY}
 
-        response = client.post("/sync", json=request_payload_dict, headers=headers)
+        response = client.post("/sync_task", json=request_payload_dict, headers=headers)
 
         assert response.status_code == 200
         assert response.json() == []
@@ -166,7 +171,7 @@ class TestFastAPIDecoupledEndpoints:
     def test_sync_confluence_tasks_invalid_input_error(self, mock_json_dump, mock_open, mock_os_makedirs,
                                                         client, mock_sync_orchestrator):
         """
-        Tests /sync endpoint handling of InvalidInputError from orchestrator.
+        Tests /sync_task endpoint handling of InvalidInputError from orchestrator.
         """
         app.dependency_overrides[container.sync_orchestrator] = lambda: mock_sync_orchestrator
         mock_sync_orchestrator.run.side_effect = InvalidInputError("Test Invalid Input")
@@ -179,7 +184,7 @@ class TestFastAPIDecoupledEndpoints:
 
         headers = {"X-API-Key": TEST_API_KEY}
         
-        response = client.post("/sync", json=request_payload_dict, headers=headers)
+        response = client.post("/sync_task", json=request_payload_dict, headers=headers)
 
         assert response.status_code == 400
         assert "Invalid Request: Test Invalid Input" in response.json()["detail"]
@@ -202,7 +207,7 @@ class TestFastAPIDecoupledEndpoints:
     def test_sync_confluence_tasks_sync_error(self, mock_json_dump, mock_open, mock_os_makedirs,
                                                client, mock_sync_orchestrator):
         """
-        Tests /sync endpoint handling of SyncError from orchestrator.
+        Tests /sync_task endpoint handling of SyncError from orchestrator.
         """
         app.dependency_overrides[container.sync_orchestrator] = lambda: mock_sync_orchestrator
         mock_sync_orchestrator.run.side_effect = SyncError("Test Sync Failure")
@@ -215,7 +220,7 @@ class TestFastAPIDecoupledEndpoints:
 
         headers = {"X-API-Key": TEST_API_KEY}
         
-        response = client.post("/sync", json=request_payload_dict, headers=headers)
+        response = client.post("/sync_task", json=request_payload_dict, headers=headers)
 
         assert response.status_code == 500
         assert "Synchronization failed due to an internal error: Test Sync Failure" in response.json()["detail"]
@@ -234,7 +239,7 @@ class TestFastAPIDecoupledEndpoints:
     @pytest.mark.usefixtures("api_key_override")
     def test_undo_sync_run_success(self, client, mock_undo_orchestrator):
         """
-        Tests successful /undo endpoint behavior with a mocked orchestrator.
+        Tests successful /undo_sync_task endpoint behavior with a mocked orchestrator.
         """
         app.dependency_overrides[container.undo_orchestrator] = lambda: mock_undo_orchestrator
 
@@ -262,7 +267,7 @@ class TestFastAPIDecoupledEndpoints:
         ]
         headers = {"X-API-Key": TEST_API_KEY}
 
-        response = client.post("/undo", json=request_payload, headers=headers)
+        response = client.post("/undo_sync_task", json=request_payload, headers=headers)
 
         assert response.status_code == 200
         assert response.json()["message"] == "Undo operation completed successfully. Please check logs for details."
@@ -274,7 +279,7 @@ class TestFastAPIDecoupledEndpoints:
     @pytest.mark.usefixtures("api_key_override")
     def test_undo_sync_run_undo_error(self, client, mock_undo_orchestrator):
         """
-        Tests /undo endpoint handling of UndoError from orchestrator.
+        Tests /undo_sync_task endpoint handling of UndoError from orchestrator.
         """
         app.dependency_overrides[container.undo_orchestrator] = lambda: mock_undo_orchestrator
         mock_undo_orchestrator.run.side_effect = UndoError("Test Undo Failure")
@@ -291,7 +296,7 @@ class TestFastAPIDecoupledEndpoints:
         ]
         headers = {"X-API-Key": TEST_API_KEY}
         
-        response = client.post("/undo", json=request_payload, headers=headers)
+        response = client.post("/undo_sync_task", json=request_payload, headers=headers)
 
         assert response.status_code == 500
         assert "Undo operation failed due to an internal error: Test Undo Failure" in response.json()["detail"]
@@ -309,7 +314,7 @@ class TestFastAPIDecoupledEndpoints:
             request_payload_dict = request_payload_model.model_dump()
             headers = {"X-API-Key": "wrong_key"}
             
-            response = client.post("/sync", json=request_payload_dict, headers=headers)
+            response = client.post("/sync_task", json=request_payload_dict, headers=headers)
 
             assert response.status_code == 401
             assert "Invalid API Key" in response.json()["detail"]
@@ -326,7 +331,86 @@ class TestFastAPIDecoupledEndpoints:
             )
             request_payload_dict = request_payload_model.model_dump()
             
-            response = client.post("/sync", json=request_payload_dict)
+            response = client.post("/sync_task", json=request_payload_dict)
 
             assert response.status_code == 403
             assert "Not authenticated" in response.json()["detail"]
+
+    @pytest.mark.usefixtures("api_key_override")
+    def test_update_confluence_project_success(self, client, mock_confluence_updater_service):
+        """Test the /sync_project endpoint with a successful update."""
+        mock_results = [{"page_id": "p1", "page_title": "Page 1", "root_project_linked": "PROJ-ROOT"}]
+        app.dependency_overrides[container.confluence_issue_updater_service] = lambda: mock_confluence_updater_service
+        mock_confluence_updater_service.update_confluence_hierarchy_with_new_jira_project.return_value = mock_results
+
+        response = client.post(
+            "/sync_project",
+            headers={"X-API-Key": TEST_API_KEY},
+            json={
+                "root_confluence_page_url": "http://mock.confluence.com/root",
+                "root_project_issue_key": "PROJ-ROOT",
+                "project_issue_type_id": "10200",
+                "phase_issue_type_id": "11001"
+            }
+        )
+
+        assert response.status_code == 200
+        assert response.json() == mock_results
+        mock_confluence_updater_service.update_confluence_hierarchy_with_new_jira_project.assert_called_once_with(
+            root_confluence_page_url="http://mock.confluence.com/root",
+            root_project_issue_key="PROJ-ROOT",
+            project_issue_type_id="10200",
+            phase_issue_type_id="11001"
+        )
+        app.dependency_overrides.clear()
+
+    @pytest.mark.usefixtures("api_key_override")
+    def test_update_confluence_project_invalid_input(self, client):
+        """Test /sync_project with invalid input (e.g., missing field)."""
+        response = client.post(
+            "/sync_project",
+            headers={"X-API-Key": TEST_API_KEY},
+            json={
+                "root_confluence_page_url": "http://mock.confluence.com/root",
+                # "root_project_issue_key" is missing
+            }
+        )
+        assert response.status_code == 422 # Unprocessable Entity
+        assert "Field required" in response.json()["detail"][0]["msg"]
+
+    @pytest.mark.usefixtures("api_key_override")
+    def test_update_confluence_project_internal_error(self, client, mock_confluence_updater_service):
+        """Test /sync_project when an internal SyncError occurs."""
+        from src.exceptions import SyncError
+        app.dependency_overrides[container.confluence_issue_updater_service] = lambda: mock_confluence_updater_service
+        mock_confluence_updater_service.update_confluence_hierarchy_with_new_jira_project.side_effect = SyncError("Internal update failed")
+
+        response = client.post(
+            "/sync_project",
+            headers={"X-API-Key": TEST_API_KEY},
+            json={
+                "root_confluence_page_url": "http://mock.confluence.com/root",
+                "root_project_issue_key": "PROJ-ROOT"
+            }
+        )
+        assert response.status_code == 500
+        assert "Confluence update failed due to an internal error" in response.json()["detail"]
+        app.dependency_overrides.clear()
+
+    @pytest.mark.usefixtures("api_key_override")
+    def test_update_confluence_project_no_modification(self, client, mock_confluence_updater_service):
+        """Test /sync_project when service returns no modified pages."""
+        app.dependency_overrides[container.confluence_issue_updater_service] = lambda: mock_confluence_updater_service
+        mock_confluence_updater_service.update_confluence_hierarchy_with_new_jira_project.return_value = []
+
+        response = client.post(
+            "/sync_project",
+            headers={"X-API-Key": TEST_API_KEY},
+            json={
+                "root_confluence_page_url": "http://mock.confluence.com/root",
+                "root_project_issue_key": "PROJ-ROOT"
+            }
+        )
+        assert response.status_code == 200
+        assert response.json() == [] # Expect an empty list if no pages modified
+        app.dependency_overrides.clear()
