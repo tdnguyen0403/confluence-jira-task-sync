@@ -21,3 +21,7 @@ class InvalidInputError(AutomationError):
 class MissingRequiredDataError(AutomationError):
     """Exception raised when essential data (e.g., Work Package) is missing."""
     pass
+
+class JiraConfluenceError(Exception):
+    """Exception raised for all api errors by requests to Jira or Confluence."""
+    pass
