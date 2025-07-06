@@ -159,7 +159,8 @@ class TestFastAPIDecoupledEndpoints:
             "root_confluence_page_url": "http://mock.confluence.com/root",
             "root_project_issue_key": "PROJ-ROOT",
             "project_issue_type_id": "10200",
-            "phase_issue_type_id": "11001"
+            "phase_issue_type_id": "11001",
+            "request_user": "test_user"
         }
         
         response = client.post("/sync_project", json=request_payload, headers={"X-API-Key": TEST_API_KEY})

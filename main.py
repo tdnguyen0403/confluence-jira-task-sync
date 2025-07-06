@@ -44,7 +44,7 @@ async def sync_confluence_tasks(
     Jira tasks.
     """
     # Setup logging specific to the 'sync' endpoint
-    setup_logging(log_level=logging.INFO, log_file_prefix="sync_task_run", endpoint_name="sync_task")
+    setup_logging(log_level=logging.INFO, log_file_prefix="sync_task_run", endpoint_name="sync_task", user=request.request_user)
     logger = logging.getLogger('') # Get the configured root logger
     logger.info(f"Received /sync request for user: {request.request_user} with {len(request.confluence_page_urls)} URLs.")
     
@@ -159,12 +159,12 @@ async def update_confluence_project(
     Updates existing Jira issue macros (Project, Phase, Work Package types)
     on a Confluence page hierarchy to link to a new Jira project key.
     """
-    setup_logging(log_level=logging.INFO,log_file_prefix="sync_project_run", endpoint_name="sync_project")
+    setup_logging(log_level=logging.INFO,log_file_prefix="sync_project_run", endpoint_name="sync_project", user=request.request_user)
     logger = logging.getLogger('') # Get the configured root logger
     logger.info(f"Received /sync_project request for root URL: {request.root_confluence_page_url} to find issues under root project: {request.root_project_issue_key}")
 
     try:            
-        input_filename = config.generate_timestamped_filename("sync_project_request", suffix=".json")
+        input_filename = config.generate_timestamped_filename("sync_project_request", suffix=".json", user=request.request_user)
         input_path = config.get_input_path("sync_project", input_filename)
         with open(input_path, 'w', encoding='utf-8') as f:
              json.dump(request.model_dump(), f, indent=4)
@@ -177,7 +177,7 @@ async def update_confluence_project(
             phase_issue_type_id=request.phase_issue_type_id
         )
         if updated_pages_summary:
-            output_filename = config.generate_timestamped_filename("sync_project_result", suffix=".json")
+            output_filename = config.generate_timestamped_filename("sync_project_result", suffix=".json", user=request.request_user)
             output_path = config.get_output_path("sync_project", output_filename)
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(updated_pages_summary, f, indent=4)

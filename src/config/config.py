@@ -102,13 +102,13 @@ def get_output_path(endpoint_name: str, filename: str) -> str:
     os.makedirs(folder_path, exist_ok=True)
     return os.path.join(folder_path, filename)
 
-def generate_timestamped_filename(prefix: str, suffix: str = '.log', user: Optional[str] = "unknown_user") -> str:
+def generate_timestamped_filename(prefix: str, suffix: str = '.log', user: Optional[str] = None) -> str:
     """
     Generates a timestamped filename.
     Args:
         prefix: The prefix for the filename (e.g., "api_run", "sync_task_run").
         suffix: The file extension (e.g., ".log", ".json").
-        user: Optional user identifier to append to the filename.
+        request_user: Optional user identifier to append to the filename.
     Returns:
         The generated filename.
     """

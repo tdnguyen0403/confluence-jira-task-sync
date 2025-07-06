@@ -4,6 +4,7 @@ import logging
 import os, sys
 from datetime import datetime
 from src.config import config # Ensure this import path is correct for your setup
+from typing import Optional
 
 # Define a custom logger class to store the log file path
 class CustomLogger(logging.Logger):
@@ -11,7 +12,7 @@ class CustomLogger(logging.Logger):
         super().__init__(name, level)
         self.log_file_path = None # This will be set during setup
 
-def setup_logging(log_level=logging.INFO, log_file_prefix="app_run", endpoint_name="api"):
+def setup_logging(log_level=logging.INFO, log_file_prefix="app_run", endpoint_name="api", user: Optional[str] = None):
     """
     Sets up logging configuration for api endpoints
     Args:
@@ -31,7 +32,7 @@ def setup_logging(log_level=logging.INFO, log_file_prefix="app_run", endpoint_na
     logger.setLevel(log_level)
 
     # Use the new config.py to get the log file path
-    log_filename = config.generate_timestamped_filename(log_file_prefix, suffix=".log")
+    log_filename = config.generate_timestamped_filename(log_file_prefix, suffix=".log", user=user)
     log_file_path = config.get_log_path(endpoint_name, log_filename)
 
     # Store the log file path in the custom logger instance
