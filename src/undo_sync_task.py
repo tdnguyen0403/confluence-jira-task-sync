@@ -25,7 +25,8 @@ from atlassian import Confluence, Jira
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
-from src.interfaces.api_service_interface import ApiServiceInterface
+from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
+from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.services.confluence_service import ConfluenceService
 from src.services.jira_service import JiraService
 from src.utils.logging_config import setup_logging
@@ -47,8 +48,8 @@ class UndoSyncTaskOrchestrator:
 
     def __init__(
         self,
-        confluence_service: ApiServiceInterface,
-        jira_service: ApiServiceInterface,
+        confluence_service: ConfluenceApiServiceInterface,
+        jira_service: JiraApiServiceInterface,
     ):
         """
         Initializes the UndoSyncTaskOrchestrator.

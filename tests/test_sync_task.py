@@ -9,7 +9,8 @@ import pandas as pd
 logging.disable(logging.CRITICAL)
 
 from src.sync_task import SyncTaskOrchestrator
-from src.interfaces.api_service_interface import ApiServiceInterface
+from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
+from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.services.issue_finder_service import IssueFinderService
 from src.models.data_models import ConfluenceTask, AutomationResult
 from src.config import config
@@ -21,8 +22,8 @@ class TestSyncTaskOrchestrator(unittest.TestCase):
     """Tests the sync_task high-level automation workflow."""
 
     def setUp(self):
-        self.mock_confluence_service = Mock(spec=ApiServiceInterface)
-        self.mock_jira_service = Mock(spec=ApiServiceInterface)
+        self.mock_confluence_service = Mock(spec=ConfluenceApiServiceInterface)
+        self.mock_jira_service = Mock(spec=JiraApiServiceInterface)
         self.mock_issue_finder = Mock(spec=IssueFinderService)
         
         self.orchestrator = SyncTaskOrchestrator(

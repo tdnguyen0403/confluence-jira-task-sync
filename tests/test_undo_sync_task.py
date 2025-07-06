@@ -9,7 +9,8 @@ import pandas as pd
 logging.disable(logging.CRITICAL)
 
 from src.undo_sync_task import UndoSyncTaskOrchestrator
-from src.interfaces.api_service_interface import ApiServiceInterface
+from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
+from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.models.data_models import ConfluenceTask
 from src.config import config
 from src.exceptions import InvalidInputError, MissingRequiredDataError # Import custom exceptions
@@ -20,8 +21,8 @@ class TestUndoSyncTaskOrchestrator(unittest.TestCase):
     """Tests the high-level undo workflow."""
 
     def setUp(self):
-        self.mock_confluence_service = Mock(spec=ApiServiceInterface)
-        self.mock_jira_service = Mock(spec=ApiServiceInterface)
+        self.mock_confluence_service = Mock(spec=ConfluenceApiServiceInterface)
+        self.mock_jira_service = Mock(spec=JiraApiServiceInterface)
         
         self.undo_orchestrator = UndoSyncTaskOrchestrator(
             self.mock_confluence_service,

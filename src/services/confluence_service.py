@@ -3,23 +3,22 @@ Provides a high-level service for interacting with Confluence.
 
 This module contains the `ConfluenceService`, which acts as a business logic
 layer abstracting the low-level API calls. It implements the unified
-`ApiServiceInterface` to ensure a consistent contract across different
+`ConfluenceApiServiceInterface` to ensure a consistent contract across different
 services.
 
 The primary role of this class is to delegate Confluence-specific operations
 to the underlying `SafeConfluenceApi`, providing a clean and simple interface
-for the rest of the application. It explicitly marks Jira-related methods
-from the interface as not implemented.
+for the rest of the application.
 """
 
 from typing import Any, Dict, List, Optional
 
 from src.api.safe_confluence_api import SafeConfluenceApi
-from src.interfaces.api_service_interface import ApiServiceInterface
+from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.models.data_models import ConfluenceTask
 
 
-class ConfluenceService(ApiServiceInterface):
+class ConfluenceService(ConfluenceApiServiceInterface):
     """
     A thin service layer for Confluence operations.
 
@@ -73,27 +72,3 @@ class ConfluenceService(ApiServiceInterface):
                                      username: str) -> Optional[Dict[str, Any]]:
         """Delegates fetching user details to the API layer."""
         return self._api.get_user_details_by_username(username)
-
-    # --- Methods from interface not applicable to a Confluence-only service ---
-
-    def get_issue(self, issue_key: str,
-                  fields: str = "*all") -> Optional[Dict[str, Any]]:
-        """Not implemented for ConfluenceService."""
-        raise NotImplementedError
-
-    def create_issue(self, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Not implemented for ConfluenceService."""
-        raise NotImplementedError
-
-    def transition_issue(self, issue_key: str, target_status: str) -> bool:
-        """Not implemented for ConfluenceService."""
-        raise NotImplementedError
-
-    def prepare_jira_task_fields(self, task: ConfluenceTask,
-                                 parent_key: str) -> Dict[str, Any]:
-        """Not implemented for ConfluenceService."""
-        raise NotImplementedError
-
-    def get_current_user_display_name(self) -> str:
-        """Not implemented for ConfluenceService."""
-        raise NotImplementedError

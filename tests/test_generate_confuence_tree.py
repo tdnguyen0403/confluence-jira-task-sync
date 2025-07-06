@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from src.config import config
 from src.generate_confluence_tree import TestDataGenerator
-from src.interfaces.api_service_interface import ApiServiceInterface
+from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 
 # Disable logging during tests for cleaner output.
 logging.disable(logging.CRITICAL)
@@ -36,7 +36,7 @@ class TestTestDataGenerator(unittest.TestCase):
         This method creates a mock object for the Confluence service and
         initializes the `TestDataGenerator` with this mock.
         """
-        self.mock_confluence_service = Mock(spec=ApiServiceInterface)
+        self.mock_confluence_service = Mock(spec=ConfluenceApiServiceInterface)
         self.generator = TestDataGenerator(self.mock_confluence_service)
 
     def tearDown(self):

@@ -28,7 +28,7 @@ from atlassian import Confluence, Jira
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
-from src.interfaces.api_service_interface import ApiServiceInterface
+from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.services.confluence_service import ConfluenceService
 from src.utils.logging_config import setup_logging
 
@@ -47,7 +47,7 @@ class TestDataGenerator:
     of Confluence tasks.
     """
 
-    def __init__(self, confluence_service: ApiServiceInterface):
+    def __init__(self, confluence_service: ConfluenceApiServiceInterface):
         """
         Initializes the TestDataGenerator.
 

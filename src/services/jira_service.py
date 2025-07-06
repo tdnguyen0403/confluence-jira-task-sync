@@ -2,13 +2,12 @@
 Provides a high-level service for interacting with Jira.
 
 This module contains the `JiraService`, which acts as the business logic
-layer for Jira operations. It implements the unified `ApiServiceInterface`
+layer for Jira operations. It implements the unified `JiraApiServiceInterface`
 and uses the `SafeJiraApi` for its underlying calls.
 
 The service is responsible for preparing and creating Jira issues based on
 Confluence task data, handling issue transitions, and retrieving user
-information. It explicitly marks Confluence-related methods from the
-interface as not implemented.
+information.
 """
 
 from datetime import datetime
@@ -16,11 +15,11 @@ from typing import Any, Dict, List, Optional
 
 from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
-from src.interfaces.api_service_interface import ApiServiceInterface
+from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.models.data_models import ConfluenceTask
 
 
-class JiraService(ApiServiceInterface):
+class JiraService(JiraApiServiceInterface):
     """
     A thin service layer for Jira, implementing the unified API interface.
 
@@ -166,42 +165,3 @@ class JiraService(ApiServiceInterface):
 
         # The final payload must be nested under a "fields" key.
         return {"fields": fields}
-
-    # --- Methods from interface not applicable to a Jira-only service ---
-
-    def get_page_id_from_url(self, url: str) -> Optional[str]:
-        """Not implemented for JiraService."""
-        raise NotImplementedError
-
-    def get_all_descendants(self, page_id: str) -> List[str]:
-        """Not implemented for JiraService."""
-        raise NotImplementedError
-
-    def get_page_by_id(self, page_id: str,
-                       **kwargs) -> Optional[Dict[str, Any]]:
-        """Not implemented for JiraService."""
-        raise NotImplementedError
-
-    def update_page_content(self, page_id: str, new_title: str,
-                            new_body: str) -> bool:
-        """Not implemented for JiraService."""
-        raise NotImplementedError
-
-    def get_tasks_from_page(self,
-                              page_details: Dict) -> List[ConfluenceTask]:
-        """Not implemented for JiraService."""
-        raise NotImplementedError
-
-    def update_page_with_jira_links(self, page_id: str,
-                                    mappings: List[Dict]) -> None:
-        """Not implemented for JiraService."""
-        raise NotImplementedError
-
-    def create_page(self, **kwargs) -> Optional[Dict[str, Any]]:
-        """Not implemented for JiraService."""
-        raise NotImplementedError
-
-    def get_user_details_by_username(self,
-                                     username: str) -> Optional[Dict[str, Any]]:
-        """Not implemented for JiraService."""
-        raise NotImplementedError
