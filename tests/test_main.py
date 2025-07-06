@@ -16,7 +16,6 @@ from src.exceptions import SyncError, MissingRequiredDataError, InvalidInputErro
 # Mock API Key for testing
 TEST_API_KEY = "test_secret_key"
 
-# Removed autouse=True. Now, this fixture must be explicitly applied.
 @pytest.fixture
 def api_key_override():
     """
@@ -56,7 +55,6 @@ def mock_undo_orchestrator():
 
 class TestFastAPIDecoupledEndpoints:
 
-    # Explicitly apply api_key_override to tests that need auth to pass
     @pytest.mark.usefixtures("api_key_override")
     @patch('main.os.makedirs')
     @patch('builtins.open')
@@ -123,7 +121,6 @@ class TestFastAPIDecoupledEndpoints:
 
         app.dependency_overrides.clear()
 
-    # Explicitly apply api_key_override
     @pytest.mark.usefixtures("api_key_override")
     @patch('main.os.makedirs')
     @patch('builtins.open')
@@ -162,7 +159,6 @@ class TestFastAPIDecoupledEndpoints:
 
         app.dependency_overrides.clear()
 
-    # Explicitly apply api_key_override
     @pytest.mark.usefixtures("api_key_override")
     @patch('main.os.makedirs')
     @patch('builtins.open')
@@ -199,7 +195,6 @@ class TestFastAPIDecoupledEndpoints:
 
         app.dependency_overrides.clear()
 
-    # Explicitly apply api_key_override
     @pytest.mark.usefixtures("api_key_override")
     @patch('main.os.makedirs')
     @patch('builtins.open')
@@ -236,7 +231,6 @@ class TestFastAPIDecoupledEndpoints:
         
         app.dependency_overrides.clear()
 
-    # Explicitly apply api_key_override
     @pytest.mark.usefixtures("api_key_override")
     def test_undo_sync_run_success(self, client, mock_undo_orchestrator):
         """
@@ -250,10 +244,20 @@ class TestFastAPIDecoupledEndpoints:
             UndoRequestItem(
                 Status="Success",
                 confluence_page_id="123",
-                original_page_version=1,
+                original_page_version=1, # Fix: Added required field
                 New_Jira_Task_Key="JIRA-1",
                 Linked_Work_Package="WP-1",
-                Request_User="test_user"
+                Request_User="test_user",
+                confluence_page_title="Test Page", # Added optional fields for completeness
+                confluence_page_url="http://test.confluence.com/page/123",
+                confluence_task_id="task1",
+                task_summary="Test Task 1",
+                status="Success",
+                assignee_name=None,
+                due_date="2025-01-01",
+                original_page_version_by="user",
+                original_page_version_when="now",
+                context=None
             ).model_dump(by_alias=True)
         ]
         headers = {"X-API-Key": TEST_API_KEY}
@@ -267,7 +271,6 @@ class TestFastAPIDecoupledEndpoints:
 
         app.dependency_overrides.clear()
 
-    # Explicitly apply api_key_override
     @pytest.mark.usefixtures("api_key_override")
     def test_undo_sync_run_undo_error(self, client, mock_undo_orchestrator):
         """
@@ -294,23 +297,36 @@ class TestFastAPIDecoupledEndpoints:
         assert "Undo operation failed due to an internal error: Test Undo Failure" in response.json()["detail"]
         app.dependency_overrides.clear()
 
-    # This test now correctly uses @patch.object to set API_SECRET_KEY for its scope
-    # and expects a 401 for a wrong key.
     def test_api_key_unauthorized(self, client):
         """
         Tests API key authentication failure when the key is configured but wrong.
-        This test ensures the authentication *actually* fails with a wrong key.
         """
-        # Patch config.API_SECRET_KEY only for this test, to a value different from "wrong_key"
         with patch.object(config, 'API_SECRET_KEY', 'some_configured_secret_key'):
             request_payload_model = SyncRequest(
                 confluence_page_urls=["http://test.confluence.com/page/123"],
                 request_user="test_user"
             )
             request_payload_dict = request_payload_model.model_dump()
-            headers = {"X-API-Key": "wrong_key"} # Incorrect API key to trigger 401
+            headers = {"X-API-Key": "wrong_key"}
             
             response = client.post("/sync", json=request_payload_dict, headers=headers)
 
-            assert response.status_code == 401 # Now expecting 401 because config.API_SECRET_KEY is set
+            assert response.status_code == 401
             assert "Invalid API Key" in response.json()["detail"]
+
+    def test_api_key_missing(self, client):
+        """
+        Tests API key authentication failure when the API key is missing from headers.
+        Expected: 403 Forbidden from FastAPI's APIKeyHeader.
+        """
+        with patch.object(config, 'API_SECRET_KEY', 'some_configured_secret_key'):
+            request_payload_model = SyncRequest(
+                confluence_page_urls=["http://test.confluence.com/page/123"],
+                request_user="test_user"
+            )
+            request_payload_dict = request_payload_model.model_dump()
+            
+            response = client.post("/sync", json=request_payload_dict)
+
+            assert response.status_code == 403
+            assert "Not authenticated" in response.json()["detail"]

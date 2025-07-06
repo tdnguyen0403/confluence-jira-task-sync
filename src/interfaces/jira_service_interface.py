@@ -84,3 +84,16 @@ class JiraApiServiceInterface(ABC):
             str: The user's display name, or a default string on failure.
         """
         pass
+
+    @abstractmethod
+    def search_issues_by_jql(self, jql_query: str, fields: str = "*all") -> List[Dict[str, Any]]:
+        """Delegates JQL search to the API layer."""
+        pass
+
+    @abstractmethod
+    def get_issue_type_name_by_id(self, type_id: str) -> Optional[str]:
+        """
+        Retrieves the name of a Jira issue type by its ID.
+        Delegates to the API layer.
+        """
+        pass

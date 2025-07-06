@@ -142,3 +142,12 @@ class UndoRequestItem(BaseModel):
     original_page_version_by: Optional[str] = Field(None, json_schema_extra={"example": "jdoe"})
     original_page_version_when: Optional[str] = Field(None, json_schema_extra={"example": "2024-07-05T10:00:00.000Z"})
     context: Optional[str] = Field(None, json_schema_extra={"example": "Task within Section A"})
+
+class ConfluenceUpdateProjectRequest(BaseModel):
+    """
+    Represents the request body for the /update-confluence-project endpoint.
+    """
+    root_confluence_page_url: str = Field(..., json_schema_extra={"example": "https://your.confluence.com/display/SPACE/RootPage"})
+    root_project_issue_key: str = Field(..., json_schema_extra={"example": "PROJ-1"}) # CHANGED
+    project_issue_type_id: Optional[str] = Field(None, json_schema_extra={"example": "10000"})
+    phase_issue_type_id: Optional[str] = Field(None, json_schema_extra={"example": "10001"})

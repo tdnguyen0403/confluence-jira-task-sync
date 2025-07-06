@@ -48,13 +48,18 @@ JIRA_MACRO_SERVER_NAME: Optional[str] = os.getenv("JIRA_MACRO_SERVER_NAME")
 JIRA_MACRO_SERVER_ID: Optional[str] = os.getenv("JIRA_MACRO_SERVER_ID")
 
 # --- Master Data / Custom IDs (Project Specific) ---
-# These are hard-coded values specific to the target Jira project setup.
+# Issue type IDs for different parent issues in Jira for task creation.
 PARENT_ISSUES_TYPE_ID: Dict[str, str] = {
     "Work Package": "10100",
     "Risk": "11404",
     "Deviation": "10103",
 }
 TASK_ISSUE_TYPE_ID: str = "10002"
+# Specific Issue Type IDs for Project, Phase, and Work Package for new project confluence page sync.
+JIRA_PROJECT_ISSUE_TYPE_ID: str = "10200"
+JIRA_PHASE_ISSUE_TYPE_ID: str = "11001"
+JIRA_WORK_PACKAGE_ISSUE_TYPE_ID: str = "10100"
+
 # The custom field ID in Jira used to link tasks to a work package.
 JIRA_PARENT_WP_CUSTOM_FIELD_ID: str = "customfield_10207"
 

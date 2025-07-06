@@ -13,8 +13,8 @@ from pydantic import BaseModel, Field # Keep for general use if needed elsewhere
 from src.config import config
 from src.utils.logging_config import setup_logging
 from src.exceptions import SyncError, MissingRequiredDataError, InvalidInputError, UndoError
-from src.dependencies import get_api_key, container # Corrected: Import the container and get_api_key
-from src.models.data_models import SyncRequest, UndoRequestItem # Corrected: Import both models from data_models
+from src.dependencies import get_api_key, container 
+from src.models.data_models import SyncRequest, UndoRequestItem, ConfluenceUpdateProjectRequest
 
 # Suppress insecure request warnings, common in corporate/dev environments.
 warnings.filterwarnings(
@@ -36,7 +36,8 @@ app = FastAPI(
 # The actual Pydantic models for request/response bodies are defined in src/models/data_models.py
 
 # --- API Endpoints ---
-@app.post("/sync", summary="Synchronize Confluence tasks to Jira", response_model=List[UndoRequestItem], dependencies=[Depends(get_api_key)])
+@app.post("/sync", summary="Synchronize Confluence tasks to Jira", 
+    response_model=List[UndoRequestItem], dependencies=[Depends(get_api_key)])
 async def sync_confluence_tasks(
     request: SyncRequest,
     sync_orchestrator = Depends(container.sync_orchestrator) # Corrected: Use container
@@ -134,6 +135,51 @@ async def undo_sync_run(
         )
     except Exception as e:
         logger.error(f"An unexpected error occurred during undo operation: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected server error occurred: {e}"
+        )
+
+@app.post("/update-confluence-project", summary="Update embedded Jira project/phase/work package issues on Confluence pages", 
+    response_model=List[Dict[str, str]], dependencies=[Depends(get_api_key)])
+async def update_confluence_project(
+    request: ConfluenceUpdateProjectRequest,
+    confluence_issue_updater_service = Depends(container.confluence_issue_updater_service)
+):
+    """
+    Updates existing Jira issue macros (Project, Phase, Work Package types)
+    on a Confluence page hierarchy to link to a new Jira project key.
+    """
+    logger.info(f"Received /update-confluence-project request for root URL: {request.root_confluence_page_url} to find issues under root project: {request.root_project_issue_key}")
+
+    try:
+        updated_pages_summary = confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
+            root_confluence_page_url=request.root_confluence_page_url,
+            root_project_issue_key=request.root_project_issue_key, # CHANGED
+            project_issue_type_id=request.project_issue_type_id,
+            phase_issue_type_id=request.phase_issue_type_id
+        )
+        if not updated_pages_summary:
+            logger.info("Update process completed, but no pages were modified.")
+            return []
+        
+        logger.info(f"Update process completed. Modified {len(updated_pages_summary)} pages.")
+        return updated_pages_summary
+
+    except InvalidInputError as e:
+        logger.error(f"Invalid input for update operation: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid Request: {e}"
+        )
+    except SyncError as e:
+        logger.error(f"Confluence update failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Confluence update failed due to an internal error: {e}"
+        )
+    except Exception as e:
+        logger.error(f"An unexpected error occurred during Confluence update operation: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected server error occurred: {e}"

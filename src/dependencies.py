@@ -15,6 +15,7 @@ from src.services.issue_finder_service import IssueFinderService
 from src.services.jira_service import JiraService
 from src.sync_task import SyncTaskOrchestrator
 from src.undo_sync_task import UndoSyncTaskOrchestrator
+from src.services.confluence_issue_updater_service import ConfluenceIssueUpdaterService
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,12 @@ class DependencyContainer:
         """Provides an IssueFinderService instance."""
         return IssueFinderService(self.confluence_service, self.jira_service)
 
+    def confluence_issue_updater_service(self) -> ConfluenceIssueUpdaterService:
+        """Provides a ConfluenceIssueUpdaterService instance."""
+        return ConfluenceIssueUpdaterService(
+            self.confluence_service,
+            self.jira_service
+        )
     # Corrected: Changed @property to regular method for sync_orchestrator
     def sync_orchestrator(self) -> SyncTaskOrchestrator:
         """Provides a SyncTaskOrchestrator instance."""

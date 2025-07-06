@@ -196,6 +196,85 @@ class TestSafeJiraApi(unittest.TestCase):
         self.assertIsNone(user_data)
         mock_make_request.assert_called_once()
 
+    @patch('src.api.safe_jira_api.make_request')
+    def test_search_issues_primary_success(self, mock_make_request):
+        """Test search_issues successful call using the library (no fallback needed)."""
+        mock_issue_raw = {"key": "SEARCH-1", "fields": {"summary": "Found issue", "issuetype": {"id": "10000"}}}
+        # Mocking the Jira client's jql method to return a list of objects with a .raw attribute
+        mock_jira_issue_obj = MagicMock()
+        mock_jira_issue_obj.raw = mock_issue_raw
+        self.mock_jira_client.jql.return_value = [mock_jira_issue_obj]
+
+        jql_query = "project = TEST"
+        result = self.safe_jira_api.search_issues(jql_query, fields="summary,issuetype")
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["key"], "SEARCH-1")
+        self.mock_jira_client.jql.assert_called_once_with(jql_query, fields="summary,issuetype")
+        mock_make_request.assert_not_called()
+
+    @patch('src.api.safe_jira_api.make_request')
+    def test_search_issues_fallback_success(self, mock_make_request):
+        """Test search_issues successful fallback after library failure."""
+        self.mock_jira_client.jql.side_effect = Exception("JQL Library Error")
+        
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"issues": [{"key": "FALLBACK-SEARCH-1"}]}
+        mock_make_request.return_value = mock_response
+
+        jql_query = "project = FALLBACK"
+        result = self.safe_jira_api.search_issues(jql_query, fields="key")
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["key"], "FALLBACK-SEARCH-1")
+        self.mock_jira_client.jql.assert_called_once()
+        mock_make_request.assert_called_once_with(
+            "GET",
+            f"{self.safe_jira_api.base_url}/rest/api/2/search?jql=project%20%3D%20FALLBACK&fields=key",
+            headers=self.safe_jira_api.headers,
+            verify_ssl=False
+        )
+
+    @patch('src.api.safe_jira_api.make_request')
+    def test_search_issues_fallback_failure(self, mock_make_request):
+        """Test search_issues when both primary and fallback attempts fail."""
+        self.mock_jira_client.jql.side_effect = Exception("JQL Library Error")
+        mock_make_request.return_value = None # Simulate helper failure
+
+        result = self.safe_jira_api.search_issues("project = FAIL", fields="key")
+        self.assertEqual(result, [])
+        self.mock_jira_client.jql.assert_called_once()
+        mock_make_request.assert_called_once()
+
+    @patch('src.api.safe_jira_api.make_request')
+    def test_get_issue_type_details_by_id_success(self, mock_make_request):
+        """Test get_issue_type_details_by_id successful call."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": "1", "name": "Task"}
+        mock_make_request.return_value = mock_response
+
+        issue_type_id = "1"
+        result = self.safe_jira_api.get_issue_type_details_by_id(issue_type_id)
+
+        self.assertEqual(result["name"], "Task")
+        mock_make_request.assert_called_once_with(
+            "GET",
+            f"{self.safe_jira_api.base_url}/rest/api/2/issuetype/{issue_type_id}",
+            headers=self.safe_jira_api.headers,
+            verify_ssl=False
+        )
+        self.mock_jira_client.assert_not_called() # No client method called for this
+
+    @patch('src.api.safe_jira_api.make_request')
+    def test_get_issue_type_details_by_id_failure(self, mock_make_request):
+        """Test get_issue_type_details_by_id when API call fails."""
+        mock_make_request.return_value = None # Simulate helper failure
+
+        issue_type_id = "999"
+        result = self.safe_jira_api.get_issue_type_details_by_id(issue_type_id)
+
+        self.assertIsNone(result)
+        mock_make_request.assert_called_once()
 
 if __name__ == "__main__":
     unittest.main()

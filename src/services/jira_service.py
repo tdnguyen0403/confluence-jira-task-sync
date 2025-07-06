@@ -165,3 +165,15 @@ class JiraService(JiraApiServiceInterface):
 
         # The final payload must be nested under a "fields" key.
         return {"fields": fields}
+
+    def search_issues_by_jql(self, jql_query: str, fields: str = "*all") -> List[Dict[str, Any]]:
+        """Delegates JQL search to the API layer."""
+        return self._api.search_issues(jql_query, fields=fields)
+
+    def get_issue_type_name_by_id(self, type_id: str) -> Optional[str]:
+        """
+        Retrieves the name of a Jira issue type by its ID.
+        Delegates to the API layer.
+        """
+        issue_type_details = self._api.get_issue_type_details_by_id(type_id)
+        return issue_type_details.get("name") if issue_type_details else None

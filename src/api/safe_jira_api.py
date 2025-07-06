@@ -256,3 +256,81 @@ class SafeJiraApi:
         if response:
             return response.json()
         return None
+
+    def search_issues(self, jql: str, fields: str = "*all") -> List[Dict[str, Any]]:
+        """
+        Safely searches Jira issues using JQL.
+
+        Tries to search using the library client and falls back to a
+        direct REST API call upon failure.
+
+        Args:
+            jql (str): The JQL query string.
+            fields (str): A comma-separated list of fields to retrieve.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries containing issue data.
+        """
+        try:
+            # The atlassian-python-api client's jql method returns JiraIssue objects
+            # We need to convert them to raw dictionaries.
+            issues = self.client.jql(jql, fields=fields)
+            return [issue.raw for issue in issues]
+        except requests.exceptions.RequestException as e:
+            logger.warning(
+                f"A network error occurred while searching issues with JQL '{jql}'. "
+                f"Falling back. Error: {e}"
+            )
+            return self._fallback_search_issues(jql, fields)
+        except Exception as e:
+            logger.warning(
+                f"Library search_issues for JQL '{jql}' failed. "
+                f"Falling back. Error: {e}"
+            )
+            return self._fallback_search_issues(jql, fields)
+
+    def _fallback_search_issues(self, jql: str, fields: str) -> List[Dict[str, Any]]:
+        """Fallback method to search issues using a direct REST call."""
+        # Ensure JQL is properly quoted for URL
+        quoted_jql = requests.utils.quote(jql)
+        url = f"{self.base_url}/rest/api/2/search?jql={quoted_jql}&fields={fields}"
+        response = make_request("GET", url, headers=self.headers, verify_ssl=False)
+        if response:
+            return response.json().get("issues", [])
+        return []
+
+    def get_issue_type_details_by_id(self, type_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves issue type details by its ID.
+
+        Args:
+            type_id (str): The ID of the issue type.
+
+        Returns:
+            Optional[Dict[str, Any]]: A dictionary containing issue type data,
+                                      or None if retrieval fails.
+        """
+        try:
+            # The atlassian-python-api client might not have a direct get_issue_type_by_id.
+            # We'll use the direct REST API call as the primary and fallback.
+            return self._fallback_get_issue_type_details_by_id(type_id)
+        except requests.exceptions.RequestException as e:
+            logger.warning(
+                f"A network error occurred while getting issue type '{type_id}'. "
+                f"Falling back. Error: {e}"
+            )
+            return self._fallback_get_issue_type_details_by_id(type_id)
+        except Exception as e:
+            logger.warning(
+                f"Library call for issue type '{type_id}' failed or not available. "
+                f"Falling back. Error: {e}"
+            )
+            return self._fallback_get_issue_type_details_by_id(type_id)
+
+    def _fallback_get_issue_type_details_by_id(self, type_id: str) -> Optional[Dict[str, Any]]:
+        """Fallback method to get issue type details by ID using a direct REST call."""
+        url = f"{self.base_url}/rest/api/2/issuetype/{type_id}"
+        response = make_request("GET", url, headers=self.headers, verify_ssl=False)
+        if response:
+            return response.json()
+        return None
