@@ -1,4 +1,4 @@
-atlassian-python-api
+pydanticatlassian-python-api
 pandas
 requests
 beautifulsoup4
@@ -7,3 +7,4 @@ pre-commit
 python-dotenv
 fastapi
 uvicorn
+pydantic

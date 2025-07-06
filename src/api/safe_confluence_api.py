@@ -26,6 +26,7 @@ from bs4 import BeautifulSoup
 from src.config import config
 from src.models.data_models import ConfluenceTask
 from src.utils.context_extractor import get_task_context
+from src.utils.https_helper import make_request
 
 # Configure logging for this module
 logger = logging.getLogger(__name__)
@@ -106,7 +107,7 @@ class SafeConfluenceApi:
                 f"{final_url}"
             )
             return None
-        except requests.exceptions.RequestException as e:
+        except (requests.exceptions.RequestException, Exception) as e:
             logger.error(f"Could not resolve the short URL '{url}'. Details: {e}")
             return None
 
@@ -147,15 +148,10 @@ class SafeConfluenceApi:
         """Fallback method to get a page by ID using a direct REST call."""
         params = {k: v for k, v in kwargs.items() if v is not None}
         url = f"{self.base_url}/rest/api/content/{page_id}"
-        try:
-            response = requests.get(
-                url, headers=self.headers, params=params, verify=False, timeout=15
-            )
-            response.raise_for_status()
+        response = make_request("GET", url, headers=self.headers, params=params, verify_ssl=False)
+        if response:
             return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Fallback get_page_by_id for '{page_id}' failed. Error: {e}")
-            return None
+        return None
 
     def get_page_child_by_type(
         self, page_id: str, page_type: str = "page"
@@ -172,7 +168,7 @@ class SafeConfluenceApi:
         """
         try:
             return self.client.get_page_child_by_type(page_id, type=page_type)
-        except Exception as e:
+        except (requests.exceptions.RequestException, Exception) as e:
             logger.warning(
                 f"Library get_page_child_by_type for '{page_id}' failed. "
                 f"Falling back. Error: {e}"
@@ -184,18 +180,10 @@ class SafeConfluenceApi:
     ) -> List[Dict[str, Any]]:
         """Fallback method to get child pages using a direct REST call."""
         url = f"{self.base_url}/rest/api/content/{page_id}/child/{page_type}"
-        try:
-            response = requests.get(
-                url, headers=self.headers, verify=False, timeout=15
-            )
-            response.raise_for_status()
+        response = make_request("GET", url, headers=self.headers, verify_ssl=False)
+        if response:
             return response.json().get("results", [])
-        except requests.exceptions.RequestException as e:
-            logger.error(
-                f"Fallback get_page_child_by_type for '{page_id}' failed. "
-                f"Error: {e}"
-            )
-            return []
+        return []
 
     def update_page(self, page_id: str, title: str, body: str, **kwargs) -> bool:
         """
@@ -246,16 +234,11 @@ class SafeConfluenceApi:
             "title": title,
             "body": {"storage": {"value": body, "representation": "storage"}},
         }
-        try:
-            response = requests.put(
-                url, headers=self.headers, json=payload, verify=False, timeout=20
-            )
-            response.raise_for_status()
+        response = make_request("PUT", url, headers=self.headers, json_data=payload, verify_ssl=False)
+        if response:
             logger.info(f"Successfully updated page {page_id} via REST call.")
             return True
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Fallback update_page for '{page_id}' failed. Error: {e}")
-            return False
+        return False
 
     def create_page(self, **kwargs) -> Optional[Dict[str, Any]]:
         """
@@ -293,18 +276,10 @@ class SafeConfluenceApi:
             "ancestors":
             [{"id": kwargs.get("parent_id")}] if kwargs.get("parent_id") else [],
         }
-        try:
-            response = requests.post(
-                url, headers=self.headers, json=payload, verify=False, timeout=20
-            )
-            response.raise_for_status()
+        response = make_request("POST", url, headers=self.headers, json_data=payload, verify_ssl=False)
+        if response:
             return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(
-                f"Fallback create_page for title '{kwargs.get('title')}' failed. "
-                f"Error: {e}"
-            )
-            return None
+        return None
 
     def get_user_details_by_username(
         self, username: str
@@ -312,7 +287,7 @@ class SafeConfluenceApi:
         """Safely gets user details by username, with a fallback."""
         try:
             return self.client.get_user_details_by_username(username)
-        except Exception as e:
+        except (requests.exceptions.RequestException, Exception) as e:
             logger.warning(
                 "Library get_user_details_by_username failed. "
                 f"Falling back. Error: {e}"
@@ -323,7 +298,7 @@ class SafeConfluenceApi:
         """Safely gets user details by user key, with a fallback."""
         try:
             return self.client.get_user_details_by_userkey(userkey)
-        except Exception as e:
+        except (requests.exceptions.RequestException, Exception) as e:
             logger.warning(
                 "Library get_user_details_by_userkey failed. "
                 f"Falling back. Error: {e}"
@@ -335,18 +310,10 @@ class SafeConfluenceApi:
     ) -> Optional[Dict[str, Any]]:
         """Fallback for getting user details via direct REST call."""
         url = f"{self.base_url}/rest/api/user?{identifier_type}={identifier_value}"
-        try:
-            response = requests.get(
-                url, headers=self.headers, verify=False, timeout=15
-            )
-            response.raise_for_status()
+        response = make_request("GET", url, headers=self.headers, verify_ssl=False)
+        if response:
             return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(
-                f"Fallback get_user_details for '{identifier_value}' failed. "
-                f"Error: {e}"
-            )
-            return None
+        return None
 
     def get_all_descendants(self, page_id: str) -> List[str]:
         """
