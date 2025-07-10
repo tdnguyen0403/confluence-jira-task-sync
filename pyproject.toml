@@ -1,21 +1,26 @@
-[project]
-name = "jira_confluence_automator"
+[tool.poetry]
+name = "confluence-jira-task-sync"
 version = "0.1.0"
-description = "Automate syncing between Jira and Confluence"
-authors = [
-  { name="Nguyen Tuan Dat", email="tdnguyen@" }
-]
+description = "A tool to automate Jira and Confluence synchronization."
+authors = ["Nguyen Tuan Dat <tdnguyen@vn.pepperl-fuchs.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+# Core application dependencies
+atlassian-python-api = "^3.41.6"
+pydantic = "^2.5.3"
+punq = "^0.7.0"
+requests = "^2.31.0" # For fallback API calls
+
+[tool.poetry.group.dev.dependencies]
+# Tools for testing, formatting, and linting
+pytest = "^7.4.4"
+pytest-mock = "^3.12.0"
+black = "^24.2.0"
+ruff = "^0.2.2"
+pre-commit = "^3.6.0"
 
 [build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[tool.black]
-line-length = 88
-
-[tool.ruff]
-line-length = 88
-
-[tool.mypy]
-python_version = "3.10"
-strict = true
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
