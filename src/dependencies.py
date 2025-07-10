@@ -10,12 +10,14 @@ from atlassian import Confluence, Jira
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
-from src.services.confluence_service import ConfluenceService
-from src.services.issue_finder_service import IssueFinderService
-from src.services.jira_service import JiraService
+from src.services.adaptors.confluence_service import ConfluenceService
+from src.services.adaptors.jira_service import JiraService
+from src.services.business_logic.issue_finder_service import IssueFinderService
 from src.sync_task import SyncTaskOrchestrator
 from src.undo_sync_task import UndoSyncTaskOrchestrator
-from src.services.confluence_issue_updater_service import ConfluenceIssueUpdaterService
+from src.services.orchestration.confluence_issue_updater_service import (
+    ConfluenceIssueUpdaterService,
+)
 
 logger = logging.getLogger(__name__)
 

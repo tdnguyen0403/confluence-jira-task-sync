@@ -16,7 +16,7 @@ from unittest.mock import Mock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from src.api.safe_confluence_api import SafeConfluenceApi
-from src.services.confluence_service import ConfluenceService
+from src.services.adaptors.confluence_service import ConfluenceService
 
 # Disable logging during tests for cleaner output.
 logging.disable(logging.CRITICAL)

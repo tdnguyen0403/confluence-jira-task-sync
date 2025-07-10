@@ -7,7 +7,7 @@ import logging
 from src.sync_task import SyncTaskOrchestrator
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.services.issue_finder_service import IssueFinderService
+from src.services.business_logic.issue_finder_service import IssueFinderService
 from src.models.data_models import ConfluenceTask
 from src.config import config
 from src.exceptions import InvalidInputError  # Import InvalidInputError

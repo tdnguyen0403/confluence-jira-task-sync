@@ -11,9 +11,9 @@ from bs4 import BeautifulSoup  # Added: Import BeautifulSoup for HTML parsing
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.generate_confluence_tree import ConfluenceTreeGenerator
-from src.services.confluence_service import ConfluenceService
-from src.services.jira_service import JiraService
-from src.services.issue_finder_service import IssueFinderService
+from src.services.adaptors.confluence_service import ConfluenceService
+from src.services.adaptors.jira_service import JiraService
+from src.services.business_logic.issue_finder_service import IssueFinderService
 
 
 logging.disable(logging.CRITICAL)  # Disable logging during tests

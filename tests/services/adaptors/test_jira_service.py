@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from src.api.safe_jira_api import SafeJiraApi
 from src.models.data_models import ConfluenceTask
-from src.services.jira_service import JiraService
+from src.services.adaptors.jira_service import JiraService
 
 
 # Disable logging during tests for cleaner output.
@@ -27,7 +27,7 @@ class TestJiraService(unittest.TestCase):
         self.mock_safe_jira_api = MagicMock(spec=SafeJiraApi)
 
         # Patch the entire config module
-        self.patcher_config = patch("src.services.jira_service.config")
+        self.patcher_config = patch("src.services.adaptors.jira_service.config")
         self.mock_config = self.patcher_config.start()
         self.addCleanup(self.patcher_config.stop)
 
@@ -54,7 +54,7 @@ class TestJiraService(unittest.TestCase):
         self.assertEqual(issue["key"], "TEST-1")
         self.mock_safe_jira_api.get_issue.assert_called_once_with("TEST-1", "summary")
 
-    @patch("src.services.jira_service.datetime")
+    @patch("src.services.adaptors.jira_service.datetime")
     def test_prepare_jira_task_fields(self, mock_datetime):
         """Test that prepare_jira_task_fields correctly constructs the payload."""
         mock_datetime.now.return_value = datetime(2025, 1, 1, 12, 0, 0)
@@ -103,7 +103,7 @@ class TestJiraService(unittest.TestCase):
         )
         self.assertEqual(result["fields"]["description"], expected_description)
 
-    @patch("src.services.jira_service.datetime")
+    @patch("src.services.adaptors.jira_service.datetime")
     def test_prepare_jira_task_fields_with_default_request_user(self, mock_datetime):
         """
         Test that `prepare_jira_task_fields` correctly handles the default
@@ -152,7 +152,7 @@ class TestJiraService(unittest.TestCase):
         expected_description = f"Created by AutomationBot on 2025-01-01 12:00:00 requested by {test_default_user}"
         self.assertEqual(result["fields"]["description"], expected_description)
 
-    @patch("src.services.jira_service.JiraService.prepare_jira_task_fields")
+    @patch("src.services.adaptors.jira_service.JiraService.prepare_jira_task_fields")
     def test_create_issue_delegates_and_prepares_fields(self, mock_prepare_fields):
         """
         Test that create_issue correctly prepares fields and calls the API,
@@ -242,7 +242,7 @@ class TestJiraService(unittest.TestCase):
             }
         }
         with patch(
-            "src.services.jira_service.JiraService.prepare_jira_task_fields",
+            "src.services.adaptors.jira_service.JiraService.prepare_jira_task_fields",
             return_value=prepared_fields_payload,
         ) as mock_prepare_fields_call:
             self.mock_safe_jira_api.create_issue.return_value = None

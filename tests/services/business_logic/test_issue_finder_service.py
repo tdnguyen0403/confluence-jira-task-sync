@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
-from src.services.issue_finder_service import IssueFinderService
+from src.services.business_logic.issue_finder_service import IssueFinderService
 
 # Disable logging during tests for cleaner output.
 logging.disable(logging.CRITICAL)

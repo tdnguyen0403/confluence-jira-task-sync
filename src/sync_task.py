@@ -26,7 +26,7 @@ from src.models.data_models import (
     AutomationResult,
     ConfluenceTask,
 )  # These are now Pydantic BaseModels
-from src.services.issue_finder_service import IssueFinderService
+from src.services.business_logic.issue_finder_service import IssueFinderService
 from src.exceptions import (
     SyncError,
     InvalidInputError,

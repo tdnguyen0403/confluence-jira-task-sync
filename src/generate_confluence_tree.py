@@ -13,9 +13,9 @@ from atlassian import Confluence, Jira
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
-from src.services.confluence_service import ConfluenceService
-from src.services.issue_finder_service import IssueFinderService
-from src.services.jira_service import JiraService
+from src.services.adaptors.confluence_service import ConfluenceService
+from src.services.adaptors.jira_service import JiraService
+from src.services.business_logic.issue_finder_service import IssueFinderService
 from src.utils.logging_config import setup_logging_local
 
 # Suppress insecure request warnings for local/dev environments

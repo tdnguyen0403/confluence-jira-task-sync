@@ -7,7 +7,9 @@ from unittest.mock import MagicMock, patch, Mock
 # Add the project root to the path to allow for imports from `src`.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
-from src.services.confluence_issue_updater_service import ConfluenceIssueUpdaterService
+from src.services.orchestration.confluence_issue_updater_service import (
+    ConfluenceIssueUpdaterService,
+)
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.exceptions import InvalidInputError
@@ -27,7 +29,7 @@ class TestConfluenceIssueUpdaterService(unittest.TestCase):
 
         # Patch the entire config module that confluence_issue_updater_service imports
         self.patcher_config = patch(
-            "src.services.confluence_issue_updater_service.config"
+            "src.services.orchestration.confluence_issue_updater_service.config"
         )
         self.mock_config = self.patcher_config.start()
         self.addCleanup(self.patcher_config.stop)
@@ -51,7 +53,7 @@ class TestConfluenceIssueUpdaterService(unittest.TestCase):
 
         # Patch BeautifulSoup globally for tests that operate on HTML strings
         self.mock_beautiful_soup_patcher = patch(
-            "src.services.confluence_issue_updater_service.BeautifulSoup"
+            "src.services.orchestration.confluence_issue_updater_service.BeautifulSoup"
         )
         self.MockBeautifulSoupClass = self.mock_beautiful_soup_patcher.start()
         self.addCleanup(self.mock_beautiful_soup_patcher.stop)
