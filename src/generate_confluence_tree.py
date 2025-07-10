@@ -3,9 +3,9 @@ import json
 import logging
 import uuid
 import warnings
-import os, sys
-from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+import sys
+from datetime import datetime
+from typing import Dict, List
 
 import requests
 from atlassian import Confluence, Jira
@@ -13,7 +13,6 @@ from atlassian import Confluence, Jira
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
-from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.services.confluence_service import ConfluenceService
 from src.services.issue_finder_service import IssueFinderService
 from src.services.jira_service import JiraService
@@ -76,9 +75,13 @@ class ConfluenceTreeGenerator:
         user_details = self.confluence.get_user_details_by_username(assignee_username)
         if user_details:
             self.assignee_account_id = user_details.get("accountId")
-            logger.info(f"Assignee '{assignee_username}' account ID: {self.assignee_account_id}")
+            logger.info(
+                f"Assignee '{assignee_username}' account ID: {self.assignee_account_id}"
+            )
         else:
-            logger.warning(f"Could not find account ID for assignee: {assignee_username}. Tasks might not be assignable.")
+            logger.warning(
+                f"Could not find account ID for assignee: {assignee_username}. Tasks might not be assignable."
+            )
 
     def generate_page_hierarchy(
         self, parent_page_id: str, current_depth: int = 0
@@ -109,7 +112,7 @@ class ConfluenceTreeGenerator:
             # Include a Jira macro for a Work Package on the page for _issue_finder_service
             # Assign a random Work Package from the predefined list
             wp_key = self.test_work_package_keys[i % len(self.test_work_package_keys)]
-            
+
             # Confluence storage format for Jira macro
             jira_macro_html = (
                 f'<p><ac:structured-macro ac:name="jira" ac:schema-version="1" ac:macro-id="{uuid.uuid4()}">'
@@ -122,19 +125,17 @@ class ConfluenceTreeGenerator:
             # Generate tasks with random completion status
             tasks_html_parts = []
             for t_idx in range(self.tasks_per_page):
-                task_status = "incomplete" # Force incomplete for sync script testing
+                task_status = "incomplete"  # Force incomplete for sync script testing
                 task_summary = f"Generated Task {t_idx} for {wp_key} ({datetime.now().strftime('%H%M%S')})"
                 assignee_html = ""
                 if self.assignee_account_id:
-                    assignee_html = (
-                        f'<ac:task-assignee ac:account-id="{self.assignee_account_id}"></ac:task-assignee>'
-                    )
-                
+                    assignee_html = f'<ac:task-assignee ac:account-id="{self.assignee_account_id}"></ac:task-assignee>'
+
                 tasks_html_parts.append(
-                    f'<ac:task-list><ac:task><ac:task-id>{uuid.uuid4().hex[:8]}</ac:task-id>'
-                    f'<ac:task-status>{task_status}</ac:task-status>'
+                    f"<ac:task-list><ac:task><ac:task-id>{uuid.uuid4().hex[:8]}</ac:task-id>"
+                    f"<ac:task-status>{task_status}</ac:task-status>"
                     f'<ac:task-body><span>{task_summary} {assignee_html}</span><time datetime="{config.DEFAULT_DUE_DATE}"></time>'
-                    f'</ac:task-body></ac:task></ac:task-list>'
+                    f"</ac:task-body></ac:task></ac:task-list>"
                 )
 
             # Combine Jira macro and tasks into the page body
@@ -152,16 +153,16 @@ class ConfluenceTreeGenerator:
                 new_page_url = new_page["_links"]["webui"]
                 self.generated_page_ids.append(new_page_id)
                 logger.info(f"Created page '{page_title}' (ID: {new_page_id})")
-                results.append(
-                    {"url": new_page_url, "linked_work_package": wp_key}
-                )
+                results.append({"url": new_page_url, "linked_work_package": wp_key})
 
                 # Recursively generate children
                 results.extend(
                     self.generate_page_hierarchy(new_page_id, current_depth + 1)
                 )
             else:
-                logger.error(f"Failed to create page '{page_title}'. Skipping children.")
+                logger.error(
+                    f"Failed to create page '{page_title}'. Skipping children."
+                )
 
         return results
 
@@ -217,6 +218,7 @@ class ConfluenceTreeGenerator:
         )
         return parser.parse_args()
 
+
 # The __main__ block is only for standalone execution.
 if __name__ == "__main__":
     setup_logging_local("logs/logs_generate", "generate_tree_run")
@@ -224,8 +226,13 @@ if __name__ == "__main__":
 
     args = ConfluenceTreeGenerator._parse_args()
 
-    if args.base_parent_page_id == "YOUR_BASE_PARENT_PAGE_ID_HERE" or not args.base_parent_page_id:
-        logging.error("Please provide a valid --base-parent-page-id via command line or update config.py")
+    if (
+        args.base_parent_page_id == "YOUR_BASE_PARENT_PAGE_ID_HERE"
+        or not args.base_parent_page_id
+    ):
+        logging.error(
+            "Please provide a valid --base-parent-page-id via command line or update config.py"
+        )
         sys.exit(1)
 
     try:
@@ -266,7 +273,9 @@ if __name__ == "__main__":
         )
 
         if generated_page_info:
-            output_filename = config.generate_timestamped_filename("generate_page_result", suffix=".json")
+            output_filename = config.generate_timestamped_filename(
+                "generate_page_result", suffix=".json"
+            )
             output_path = config.get_output_path("generate", output_filename)
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(generated_page_info, f, ensure_ascii=False, indent=4)
@@ -280,5 +289,5 @@ if __name__ == "__main__":
 
     finally:
         # Removed the call to generator.cleanup_generated_pages()
-        pass # The finally block now just passes if cleanup is not needed
+        pass  # The finally block now just passes if cleanup is not needed
         logging.info("--- Confluence Test Data Generation Script Finished ---")

@@ -39,8 +39,7 @@ class ConfluenceApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    def get_page_by_id(self, page_id: str,
-                       **kwargs) -> Optional[Dict[str, Any]]:
+    def get_page_by_id(self, page_id: str, **kwargs) -> Optional[Dict[str, Any]]:
         """
         Retrieves a single Confluence page by its ID.
 
@@ -54,8 +53,7 @@ class ConfluenceApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    def update_page_content(self, page_id: str, new_title: str,
-                            new_body: str) -> bool:
+    def update_page_content(self, page_id: str, new_title: str, new_body: str) -> bool:
         """
         Updates the title and body of a Confluence page.
 
@@ -70,8 +68,7 @@ class ConfluenceApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    def get_tasks_from_page(self,
-                              page_details: Dict) -> List[ConfluenceTask]:
+    def get_tasks_from_page(self, page_details: Dict) -> List[ConfluenceTask]:
         """
         Extracts all tasks from the content of a Confluence page.
 
@@ -84,8 +81,7 @@ class ConfluenceApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    def update_page_with_jira_links(self, page_id: str,
-                                    mappings: List[Dict]) -> None:
+    def update_page_with_jira_links(self, page_id: str, mappings: List[Dict]) -> None:
         """
         Replaces Confluence tasks on a page with links to Jira issues.
 
@@ -110,8 +106,7 @@ class ConfluenceApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    def get_user_details_by_username(self,
-                                     username: str) -> Optional[Dict[str, Any]]:
+    def get_user_details_by_username(self, username: str) -> Optional[Dict[str, Any]]:
         """
         Retrieves Confluence user details by username.
 

@@ -103,16 +103,14 @@ class SafeConfluenceApi:
                 return resolved_match.group(1)
 
             logger.error(
-                "Could not extract page ID from the final resolved URL: "
-                f"{final_url}"
+                "Could not extract page ID from the final resolved URL: " f"{final_url}"
             )
             return None
         except (requests.exceptions.RequestException, Exception) as e:
             logger.error(f"Could not resolve the short URL '{url}'. Details: {e}")
             return None
 
-    def get_page_by_id(self, page_id: str,
-                       **kwargs) -> Optional[Dict[str, Any]]:
+    def get_page_by_id(self, page_id: str, **kwargs) -> Optional[Dict[str, Any]]:
         """
         Safely retrieves a Confluence page by its ID.
 
@@ -143,12 +141,15 @@ class SafeConfluenceApi:
             )
             return self._fallback_get_page_by_id(page_id, **kwargs)
 
-    def _fallback_get_page_by_id(self, page_id: str,
-                                 **kwargs) -> Optional[Dict[str, Any]]:
+    def _fallback_get_page_by_id(
+        self, page_id: str, **kwargs
+    ) -> Optional[Dict[str, Any]]:
         """Fallback method to get a page by ID using a direct REST call."""
         params = {k: v for k, v in kwargs.items() if v is not None}
         url = f"{self.base_url}/rest/api/content/{page_id}"
-        response = make_request("GET", url, headers=self.headers, params=params, verify_ssl=False)
+        response = make_request(
+            "GET", url, headers=self.headers, params=params, verify_ssl=False
+        )
         if response:
             return response.json()
         return None
@@ -219,8 +220,9 @@ class SafeConfluenceApi:
             )
             return self._fallback_update_page(page_id, title, body, **kwargs)
 
-    def _fallback_update_page(self, page_id: str, title: str, body: str,
-                              **kwargs) -> bool:
+    def _fallback_update_page(
+        self, page_id: str, title: str, body: str, **kwargs
+    ) -> bool:
         """Fallback method to update a page using a direct REST call."""
         url = f"{self.base_url}/rest/api/content/{page_id}"
         current_page = self.get_page_by_id(page_id, expand="version")
@@ -234,7 +236,9 @@ class SafeConfluenceApi:
             "title": title,
             "body": {"storage": {"value": body, "representation": "storage"}},
         }
-        response = make_request("PUT", url, headers=self.headers, json_data=payload, verify_ssl=False)
+        response = make_request(
+            "PUT", url, headers=self.headers, json_data=payload, verify_ssl=False
+        )
         if response:
             logger.info(f"Successfully updated page {page_id} via REST call.")
             return True
@@ -255,10 +259,10 @@ class SafeConfluenceApi:
             return self.client.create_page(**kwargs)
         except requests.exceptions.RequestException as e:
             logger.warning(
-                f"A network error occurred while create page '{page_id}'. "
+                f"A network error occurred while create page. "
                 f"Falling back. Error: {e}"
             )
-            return self._fallback_create_page(page_id, **kwargs)
+            return self._fallback_create_page(**kwargs)
         except Exception as e:
             logger.warning(f"Library create_page failed. Falling back. Error: {e}")
             return self._fallback_create_page(**kwargs)
@@ -273,17 +277,18 @@ class SafeConfluenceApi:
             "body": {
                 "storage": {"value": kwargs.get("body"), "representation": "storage"}
             },
-            "ancestors":
-            [{"id": kwargs.get("parent_id")}] if kwargs.get("parent_id") else [],
+            "ancestors": (
+                [{"id": kwargs.get("parent_id")}] if kwargs.get("parent_id") else []
+            ),
         }
-        response = make_request("POST", url, headers=self.headers, json_data=payload, verify_ssl=False)
+        response = make_request(
+            "POST", url, headers=self.headers, json_data=payload, verify_ssl=False
+        )
         if response:
             return response.json()
         return None
 
-    def get_user_details_by_username(
-        self, username: str
-    ) -> Optional[Dict[str, Any]]:
+    def get_user_details_by_username(self, username: str) -> Optional[Dict[str, Any]]:
         """Safely gets user details by username, with a fallback."""
         try:
             return self.client.get_user_details_by_username(username)
@@ -338,9 +343,7 @@ class SafeConfluenceApi:
             all_ids.extend(self.get_all_descendants(child_id))
         return all_ids
 
-    def get_tasks_from_page(
-        self, page_details: Dict[str, Any]
-    ) -> List[ConfluenceTask]:
+    def get_tasks_from_page(self, page_details: Dict[str, Any]) -> List[ConfluenceTask]:
         """
         Extracts all Confluence tasks from a page's HTML content.
 
@@ -427,9 +430,7 @@ class SafeConfluenceApi:
             nested_task_list.decompose()
 
         # Clean the text to get a concise summary.
-        task_summary = " ".join(
-            task_body_copy.get_text(separator=" ").split()
-        ).strip()
+        task_summary = " ".join(task_body_copy.get_text(separator=" ").split()).strip()
 
         return ConfluenceTask(
             confluence_page_id=page_details.get("id", "N/A"),

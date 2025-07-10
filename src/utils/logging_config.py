@@ -1,18 +1,26 @@
 # jira_confluence_automator_/src/logging_config.py
 
 import logging
-import os, sys
+import os
+import sys
 from datetime import datetime
-from src.config import config # Ensure this import path is correct for your setup
+from src.config import config  # Ensure this import path is correct for your setup
 from typing import Optional
+
 
 # Define a custom logger class to store the log file path
 class CustomLogger(logging.Logger):
     def __init__(self, name, level=logging.NOTSET):
         super().__init__(name, level)
-        self.log_file_path = None # This will be set during setup
+        self.log_file_path = None  # This will be set during setup
 
-def setup_logging(log_level=logging.INFO, log_file_prefix="app_run", endpoint_name="api", user: Optional[str] = None):
+
+def setup_logging(
+    log_level=logging.INFO,
+    log_file_prefix="app_run",
+    endpoint_name="api",
+    user: Optional[str] = None,
+):
     """
     Sets up logging configuration for api endpoints
     Args:
@@ -21,18 +29,20 @@ def setup_logging(log_level=logging.INFO, log_file_prefix="app_run", endpoint_na
         endpoint_name: The name of the endpoint to determine the log subfolder (e.g., "sync", "api").
     """
     logging.setLoggerClass(CustomLogger)
-    logger = logging.getLogger('') # Root logger
+    logger = logging.getLogger("")  # Root logger
 
     # Ensure logger is not re-configured if already set up
     if logger.handlers:
         for handler in logger.handlers:
             logger.removeHandler(handler)
-        logger.handlers = [] # Clear existing handlers
+        logger.handlers = []  # Clear existing handlers
 
     logger.setLevel(log_level)
 
     # Use the new config.py to get the log file path
-    log_filename = config.generate_timestamped_filename(log_file_prefix, suffix=".log", user=user)
+    log_filename = config.generate_timestamped_filename(
+        log_file_prefix, suffix=".log", user=user
+    )
     log_file_path = config.get_log_path(endpoint_name, log_filename)
 
     # Store the log file path in the custom logger instance
@@ -42,17 +52,21 @@ def setup_logging(log_level=logging.INFO, log_file_prefix="app_run", endpoint_na
     # Console handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(log_level)
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s')
+    formatter = logging.Formatter(
+        "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+    )
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
     # File handler
-    file_handler = logging.FileHandler(log_file_path, encoding='utf-8')
+    file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
     file_handler.setLevel(log_level)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
-    logger.info(f"Logging initialized at level {logging.getLevelName(log_level)}. Output will be saved to '{log_file_path}'")
+    logger.info(
+        f"Logging initialized at level {logging.getLevelName(log_level)}. Output will be saved to '{log_file_path}'"
+    )
 
 
 def setup_logging_local(log_directory: str, script_name: str):
@@ -76,9 +90,7 @@ def setup_logging_local(log_directory: str, script_name: str):
     os.makedirs(log_directory, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file_path = os.path.join(
-        log_directory, f"{script_name}_{timestamp}.log"
-    )
+    log_file_path = os.path.join(log_directory, f"{script_name}_{timestamp}.log")
 
     root_logger = logging.getLogger()
     if root_logger.hasHandlers():

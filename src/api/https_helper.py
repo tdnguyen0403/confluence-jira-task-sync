@@ -5,9 +5,16 @@ from typing import Optional, Dict, Any
 # Configure logging for this module
 logger = logging.getLogger(__name__)
 
-def make_request(method: str, url: str, headers: Optional[Dict[str, str]] = None,
-                 json_data: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, str]] = None,
-                 timeout: int = 15, verify_ssl: bool = False) -> Optional[requests.Response]:
+
+def make_request(
+    method: str,
+    url: str,
+    headers: Optional[Dict[str, str]] = None,
+    json_data: Optional[Dict[str, Any]] = None,
+    params: Optional[Dict[str, str]] = None,
+    timeout: int = 15,
+    verify_ssl: bool = False,
+) -> Optional[requests.Response]:
     """
     Makes an HTTPS request and handles common exceptions, returning the response object.
 
@@ -33,10 +40,12 @@ def make_request(method: str, url: str, headers: Optional[Dict[str, str]] = None
             json=json_data,
             params=params,
             timeout=timeout,
-            verify=verify_ssl # Use the provided verify_ssl parameter
+            verify=verify_ssl,  # Use the provided verify_ssl parameter
         )
         response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
-        logger.info(f"Successfully executed {method.upper()} request to {url}. Status: {response.status_code}")
+        logger.info(
+            f"Successfully executed {method.upper()} request to {url}. Status: {response.status_code}"
+        )
         return response
     except requests.exceptions.HTTPError as http_err:
         logger.error(
@@ -48,7 +57,12 @@ def make_request(method: str, url: str, headers: Optional[Dict[str, str]] = None
     except requests.exceptions.Timeout as timeout_err:
         logger.error(f"Timeout Error during {method.upper()} to {url}: {timeout_err}")
     except requests.exceptions.RequestException as req_err:
-        logger.error(f"An unexpected RequestException occurred during {method.upper()} to {url}: {req_err}")
+        logger.error(
+            f"An unexpected RequestException occurred during {method.upper()} to {url}: {req_err}"
+        )
     except Exception as e:
-        logger.critical(f"An unhandled error occurred during {method.upper()} to {url}: {e}", exc_info=True)
+        logger.critical(
+            f"An unhandled error occurred during {method.upper()} to {url}: {e}",
+            exc_info=True,
+        )
     return None

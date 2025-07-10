@@ -73,13 +73,13 @@ class SafeJiraApi:
                                       or None if retrieval fails.
         """
         try:
-            return self.client.get_issue(issue_key, fields=fields)   
+            return self.client.get_issue(issue_key, fields=fields)
         except requests.exceptions.RequestException as e:
             logger.warning(
                 f"A network error occurred while getting issue '{issue_key}'. "
                 f"Falling back. Error: {e}"
             )
-            return self._fallback_get_issue(issue_key, fields)        
+            return self._fallback_get_issue(issue_key, fields)
         except Exception as e:
             logger.warning(
                 f"Library get_issue for '{issue_key}' failed. "
@@ -97,9 +97,7 @@ class SafeJiraApi:
             return response.json()
         return None
 
-    def create_issue(
-        self, issue_fields: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    def create_issue(self, issue_fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Safely creates a new Jira issue.
 
@@ -121,10 +119,10 @@ class SafeJiraApi:
             return self.client.issue_create(fields=issue_fields["fields"])
         except requests.exceptions.RequestException as e:
             logger.warning(
-                f"A network error occurred while creating issue '{issue_key}'. "
+                f"A network error occurred while creating issue '{issue_fields}'. "
                 f"Falling back. Error: {e}"
             )
-            return self._fallback_create_issue(issue_key, fields) 
+            return self._fallback_create_issue(issue_fields)
         except Exception as e:
             logger.warning(f"Library create_issue failed. Falling back. Error: {e}")
             return self._fallback_create_issue(issue_fields)
@@ -134,7 +132,9 @@ class SafeJiraApi:
     ) -> Optional[Dict[str, Any]]:
         """Fallback method to create an issue using a direct REST call."""
         url = f"{self.base_url}/rest/api/2/issue"
-        response = make_request("POST", url, headers=self.headers, json_data=issue_fields, verify_ssl=False)
+        response = make_request(
+            "POST", url, headers=self.headers, json_data=issue_fields, verify_ssl=False
+        )
         if response:
             return response.json()
         return None
@@ -216,7 +216,9 @@ class SafeJiraApi:
                 f"A network error occurred while transitioning issue '{issue_key}'. "
                 f"Falling back. Error: {e}"
             )
-            return self._fallback_transition_issue(issue_key, fields) 
+            return self._fallback_transition_issue(
+                issue_key, target_status, transition_id
+            )
         except Exception as e:
             logger.warning(
                 f"Library transition for '{issue_key}' failed. Falling back. Error: {e}"
@@ -232,7 +234,9 @@ class SafeJiraApi:
         """Fallback method to transition an issue using a direct REST call."""
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
         payload = {"transition": {"id": transition_id}}
-        response = make_request("POST", url, headers=self.headers, json_data=payload, verify_ssl=False)
+        response = make_request(
+            "POST", url, headers=self.headers, json_data=payload, verify_ssl=False
+        )
         if response:
             logger.info(
                 f"Successfully transitioned '{issue_key}' to '{target_status}' "
@@ -327,7 +331,9 @@ class SafeJiraApi:
             )
             return self._fallback_get_issue_type_details_by_id(type_id)
 
-    def _fallback_get_issue_type_details_by_id(self, type_id: str) -> Optional[Dict[str, Any]]:
+    def _fallback_get_issue_type_details_by_id(
+        self, type_id: str
+    ) -> Optional[Dict[str, Any]]:
         """Fallback method to get issue type details by ID using a direct REST call."""
         url = f"{self.base_url}/rest/api/2/issuetype/{type_id}"
         response = make_request("GET", url, headers=self.headers, verify_ssl=False)

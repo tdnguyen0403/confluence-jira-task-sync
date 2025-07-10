@@ -69,7 +69,11 @@ class IssueFinderService:
         page_content = self.confluence_api.get_page_by_id(
             page_id, expand="body.storage"
         )
-        if not page_content or "body" not in page_content or "storage" not in page_content["body"]:
+        if (
+            not page_content
+            or "body" not in page_content
+            or "storage" not in page_content["body"]
+        ):
             logger.warning(f"Could not retrieve content for page ID '{page_id}'.")
             return None
 
@@ -99,9 +103,8 @@ class IssueFinderService:
 
                 if (
                     jira_issue
-                    and jira_issue.get("fields", {})
-                    .get("issuetype", {})
-                    .get("id") in issue_type_map.values()
+                    and jira_issue.get("fields", {}).get("issuetype", {}).get("id")
+                    in issue_type_map.values()
                 ):
                     logger.info(
                         f"Found matching parent issue '{issue_key}' on page "

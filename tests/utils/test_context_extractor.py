@@ -84,7 +84,7 @@ CONFLUENCE_PAGE_HTML = (
     "<ac:task>\n<ac:task-id>15</ac:task-id>\n<ac:task-uuid>54fcaf02-9ba1-4f4b-adb1-74064782bc42</ac:task-uuid>\n"
     '<ac:task-status>incomplete</ac:task-status>\n<ac:task-body><span class="placeholder-inline-tasks">task 2 in a list</span></ac:task-body>\n'
     "</ac:task>\n<ac:task>\n<ac:task-id>16</ac:task-id>\n<ac:task-uuid>c97ed871-0873-40ed-9961-b58b74dcb8fa</ac:task-uuid>\n"
-    '<ac:task-status>incomplete</ac:task-status>\n<ac:task-body><span> </span></ac:task-body>\n</ac:task>\n'
+    "<ac:task-status>incomplete</ac:task-status>\n<ac:task-body><span> </span></ac:task-body>\n</ac:task>\n"
     "</ac:task-list><p><br /></p>"
 )
 
@@ -192,19 +192,19 @@ class TestContextExtractor(unittest.TestCase):
             task_element, f"Test setup failed: Could not find task with ID {task_id}"
         )
         return task_element.find_parent("ac:task")
-        
+
     def test_task_preceded_by_jira_macro(self) -> None:
         """Verify context extraction for a task preceded by a Jira macro."""
         task_element = self._get_task_parent_by_id("38")
         expected_context = "JIRA_KEY_CONTEXT::SFSEA-1524"
-        self.assertEqual(get_task_context(task_element), expected_context)   
-        
+        self.assertEqual(get_task_context(task_element), expected_context)
+
     def test_task_under_paragraph(self) -> None:
         """Verify context extraction for a task directly under a paragraph."""
         task_element = self._get_task_parent_by_id("32")
         expected_context = "This is the preceding paragraph"
         self.assertEqual(get_task_context(task_element), expected_context)
-    
+
     def test_task_in_bullet_point(self) -> None:
         """Verify context extraction for a task within a `<li>` (bullet) element."""
         task_element = self._get_task_parent_by_id("10")
@@ -229,7 +229,7 @@ class TestContextExtractor(unittest.TestCase):
 
     def test_sibling_task_in_table(self) -> None:
         """Verify context for a sibling task in the same table cell."""
-        task_element = self._get_task_parent_by_id("40") 
+        task_element = self._get_task_parent_by_id("40")
         # Expected context should NOT contain the image tag now that it's being removed
         expected_context = (
             "| Details | Task |\n"

@@ -39,14 +39,18 @@ class JiraService(JiraApiServiceInterface):
         self._api = safe_jira_api
         self._current_user_name: Optional[str] = None
 
-    def get_issue(self, issue_key: str,
-                  fields: str = "*all") -> Optional[Dict[str, Any]]:
+    def get_issue(
+        self, issue_key: str, fields: str = "*all"
+    ) -> Optional[Dict[str, Any]]:
         """Delegates fetching a Jira issue to the API layer."""
         return self._api.get_issue(issue_key, fields)
 
-    def create_issue(self, task: ConfluenceTask,
-                     parent_key: str,
-                     request_user: Optional[str] = "jira-user") -> Optional[str]:
+    def create_issue(
+        self,
+        task: ConfluenceTask,
+        parent_key: str,
+        request_user: Optional[str] = "jira-user",
+    ) -> Optional[str]:
         """
         Creates a new Jira issue from a Confluence task.
 
@@ -84,9 +88,9 @@ class JiraService(JiraApiServiceInterface):
                 self._current_user_name = "Unknown User"  # Fallback
         return self._current_user_name
 
-    def prepare_jira_task_fields(self, task: ConfluenceTask,
-                                 parent_key: str,
-                                 request_user: str) -> Dict[str, Any]:
+    def prepare_jira_task_fields(
+        self, task: ConfluenceTask, parent_key: str, request_user: str
+    ) -> Dict[str, Any]:
         """
         Prepares the field structure for creating a new Jira issue.
 
@@ -114,10 +118,12 @@ class JiraService(JiraApiServiceInterface):
 
         if task.context and task.context.startswith("JIRA_KEY_CONTEXT::"):
             context_key = task.context.split("::")[1]
-            
+
             # Fetch the parent issue, requesting both description and summary.
-            context_issue = self._api.get_issue(context_key, fields="description,summary")
-            
+            context_issue = self._api.get_issue(
+                context_key, fields="description,summary"
+            )
+
             context_found = False
             if context_issue:
                 fields = context_issue.get("fields", {})
@@ -136,19 +142,21 @@ class JiraService(JiraApiServiceInterface):
                         f"Context from parent issue {context_key}: {summary}"
                     )
                     context_found = True
-            
+
             # Final Fallback: If the issue or context could not be found.
             if not context_found:
                 description_parts.append(
                     f"Context from parent issue: {context_key} (Could not retrieve details)."
                 )
-        
+
         elif task.context:
             # Original logic for plain text context from Confluence.
             description_parts.append(f"Context from Confluence:\n{task.context}")
 
         # Add metadata about the task creation for traceability.
-        description_parts.append(f"Created by {user_name} on {creation_time} requested by {request_user}")
+        description_parts.append(
+            f"Created by {user_name} on {creation_time} requested by {request_user}"
+        )
 
         final_description = "\n\n".join(description_parts)
 
@@ -166,7 +174,9 @@ class JiraService(JiraApiServiceInterface):
         # The final payload must be nested under a "fields" key.
         return {"fields": fields}
 
-    def search_issues_by_jql(self, jql_query: str, fields: str = "*all") -> List[Dict[str, Any]]:
+    def search_issues_by_jql(
+        self, jql_query: str, fields: str = "*all"
+    ) -> List[Dict[str, Any]]:
         """Delegates JQL search to the API layer."""
         return self._api.search_issues(jql_query, fields=fields)
 

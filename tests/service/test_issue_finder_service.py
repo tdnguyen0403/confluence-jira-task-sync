@@ -49,7 +49,11 @@ class TestIssueFinderService(unittest.TestCase):
         }
         # Mock the two API calls: first to check type, second to get details.
         self.mock_jira_api.get_issue.side_effect = [
-            {"fields": {"issuetype": {"id": config.PARENT_ISSUES_TYPE_ID["Work Package"]}}},
+            {
+                "fields": {
+                    "issuetype": {"id": config.PARENT_ISSUES_TYPE_ID["Work Package"]}
+                }
+            },
             {"key": "WP-1", "fields": {"summary": "Full WP Details"}},
         ]
 
@@ -97,7 +101,11 @@ class TestIssueFinderService(unittest.TestCase):
             "body": {"storage": {"value": page_html}}
         }
         self.mock_jira_api.get_issue.side_effect = [
-            {"fields": {"issuetype": {"id": config.PARENT_ISSUES_TYPE_ID["Deviation"]}}},
+            {
+                "fields": {
+                    "issuetype": {"id": config.PARENT_ISSUES_TYPE_ID["Deviation"]}
+                }
+            },
             {"key": "DEV-1", "fields": {"summary": "Full Deviation Details"}},
         ]
 

@@ -9,6 +9,7 @@ clear and understandable descriptions when creating Jira issues.
 
 from bs4 import BeautifulSoup, NavigableString
 
+
 def get_task_context(task_element: BeautifulSoup) -> str:
     """
     Extracts the clean, human-readable context around a task element.
@@ -33,9 +34,7 @@ def get_task_context(task_element: BeautifulSoup) -> str:
         prev_sibling = parent_task_list.find_previous_sibling()
         if prev_sibling and not isinstance(prev_sibling, NavigableString):
             # Check if that sibling element contains a Jira macro.
-            jira_macro = prev_sibling.find(
-                "ac:structured-macro", {"ac:name": "jira"}
-            )
+            jira_macro = prev_sibling.find("ac:structured-macro", {"ac:name": "jira"})
             if jira_macro:
                 # Find the parameter that holds the Jira issue KEY.
                 key_param = jira_macro.find("ac:parameter", {"ac:name": "key"})
@@ -43,7 +42,7 @@ def get_task_context(task_element: BeautifulSoup) -> str:
                     # Return the key with a special prefix for the service layer.
                     jira_key = key_param.get_text(strip=True)
                     return f"JIRA_KEY_CONTEXT::{jira_key}"
-                    
+
     # Priority 2: Context from a direct container (a list item or another task).
     # This handles nested tasks effectively.
     parent_container = task_element.find_parent(["li", "ac:task"])
@@ -64,9 +63,7 @@ def get_task_context(task_element: BeautifulSoup) -> str:
     if parent_row:
         parent_table = parent_row.find_parent("table")
         if parent_table:
-            headers = [
-                th.get_text(strip=True) for th in parent_table.find_all("th")
-            ]
+            headers = [th.get_text(strip=True) for th in parent_table.find_all("th")]
             row_data = []
             task_cell = task_element.find_parent(["td", "th"])
 

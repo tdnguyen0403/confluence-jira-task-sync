@@ -110,9 +110,9 @@ This tool uses environment variables to store sensitive API credentials for Jira
     CONFLUENCE_API_TOKEN=YOUR_CONFLUENCE_API_TOKEN
     ```
     Jira API Token**: You can generate a Jira API token from your Atlassian account settings. Refer to the [Atlassian documentation](https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/) for detailed instructions.
-    
+
     Confluence API Token**: Similar to Jira, Confluence also uses API tokens. Generate one from your Atlassian account.
-      
+
     For API key authentication for the FastAPI application
     ```
     API_KEY=your_secure_api_key_for_fastapi
@@ -211,7 +211,7 @@ curl -X POST "http://localhost:8000/generate_confluence_tree" \
 The tool generates detailed logs for each run in the logs/ directory, organized by script type and timestamp. These logs are crucial for debugging and understanding the execution flow.
 
 ## Troubleshooting
-**ResponseValidationError for API calls: This typically means there's a mismatch between the data format your API endpoint is returning and the Pydantic response_model defined for that endpoint. 
+**ResponseValidationError for API calls: This typically means there's a mismatch between the data format your API endpoint is returning and the Pydantic response_model defined for that endpoint.
 
 - Check your src/models/data_models.py against the actual data returned by the underlying service.
 

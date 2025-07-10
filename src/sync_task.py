@@ -13,27 +13,24 @@ controller for the entire workflow. It coordinates various services to:
 This script is designed to be run as the main entry point for the automation.
 """
 
-import json
 import logging
-import os
 import warnings
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import requests
-from atlassian import Confluence, Jira
 
-from src.api.safe_confluence_api import SafeConfluenceApi
-from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.models.data_models import AutomationResult, ConfluenceTask # These are now Pydantic BaseModels
-from src.services.confluence_service import ConfluenceService
+from src.models.data_models import (
+    AutomationResult,
+    ConfluenceTask,
+)  # These are now Pydantic BaseModels
 from src.services.issue_finder_service import IssueFinderService
-from src.services.jira_service import JiraService
-from src.utils.logging_config import setup_logging
-from src.exceptions import SyncError, MissingRequiredDataError, InvalidInputError # Import custom exceptions
+from src.exceptions import (
+    SyncError,
+    InvalidInputError,
+)  # Import custom exceptions
 
 # Suppress insecure request warnings, common in corporate/dev environments.
 warnings.filterwarnings(
@@ -41,6 +38,7 @@ warnings.filterwarnings(
 )
 
 logger = logging.getLogger(__name__)
+
 
 class SyncTaskOrchestrator:
     """
@@ -89,12 +87,18 @@ class SyncTaskOrchestrator:
 
         page_urls = json_input.get("confluence_page_urls", [])
         if not page_urls:
-            logger.error("ERROR: No 'confluence_page_urls' found in the input. Aborting.")
-            raise InvalidInputError("No 'confluence_page_urls' found in the input for sync operation.")
-        
+            logger.error(
+                "ERROR: No 'confluence_page_urls' found in the input. Aborting."
+            )
+            raise InvalidInputError(
+                "No 'confluence_page_urls' found in the input for sync operation."
+            )
+
         self.request_user = json_input.get("request_user")
         if not self.request_user:
-            logger.warning("No 'request_user' found in the input. Results will not include who requested the sync.")
+            logger.warning(
+                "No 'request_user' found in the input. Results will not include who requested the sync."
+            )
 
         logging.info(f"Processing input for: {self.request_user or 'Unknown User'}")
 
@@ -116,7 +120,9 @@ class SyncTaskOrchestrator:
         root_page_id = self.confluence.get_page_id_from_url(root_page_url)
         if not root_page_id:
             logger.error(f"Could not find page ID for URL: {root_page_url}. Skipping.")
-            raise SyncError(f"Could not find Confluence page ID for URL: {root_page_url}.")
+            raise SyncError(
+                f"Could not find Confluence page ID for URL: {root_page_url}."
+            )
 
         all_page_ids = [root_page_id] + self.confluence.get_all_descendants(
             root_page_id
@@ -128,7 +134,9 @@ class SyncTaskOrchestrator:
             logging.info("No incomplete tasks found across all pages.")
             return
 
-        logging.info(f"\nDiscovered {len(all_tasks)} incomplete tasks. Now processing...")
+        logging.info(
+            f"\nDiscovered {len(all_tasks)} incomplete tasks. Now processing..."
+        )
         self._process_tasks(all_tasks)
 
     def _collect_tasks(self, page_ids: List[str]) -> List[ConfluenceTask]:
@@ -156,13 +164,13 @@ class SyncTaskOrchestrator:
                 f"\nProcessing task: '{task.task_summary}' from page ID: "
                 f"{task.confluence_page_id}"
             )
-            
+
             if not task.task_summary or not task.task_summary.strip():
                 logger.warning(
                     "Skipping empty task on page ID: %s.", task.confluence_page_id
                 )
                 continue
-                
+
             # Find the parent Work Package on the same page as the task.
             closest_wp = self.issue_finder.find_issue_on_page(
                 task.confluence_page_id, config.PARENT_ISSUES_TYPE_ID
@@ -176,16 +184,15 @@ class SyncTaskOrchestrator:
                 logger.error(f"ERROR: {error_msg}")
                 self.results.append(
                     AutomationResult(
-                        task_data=task, # Corrected: Use keyword arguments
+                        task_data=task,  # Corrected: Use keyword arguments
                         status="Skipped - No Work Package found",
-                        request_user=self.request_user
+                        request_user=self.request_user,
                     )
                 )
                 continue
 
-
             closest_wp_key = closest_wp["key"]
-            
+
             new_issue = self.jira.create_issue(task, closest_wp_key, self.request_user)
 
             if new_issue and new_issue.get("key"):
@@ -197,7 +204,7 @@ class SyncTaskOrchestrator:
                     self.jira.transition_issue(new_key, target_status)
                     self.results.append(
                         AutomationResult(
-                            task_data=task, # Corrected: Use keyword arguments
+                            task_data=task,  # Corrected: Use keyword arguments
                             status="Success - Completed Task Created",
                             new_jira_key=new_key,
                             linked_work_package=closest_wp_key,
@@ -211,18 +218,16 @@ class SyncTaskOrchestrator:
                         self.jira.transition_issue(new_key, target_status)
                     self.results.append(
                         AutomationResult(
-                            task_data=task, # Corrected: Use keyword arguments
+                            task_data=task,  # Corrected: Use keyword arguments
                             status="Success",
                             new_jira_key=new_key,
                             linked_work_package=closest_wp_key,
-                            request_user=self.request_user
+                            request_user=self.request_user,
                         )
                     )
 
                 # Group the successful mappings by page ID for batch updates.
-                tasks_to_update_on_pages.setdefault(
-                    task.confluence_page_id, []
-                ).append(
+                tasks_to_update_on_pages.setdefault(task.confluence_page_id, []).append(
                     {"confluence_task_id": task.confluence_task_id, "jira_key": new_key}
                 )
             else:
@@ -233,7 +238,7 @@ class SyncTaskOrchestrator:
                 logger.error(f"ERROR: {error_msg}")
                 self.results.append(
                     AutomationResult(
-                        task_data=task, # Corrected: Use keyword arguments
+                        task_data=task,  # Corrected: Use keyword arguments
                         status="Failed - Jira task creation",
                         linked_work_package=closest_wp_key,
                         request_user=self.request_user,
@@ -242,8 +247,6 @@ class SyncTaskOrchestrator:
                 raise SyncError(error_msg)
 
         if tasks_to_update_on_pages:
-            logging.info(
-                "\nAll Jira tasks processed. Now updating Confluence pages..."
-            )
+            logging.info("\nAll Jira tasks processed. Now updating Confluence pages...")
             for page_id, mappings in tasks_to_update_on_pages.items():
                 self.confluence.update_page_with_jira_links(page_id, mappings)

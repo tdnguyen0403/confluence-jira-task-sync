@@ -13,8 +13,9 @@ class JiraApiServiceInterface(ABC):
     """
 
     @abstractmethod
-    def get_issue(self, issue_key: str,
-                  fields: str = "*all") -> Optional[Dict[str, Any]]:
+    def get_issue(
+        self, issue_key: str, fields: str = "*all"
+    ) -> Optional[Dict[str, Any]]:
         """
         Retrieves a single Jira issue by its key.
 
@@ -28,9 +29,12 @@ class JiraApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    def create_issue(self, task: ConfluenceTask,
-                     parent_key: str,
-                     request_user: Optional[str] = "jira-user") -> Optional[str]:
+    def create_issue(
+        self,
+        task: ConfluenceTask,
+        parent_key: str,
+        request_user: Optional[str] = "jira-user",
+    ) -> Optional[str]:
         """
         Creates a new Jira issue.
 
@@ -59,9 +63,9 @@ class JiraApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    def prepare_jira_task_fields(self, task: ConfluenceTask,
-                                 parent_key: str,
-                                 request_user: str) -> Dict[str, Any]:
+    def prepare_jira_task_fields(
+        self, task: ConfluenceTask, parent_key: str, request_user: str
+    ) -> Dict[str, Any]:
         """
         Prepares the field structure for creating a Jira task from a
         Confluence task.
@@ -86,7 +90,9 @@ class JiraApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    def search_issues_by_jql(self, jql_query: str, fields: str = "*all") -> List[Dict[str, Any]]:
+    def search_issues_by_jql(
+        self, jql_query: str, fields: str = "*all"
+    ) -> List[Dict[str, Any]]:
         """Delegates JQL search to the API layer."""
         pass
 

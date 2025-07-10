@@ -14,7 +14,6 @@ The configuration is organized into logical sections for clarity:
 
 """
 
-import json
 import logging
 import os
 from datetime import datetime, date, timedelta
@@ -32,9 +31,9 @@ load_dotenv()
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Define root directories for logs, inputs, and outputs
-LOGS_ROOT_DIR = os.path.join(BASE_DIR, 'logs')
-INPUT_ROOT_DIR = os.path.join(BASE_DIR, 'input')
-OUTPUT_ROOT_DIR = os.path.join(BASE_DIR, 'output')
+LOGS_ROOT_DIR = os.path.join(BASE_DIR, "logs")
+INPUT_ROOT_DIR = os.path.join(BASE_DIR, "input")
+OUTPUT_ROOT_DIR = os.path.join(BASE_DIR, "output")
 
 ENDPOINT_SUBFOLDERS = {
     # Log subfolders (retaining 'logs_' prefix)
@@ -43,19 +42,18 @@ ENDPOINT_SUBFOLDERS = {
     "log_sync_task": "logs_sync_task",
     "log_undo_sync_task": "logs_undo_sync_task",
     "log_sync_project": "logs_sync_project",
-
     # Input subfolders (now with 'input_' prefix)
     "input_sync_task": "input_sync_task",
-    "input_generate": "input_generate", 
+    "input_generate": "input_generate",
     "input_undo_sync_task": "input_undo_sync_task",
     "input_sync_project": "input_sync_project",
-
     # Output subfolders (now with 'output_' prefix)
     "output_sync_task": "output_sync_task",
     "output_generate": "output_generate",
     "output_undo_sync_task": "output_undo_sync_task",
     "output_sync_project": "output_sync_project",
 }
+
 
 def get_log_path(endpoint_name: str, filename: str) -> str:
     """
@@ -72,6 +70,7 @@ def get_log_path(endpoint_name: str, filename: str) -> str:
     os.makedirs(folder_path, exist_ok=True)
     return os.path.join(folder_path, filename)
 
+
 def get_input_path(endpoint_name: str, filename: str) -> str:
     """
     Constructs the full path for an input file.
@@ -82,10 +81,13 @@ def get_input_path(endpoint_name: str, filename: str) -> str:
         The full path to the input file.
     """
     # Look up the specific input subfolder name using "input_" prefix
-    subfolder = ENDPOINT_SUBFOLDERS.get(f"input_{endpoint_name}", f"input_{endpoint_name}")
+    subfolder = ENDPOINT_SUBFOLDERS.get(
+        f"input_{endpoint_name}", f"input_{endpoint_name}"
+    )
     folder_path = os.path.join(INPUT_ROOT_DIR, subfolder)
     os.makedirs(folder_path, exist_ok=True)
     return os.path.join(folder_path, filename)
+
 
 def get_output_path(endpoint_name: str, filename: str) -> str:
     """
@@ -97,12 +99,17 @@ def get_output_path(endpoint_name: str, filename: str) -> str:
         The full path to the output file.
     """
     # Look up the specific output subfolder name using "output_" prefix
-    subfolder = ENDPOINT_SUBFOLDERS.get(f"output_{endpoint_name}", f"output_{endpoint_name}")
+    subfolder = ENDPOINT_SUBFOLDERS.get(
+        f"output_{endpoint_name}", f"output_{endpoint_name}"
+    )
     folder_path = os.path.join(OUTPUT_ROOT_DIR, subfolder)
     os.makedirs(folder_path, exist_ok=True)
     return os.path.join(folder_path, filename)
 
-def generate_timestamped_filename(prefix: str, suffix: str = '.log', user: Optional[str] = None) -> str:
+
+def generate_timestamped_filename(
+    prefix: str, suffix: str = ".log", user: Optional[str] = None
+) -> str:
     """
     Generates a timestamped filename.
     Args:
@@ -112,10 +119,11 @@ def generate_timestamped_filename(prefix: str, suffix: str = '.log', user: Optio
     Returns:
         The generated filename.
     """
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if user:
         return f"{prefix}_{timestamp}_{user}{suffix}"
     return f"{prefix}_{timestamp}{suffix}"
+
 
 # --- Jira & Confluence Server Configuration ---
 # Loaded from environment variables for security and flexibility.
@@ -195,6 +203,6 @@ DEFAULT_NUM_WORK_PACKAGES: int = 3
 
 # --- Fixed Default Due Date ---
 DEFAULT_DUE_DATE_DAYS: int = 14
-DEFAULT_DUE_DATE: str = (
-    date.today() + timedelta(days=DEFAULT_DUE_DATE_DAYS)
-).strftime("%Y-%m-%d")
+DEFAULT_DUE_DATE: str = (date.today() + timedelta(days=DEFAULT_DUE_DATE_DAYS)).strftime(
+    "%Y-%m-%d"
+)

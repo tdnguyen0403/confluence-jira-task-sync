@@ -3,6 +3,7 @@
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
+
 class ConfluenceTask(BaseModel):
     """
     Represents a single, structured task item extracted from a Confluence page.
@@ -115,7 +116,13 @@ class SyncRequest(BaseModel):
     """
     Represents the request body for the /sync endpoint.
     """
-    confluence_page_urls: List[str] = Field(..., json_schema_extra={"example": ["https://your.confluence.com/display/SPACE/PageName"]})
+
+    confluence_page_urls: List[str] = Field(
+        ...,
+        json_schema_extra={
+            "example": ["https://your.confluence.com/display/SPACE/PageName"]
+        },
+    )
     request_user: str = Field(..., json_schema_extra={"example": "your.username"})
 
 
@@ -125,37 +132,80 @@ class UndoRequestItem(BaseModel):
     This model is used to parse the results from a previous sync operation
     to identify Jira tasks to undo and Confluence pages to rollback.
     """
+
     Status: str
     confluence_page_id: str
     original_page_version: int
-    
-    New_Jira_Task_Key: Optional[str] = Field(None, alias="New Jira Task Key", json_schema_extra={"example": "JIRA-123"})
-    Linked_Work_Package: Optional[str] = Field(None, alias="Linked Work Package", json_schema_extra={"example": "WP-456"})
-    Request_User: Optional[str] = Field(None, alias="Request User", json_schema_extra={"example": "username"})
-    confluence_page_title: Optional[str] = Field(None, json_schema_extra={"example": "My Confluence Page"})
-    confluence_page_url: Optional[str] = Field(None, json_schema_extra={"example": "https://confluence.example.com/page/123"})
-    confluence_task_id: Optional[str] = Field(None, json_schema_extra={"example": "task-abc"})
-    task_summary: Optional[str] = Field(None, json_schema_extra={"example": "Complete this task"})
+
+    New_Jira_Task_Key: Optional[str] = Field(
+        None, alias="New Jira Task Key", json_schema_extra={"example": "JIRA-123"}
+    )
+    Linked_Work_Package: Optional[str] = Field(
+        None, alias="Linked Work Package", json_schema_extra={"example": "WP-456"}
+    )
+    Request_User: Optional[str] = Field(
+        None, alias="Request User", json_schema_extra={"example": "username"}
+    )
+    confluence_page_title: Optional[str] = Field(
+        None, json_schema_extra={"example": "My Confluence Page"}
+    )
+    confluence_page_url: Optional[str] = Field(
+        None, json_schema_extra={"example": "https://confluence.example.com/page/123"}
+    )
+    confluence_task_id: Optional[str] = Field(
+        None, json_schema_extra={"example": "task-abc"}
+    )
+    task_summary: Optional[str] = Field(
+        None, json_schema_extra={"example": "Complete this task"}
+    )
     status: Optional[str] = Field(None, json_schema_extra={"example": "Success"})
     assignee_name: Optional[str] = Field(None, json_schema_extra={"example": "jdoe"})
     due_date: Optional[str] = Field(None, json_schema_extra={"example": "2025-12-31"})
-    original_page_version_by: Optional[str] = Field(None, json_schema_extra={"example": "jdoe"})
-    original_page_version_when: Optional[str] = Field(None, json_schema_extra={"example": "2024-07-05T10:00:00.000Z"})
-    context: Optional[str] = Field(None, json_schema_extra={"example": "Task within Section A"})
+    original_page_version_by: Optional[str] = Field(
+        None, json_schema_extra={"example": "jdoe"}
+    )
+    original_page_version_when: Optional[str] = Field(
+        None, json_schema_extra={"example": "2024-07-05T10:00:00.000Z"}
+    )
+    context: Optional[str] = Field(
+        None, json_schema_extra={"example": "Task within Section A"}
+    )
+
 
 class ConfluenceUpdateProjectRequest(BaseModel):
     """
     Represents the request body for the /update-confluence-project endpoint.
     """
-    root_confluence_page_url: str = Field(..., json_schema_extra={"example": "https://your.confluence.com/display/SPACE/RootPage"})
-    root_project_issue_key: str = Field(..., json_schema_extra={"example": "PROJ-1"}) # CHANGED
-    project_issue_type_id: Optional[str] = Field(None, json_schema_extra={"example": "10000"})
-    phase_issue_type_id: Optional[str] = Field(None, json_schema_extra={"example": "10001"})
-    request_user: Optional[str] = Field(..., json_schema_extra={"example": "your.username"})
+
+    root_confluence_page_url: str = Field(
+        ...,
+        json_schema_extra={
+            "example": "https://your.confluence.com/display/SPACE/RootPage"
+        },
+    )
+    root_project_issue_key: str = Field(
+        ..., json_schema_extra={"example": "PROJ-1"}
+    )  # CHANGED
+    project_issue_type_id: Optional[str] = Field(
+        None, json_schema_extra={"example": "10000"}
+    )
+    phase_issue_type_id: Optional[str] = Field(
+        None, json_schema_extra={"example": "10001"}
+    )
+    request_user: Optional[str] = Field(
+        ..., json_schema_extra={"example": "your.username"}
+    )
+
 
 class SyncProjectPageDetail(BaseModel):
     """Represents the result of updating a single Confluence page during a project sync."""
+
     page_id: str = Field(..., description="The ID of the Confluence page.")
     page_title: str = Field(..., description="The title of the Confluence page.")
-    new_jira_keys: List[str] = Field(..., description="The Jira issue keys that were created or updated on this page.")
-    root_project_linked:  str = Field(..., description="The Jira issue key of the main project linked to the root.")
+    new_jira_keys: List[str] = Field(
+        ...,
+        description="The Jira issue keys that were created or updated on this page.",
+    )
+    root_project_linked: str = Field(
+        ..., description="The Jira issue key of the main project linked to the root."
+    )

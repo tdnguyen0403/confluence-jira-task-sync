@@ -12,24 +12,20 @@ actions:
 This script expects a JSON object containing the results data.
 """
 
-import json
 import logging
-import os
 import warnings
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 import pandas as pd
 import requests
-from atlassian import Confluence, Jira
 
-from src.api.safe_confluence_api import SafeConfluenceApi
-from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.services.confluence_service import ConfluenceService
-from src.services.jira_service import JiraService
-from src.exceptions import UndoError, InvalidInputError, MissingRequiredDataError # Import custom exceptions
+from src.exceptions import (
+    InvalidInputError,
+    MissingRequiredDataError,
+)  # Import custom exceptions
 
 # Suppress insecure request warnings for local/dev environments.
 warnings.filterwarnings(
@@ -82,7 +78,9 @@ class UndoSyncTaskOrchestrator:
             logger.error(
                 "ERROR: Provided JSON data is empty or could not be processed. No actions to perform."
             )
-            raise InvalidInputError("Provided JSON data is empty or could not be processed for undo operation.")
+            raise InvalidInputError(
+                "Provided JSON data is empty or could not be processed for undo operation."
+            )
 
         jira_keys, pages_to_rollback = self._parse_results_for_undo(results_df)
         self._transition_jira_tasks(jira_keys)
@@ -105,7 +103,10 @@ class UndoSyncTaskOrchestrator:
             try:
                 self.jira.transition_issue(key, target_status)
             except Exception as e:
-                logger.error(f"Failed to transition Jira issue '{key}' to '{target_status}': {e}", exc_info=True)
+                logger.error(
+                    f"Failed to transition Jira issue '{key}' to '{target_status}': {e}",
+                    exc_info=True,
+                )
                 # Decide if this is critical enough to stop the whole undo and raise UndoError
                 # For now, it will log and continue with other transitions.
 
@@ -115,9 +116,7 @@ class UndoSyncTaskOrchestrator:
             logging.info("No Confluence pages to roll back.")
             return
 
-        logging.info(
-            f"\n--- Phase 2: Rolling back {len(pages)} Confluence Pages ---"
-        )
+        logging.info(f"\n--- Phase 2: Rolling back {len(pages)} Confluence Pages ---")
         logging.warning(
             "NOTE: This operation reverts pages to their state *before* the script ran."
         )
@@ -145,13 +144,13 @@ class UndoSyncTaskOrchestrator:
                     # Decide if this failure should halt the entire undo process.
                     # For now, it just logs and skips this page.
             except Exception as e:
-                logger.error(f"Error rolling back page '{page_id}' to version {version}: {e}", exc_info=True)
+                logger.error(
+                    f"Error rolling back page '{page_id}' to version {version}: {e}",
+                    exc_info=True,
+                )
                 # Similar to Jira transition, decide if this should halt everything.
 
-
-    def _load_results_from_json(
-        self, json_data: List[Dict[str, Any]]
-    ) -> pd.DataFrame:
+    def _load_results_from_json(self, json_data: List[Dict[str, Any]]) -> pd.DataFrame:
         """Loads results data from a JSON object into a pandas DataFrame."""
         logging.info("Using provided JSON data for undo.")
         # No explicit error handling here, as InvalidInputError is raised higher up if json_data is empty.
@@ -188,7 +187,7 @@ class UndoSyncTaskOrchestrator:
         if not all(col in df.columns for col in required_cols):
             error_msg = f"Results data is missing required columns. Expected: {required_cols}, Found: {list(df.columns)}"
             logger.error(f"ERROR: {error_msg}")
-            raise MissingRequiredDataError(error_msg) # <-- Raise custom exception
+            raise MissingRequiredDataError(error_msg)  # <-- Raise custom exception
 
         for _, row in df.iterrows():
             if str(row.get("Status")).startswith("Success"):

@@ -44,23 +44,19 @@ class ConfluenceService(ConfluenceApiServiceInterface):
         """Delegates fetching all descendant page IDs to the API layer."""
         return self._api.get_all_descendants(page_id)
 
-    def get_page_by_id(self, page_id: str,
-                       **kwargs) -> Optional[Dict[str, Any]]:
+    def get_page_by_id(self, page_id: str, **kwargs) -> Optional[Dict[str, Any]]:
         """Delegates fetching a page by its ID to the API layer."""
         return self._api.get_page_by_id(page_id, **kwargs)
 
-    def update_page_content(self, page_id: str, new_title: str,
-                            new_body: str) -> bool:
+    def update_page_content(self, page_id: str, new_title: str, new_body: str) -> bool:
         """Delegates updating page content to the API layer."""
         return self._api.update_page(page_id, new_title, new_body)
 
-    def get_tasks_from_page(self,
-                              page_details: Dict) -> List[ConfluenceTask]:
+    def get_tasks_from_page(self, page_details: Dict) -> List[ConfluenceTask]:
         """Delegates extracting tasks from a page to the API layer."""
         return self._api.get_tasks_from_page(page_details)
 
-    def update_page_with_jira_links(self, page_id: str,
-                                    mappings: List[Dict]) -> None:
+    def update_page_with_jira_links(self, page_id: str, mappings: List[Dict]) -> None:
         """Delegates updating a page with Jira links to the API layer."""
         return self._api.update_page_with_jira_links(page_id, mappings)
 
@@ -68,7 +64,6 @@ class ConfluenceService(ConfluenceApiServiceInterface):
         """Delegates creating a page to the API layer."""
         return self._api.create_page(**kwargs)
 
-    def get_user_details_by_username(self,
-                                     username: str) -> Optional[Dict[str, Any]]:
+    def get_user_details_by_username(self, username: str) -> Optional[Dict[str, Any]]:
         """Delegates fetching user details to the API layer."""
         return self._api.get_user_details_by_username(username)
