@@ -6,7 +6,6 @@ from typing import List, Dict
 import requests
 from fastapi import FastAPI, HTTPException, status, Depends
 
-# Import existing components
 from src.config import config
 from src.utils.logging_config import setup_logging
 from src.exceptions import (
@@ -22,24 +21,25 @@ from src.models.data_models import (
     ConfluenceUpdateProjectRequest,
     SyncProjectPageDetail,
 )
+from src.services.orchestration.sync_task_orchestrator import (
+    SyncTaskOrchestrator,
+)  # New import
+from src.services.orchestration.undo_sync_task_orchestrator import (
+    UndoSyncTaskOrchestrator,
+)  # New import
 
-# Suppress insecure request warnings, common in corporate/dev environments.
+
 warnings.filterwarnings(
     "ignore", category=requests.packages.urllib3.exceptions.InsecureRequestWarning
 )
 
-# --- FastAPI App Initialization ---
 app = FastAPI(
     title="Jira-Confluence Automation API",
     description="API for synchronizing tasks from Confluence to Jira and undoing previous runs.",
     version="1.0.0",
 )
 
-# --- Removed Pydantic Models for Request Bodies - now imported from data_models.py ---
-# The actual Pydantic models for request/response bodies are defined in src/models/data_models.py
 
-
-# --- API Endpoints ---
 @app.post(
     "/sync_task",
     summary="Synchronize Confluence tasks to Jira",
@@ -48,28 +48,28 @@ app = FastAPI(
 )
 async def sync_confluence_tasks(
     request: SyncRequest,
-    sync_orchestrator=Depends(container.sync_orchestrator),  # Corrected: Use container
+    sync_orchestrator: SyncTaskOrchestrator = Depends(
+        container.sync_orchestrator
+    ),  # Updated type hint
 ):
     """
     Initiates the synchronization process to extract incomplete tasks from
     specified Confluence pages (and their descendants) and create corresponding
     Jira tasks.
     """
-    # Setup logging specific to the 'sync' endpoint
     setup_logging(
         log_level=logging.INFO,
         log_file_prefix="sync_task_run",
         endpoint_name="sync_task",
         user=request.request_user,
     )
-    logger = logging.getLogger("")  # Get the configured root logger
+    logger = logging.getLogger("")
     logger.info(
         f"Received /sync request for user: {request.request_user} with {len(request.confluence_page_urls)} URLs."
     )
 
-    sync_input = request.model_dump()  # Corrected: Use model_dump() for Pydantic V2
+    sync_input = request.model_dump()
 
-    # --- Code to save the input request to a file ---
     try:
         input_filename = config.generate_timestamped_filename(
             "sync_task_request", suffix=".json", user=request.request_user
@@ -133,7 +133,9 @@ async def sync_confluence_tasks(
 )
 async def undo_sync_run(
     undo_data: List[UndoRequestItem],
-    undo_orchestrator=Depends(container.undo_orchestrator),  # Corrected: Use container
+    undo_orchestrator: UndoSyncTaskOrchestrator = Depends(
+        container.undo_orchestrator
+    ),  # Updated type hint
 ):
     """
     Reverts actions from a previous synchronization run by transitioning
@@ -145,7 +147,7 @@ async def undo_sync_run(
         log_file_prefix="undo_sync_task_run",
         endpoint_name="undo_sync_task",
     )
-    logger = logging.getLogger("")  # Get the configured root logger
+    logger = logging.getLogger("")
     logger.info(f"Received /undo request for {len(undo_data)} entries.")
 
     try:
@@ -212,7 +214,7 @@ async def update_confluence_project(
         endpoint_name="sync_project",
         user=request.request_user,
     )
-    logger = logging.getLogger("")  # Get the configured root logger
+    logger = logging.getLogger("")
     logger.info(
         f"Received /sync_project request for root URL: {request.root_confluence_page_url} to find issues under root project: {request.root_project_issue_key}"
     )
@@ -228,7 +230,7 @@ async def update_confluence_project(
 
         updated_pages_summary = confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
             root_confluence_page_url=request.root_confluence_page_url,
-            root_project_issue_key=request.root_project_issue_key,  # CHANGED
+            root_project_issue_key=request.root_project_issue_key,
             project_issue_type_id=request.project_issue_type_id,
             phase_issue_type_id=request.phase_issue_type_id,
         )

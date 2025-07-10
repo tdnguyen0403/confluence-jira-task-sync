@@ -1,18 +1,3 @@
-"""
-Main orchestrator for the Jira/Confluence automation script.
-
-This module contains the `SyncTaskOrchestrator`, which serves as the central
-controller for the entire workflow. It coordinates various services to:
-1. Find and read a user-provided input file containing Confluence page URLs.
-2. Scan each page and its descendants for tasks.
-3. For each task, find the parent Work Package on the page.
-4. Create a corresponding Jira task with the correct context and parent link.
-5. Update the original Confluence page to replace the task with a Jira macro.
-6. Save a detailed report of all actions taken.
-
-This script is designed to be run as the main entry point for the automation.
-"""
-
 import logging
 import warnings
 from typing import Any, Dict, List, Optional
@@ -22,17 +7,12 @@ import requests
 from src.config import config
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.models.data_models import (
-    AutomationResult,
-    ConfluenceTask,
-)  # These are now Pydantic BaseModels
-from src.services.business_logic.issue_finder_service import IssueFinderService
-from src.exceptions import (
-    SyncError,
-    InvalidInputError,
-)  # Import custom exceptions
+from src.interfaces.issue_finder_service_interface import (
+    IssueFinderServiceInterface,
+)  # New import
+from src.models.data_models import AutomationResult, ConfluenceTask
+from src.exceptions import SyncError, InvalidInputError
 
-# Suppress insecure request warnings, common in corporate/dev environments.
 warnings.filterwarnings(
     "ignore", category=requests.packages.urllib3.exceptions.InsecureRequestWarning
 )
@@ -49,17 +29,17 @@ class SyncTaskOrchestrator:
         self,
         confluence_service: ConfluenceApiServiceInterface,
         jira_service: JiraApiServiceInterface,
-        issue_finder: IssueFinderService,
+        issue_finder: IssueFinderServiceInterface,  # Changed to interface
     ):
         """
         Initializes the SyncTaskOrchestrator with dependency-injected services.
 
         Args:
-            confluence_service (ApiServiceInterface): A service for handling
+            confluence_service (ConfluenceApiServiceInterface): A service for handling
                 Confluence operations.
-            jira_service (ApiServiceInterface): A service for handling Jira
+            jira_service (JiraApiServiceInterface): A service for handling Jira
                 operations.
-            issue_finder (IssueFinderService): A service for finding specific
+            issue_finder (IssueFinderServiceInterface): A service for finding specific
                 Jira issues on Confluence pages.
         """
         self.confluence = confluence_service
@@ -184,7 +164,7 @@ class SyncTaskOrchestrator:
                 logger.error(f"ERROR: {error_msg}")
                 self.results.append(
                     AutomationResult(
-                        task_data=task,  # Corrected: Use keyword arguments
+                        task_data=task,
                         status="Skipped - No Work Package found",
                         request_user=self.request_user,
                     )
@@ -204,7 +184,7 @@ class SyncTaskOrchestrator:
                     self.jira.transition_issue(new_key, target_status)
                     self.results.append(
                         AutomationResult(
-                            task_data=task,  # Corrected: Use keyword arguments
+                            task_data=task,
                             status="Success - Completed Task Created",
                             new_jira_key=new_key,
                             linked_work_package=closest_wp_key,
@@ -218,7 +198,7 @@ class SyncTaskOrchestrator:
                         self.jira.transition_issue(new_key, target_status)
                     self.results.append(
                         AutomationResult(
-                            task_data=task,  # Corrected: Use keyword arguments
+                            task_data=task,
                             status="Success",
                             new_jira_key=new_key,
                             linked_work_package=closest_wp_key,
@@ -238,7 +218,7 @@ class SyncTaskOrchestrator:
                 logger.error(f"ERROR: {error_msg}")
                 self.results.append(
                     AutomationResult(
-                        task_data=task,  # Corrected: Use keyword arguments
+                        task_data=task,
                         status="Failed - Jira task creation",
                         linked_work_package=closest_wp_key,
                         request_user=self.request_user,

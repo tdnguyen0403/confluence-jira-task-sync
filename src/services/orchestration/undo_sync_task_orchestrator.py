@@ -1,17 +1,3 @@
-"""
-Orchestrates the process of undoing a synchronization run.
-
-This module provides the `UndoSyncTaskOrchestrator`, which is responsible for
-reversing the actions of a previous automation run. It reads a results object
-(in JSON format, processed via pandas for robustness) and performs two main
-actions:
-1. Transitions any created Jira tasks back to a 'Backlog' status.
-2. Reverts the modified Confluence pages to their state before the script ran,
-   using the version number captured in the results data.
-
-This script expects a JSON object containing the results data.
-"""
-
 import logging
 import warnings
 from typing import Any, Dict, List, Set, Tuple
@@ -22,17 +8,12 @@ import requests
 from src.config import config
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.exceptions import (
-    InvalidInputError,
-    MissingRequiredDataError,
-)  # Import custom exceptions
+from src.exceptions import InvalidInputError, MissingRequiredDataError
 
-# Suppress insecure request warnings for local/dev environments.
 warnings.filterwarnings(
     "ignore", category=requests.packages.urllib3.exceptions.InsecureRequestWarning
 )
 
-# Initialize logger for this module
 logger = logging.getLogger(__name__)
 
 
@@ -43,15 +24,15 @@ class UndoSyncTaskOrchestrator:
 
     def __init__(
         self,
-        confluence_service: ConfluenceApiServiceInterface,
-        jira_service: JiraApiServiceInterface,
+        confluence_service: ConfluenceApiServiceInterface,  # Changed to interface
+        jira_service: JiraApiServiceInterface,  # Changed to interface
     ):
         """
         Initializes the UndoSyncTaskOrchestrator.
 
         Args:
-            confluence_service (ApiServiceInterface): A service for Confluence ops.
-            jira_service (ApiServiceInterface): A service for Jira ops.
+            confluence_service (ConfluenceApiServiceInterface): A service for Confluence ops.
+            jira_service (JiraApiServiceInterface): A service for Jira ops.
         """
         self.confluence = confluence_service
         self.jira = jira_service
@@ -153,9 +134,6 @@ class UndoSyncTaskOrchestrator:
     def _load_results_from_json(self, json_data: List[Dict[str, Any]]) -> pd.DataFrame:
         """Loads results data from a JSON object into a pandas DataFrame."""
         logging.info("Using provided JSON data for undo.")
-        # No explicit error handling here, as InvalidInputError is raised higher up if json_data is empty.
-        # Errors during DataFrame creation (e.g., malformed dicts) might raise pandas errors,
-        # which would be caught by the run method's general exception.
         return pd.DataFrame(json_data)
 
     def _parse_results_for_undo(
@@ -187,7 +165,7 @@ class UndoSyncTaskOrchestrator:
         if not all(col in df.columns for col in required_cols):
             error_msg = f"Results data is missing required columns. Expected: {required_cols}, Found: {list(df.columns)}"
             logger.error(f"ERROR: {error_msg}")
-            raise MissingRequiredDataError(error_msg)  # <-- Raise custom exception
+            raise MissingRequiredDataError(error_msg)
 
         for _, row in df.iterrows():
             if str(row.get("Status")).startswith("Success"):

@@ -1,5 +1,3 @@
-# jira_confluence_automator_/src/dependencies.py
-
 import logging
 from typing import Optional
 
@@ -13,15 +11,22 @@ from src.config import config
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
 from src.services.business_logic.issue_finder_service import IssueFinderService
-from src.sync_task import SyncTaskOrchestrator
-from src.undo_sync_task import UndoSyncTaskOrchestrator
+from src.services.orchestration.sync_task_orchestrator import (
+    SyncTaskOrchestrator,
+)  # New import path
+from src.services.orchestration.undo_sync_task_orchestrator import (
+    UndoSyncTaskOrchestrator,
+)  # New import path
 from src.services.orchestration.confluence_issue_updater_service import (
     ConfluenceIssueUpdaterService,
 )
+from src.interfaces.issue_finder_service_interface import (
+    IssueFinderServiceInterface,
+)  # New import
+
 
 logger = logging.getLogger(__name__)
 
-# --- API Key Authentication Setup ---
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
 
 
@@ -116,22 +121,23 @@ class DependencyContainer:
         return ConfluenceService(self.safe_confluence_api)
 
     @property
-    def issue_finder_service(self) -> IssueFinderService:
+    def issue_finder_service(
+        self,
+    ) -> IssueFinderServiceInterface:  # Changed return type to interface
         """Provides an IssueFinderService instance."""
+        # Instantiate with interface types if IssueFinderService is updated to accept them
         return IssueFinderService(self.confluence_service, self.jira_service)
 
     def confluence_issue_updater_service(self) -> ConfluenceIssueUpdaterService:
         """Provides a ConfluenceIssueUpdaterService instance."""
         return ConfluenceIssueUpdaterService(self.confluence_service, self.jira_service)
 
-    # Corrected: Changed @property to regular method for sync_orchestrator
     def sync_orchestrator(self) -> SyncTaskOrchestrator:
         """Provides a SyncTaskOrchestrator instance."""
         return SyncTaskOrchestrator(
             self.confluence_service, self.jira_service, self.issue_finder_service
         )
 
-    # Corrected: Changed @property to regular method for undo_orchestrator
     def undo_orchestrator(self) -> UndoSyncTaskOrchestrator:
         """Provides an UndoSyncTaskOrchestrator instance."""
         return UndoSyncTaskOrchestrator(self.confluence_service, self.jira_service)

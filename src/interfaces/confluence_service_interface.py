@@ -1,119 +1,97 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
-from src.models.data_models import ConfluenceTask
-
 
 class ConfluenceApiServiceInterface(ABC):
     """
-    An abstract base class for Confluence-specific API service.
-
-    This interface defines all the methods required for interacting with
-    Confluence, ensuring a consistent contract for implementing classes.
+    An abstract base class for a service that provides an interface to the
+    Confluence API. This defines the contract for Confluence-related operations
+    that other parts of the application will depend on, promoting loose coupling.
     """
 
     @abstractmethod
     def get_page_id_from_url(self, url: str) -> Optional[str]:
         """
-        Extracts a Confluence page ID from a URL.
+        Retrieves the Confluence page ID from a given URL.
 
         Args:
-            url (str): The Confluence page URL.
+            url (str): The URL of the Confluence page.
 
         Returns:
-            Optional[str]: The extracted page ID, or None on failure.
-        """
-        pass
-
-    @abstractmethod
-    def get_all_descendants(self, page_id: str) -> List[str]:
-        """
-        Recursively gets all descendant page IDs for a given page.
-
-        Args:
-            page_id (str): The ID of the top-level page.
-
-        Returns:
-            List[str]: A list of all descendant page IDs.
+            Optional[str]: The page ID if found, otherwise None.
         """
         pass
 
     @abstractmethod
     def get_page_by_id(self, page_id: str, **kwargs) -> Optional[Dict[str, Any]]:
         """
-        Retrieves a single Confluence page by its ID.
+        Retrieves a Confluence page by its ID.
 
         Args:
-            page_id (str): The ID of the page.
-            **kwargs: Additional options like 'expand'.
+            page_id (str): The ID of the Confluence page.
+            **kwargs: Additional parameters to pass to the Confluence API call,
+                      e.g., 'expand' for including page content or version.
 
         Returns:
-            Optional[Dict[str, Any]]: The page data, or None on failure.
+            Optional[Dict[str, Any]]: A dictionary containing page details, or None if not found.
         """
         pass
 
     @abstractmethod
-    def update_page_content(self, page_id: str, new_title: str, new_body: str) -> bool:
+    def get_all_descendants(self, page_id: str) -> List[str]:
         """
-        Updates the title and body of a Confluence page.
+        Retrieves all descendant page IDs for a given Confluence page ID.
 
         Args:
-            page_id (str): The ID of the page to update.
-            new_title (str): The new title for the page.
-            new_body (str): The new body content in storage format.
+            page_id (str): The ID of the parent Confluence page.
 
         Returns:
-            bool: True if successful, False otherwise.
+            List[str]: A list of descendant page IDs.
         """
         pass
 
     @abstractmethod
-    def get_tasks_from_page(self, page_details: Dict) -> List[ConfluenceTask]:
+    def get_tasks_from_page(self, page_details: Dict[str, Any]) -> List[Any]:
         """
-        Extracts all tasks from the content of a Confluence page.
+        Extracts Confluence tasks from the content of a page.
 
         Args:
-            page_details (Dict): The full page object from the Confluence API.
+            page_details (Dict[str, Any]): The page details dictionary,
+                                         expected to contain 'body.storage.value'.
 
         Returns:
-            List[ConfluenceTask]: A list of found Confluence tasks.
+            List[Any]: A list of ConfluenceTask objects.
         """
         pass
 
     @abstractmethod
-    def update_page_with_jira_links(self, page_id: str, mappings: List[Dict]) -> None:
+    def update_page_with_jira_links(
+        self, page_id: str, jira_task_mappings: List[Dict[str, str]]
+    ) -> bool:
         """
-        Replaces Confluence tasks on a page with links to Jira issues.
+        Updates a Confluence page's content by embedding Jira links into existing tasks.
 
         Args:
-            page_id (str): The ID of the page to update.
-            mappings (List[Dict]): A list mapping Confluence task IDs to
-                                   Jira issue keys.
+            page_id (str): The ID of the Confluence page to update.
+            jira_task_mappings (List[Dict[str, str]]): A list of dictionaries,
+                each containing 'confluence_task_id' and 'jira_key'.
+
+        Returns:
+            bool: True if the page was successfully updated, False otherwise.
         """
         pass
 
     @abstractmethod
-    def create_page(self, **kwargs) -> Optional[Dict[str, Any]]:
+    def update_page_content(self, page_id: str, title: str, html_content: str) -> bool:
         """
-        Creates a new page in Confluence.
+        Updates the content of a Confluence page with new HTML content.
 
         Args:
-            **kwargs: Arguments for page creation (e.g., space, title, body).
+            page_id (str): The ID of the Confluence page to update.
+            title (str): The current title of the page.
+            html_content (str): The new HTML content for the page.
 
         Returns:
-            Optional[Dict[str, Any]]: The created page data, or None on failure.
-        """
-        pass
-
-    @abstractmethod
-    def get_user_details_by_username(self, username: str) -> Optional[Dict[str, Any]]:
-        """
-        Retrieves Confluence user details by username.
-
-        Args:
-            username (str): The username to look up.
-
-        Returns:
-            Optional[Dict[str, Any]]: The user's details, or None on failure.
+            bool: True if the page was successfully updated, False otherwise.
         """
         pass

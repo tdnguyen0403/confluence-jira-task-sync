@@ -1,26 +1,21 @@
-"""
-Provides a service to find specific Jira issues embedded in Confluence pages.
-
-This module contains the `IssueFinderService`, which is dedicated to parsing
-Confluence page content to locate Jira issue macros. It is responsible for
-identifying the primary parent issue (like a Work Package or Risk) on a page,
-which serves as the parent for any new tasks created from that page.
-"""
-
 import logging
 from typing import Any, Dict, Optional
 
 from bs4 import BeautifulSoup
 
-from src.api.safe_confluence_api import SafeConfluenceApi
-from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
+from src.interfaces.confluence_service_interface import (
+    ConfluenceApiServiceInterface,
+)  # New import
+from src.interfaces.jira_service_interface import JiraApiServiceInterface  # New import
+from src.interfaces.issue_finder_service_interface import (
+    IssueFinderServiceInterface,
+)  # New import
 
-# Configure logging for this module
 logger = logging.getLogger(__name__)
 
 
-class IssueFinderService:
+class IssueFinderService(IssueFinderServiceInterface):  # Inherit from the new interface
     """
     A dedicated service for finding specific Jira issues on Confluence pages.
 
@@ -29,19 +24,21 @@ class IssueFinderService:
     """
 
     def __init__(
-        self, safe_confluence_api: SafeConfluenceApi, safe_jira_api: SafeJiraApi
+        self,
+        confluence_api: ConfluenceApiServiceInterface,  # Changed to interface
+        jira_api: JiraApiServiceInterface,  # Changed to interface
     ):
         """
         Initializes the IssueFinderService.
 
         Args:
-            safe_confluence_api (SafeConfluenceApi): An instance of the safe
+            confluence_api (ConfluenceApiServiceInterface): An instance of the safe
                 Confluence API wrapper for fetching page content.
-            safe_jira_api (SafeJiraApi): An instance of the safe Jira API
+            jira_api (JiraApiServiceInterface): An instance of the safe Jira API
                 wrapper for validating issue details.
         """
-        self.confluence_api = safe_confluence_api
-        self.jira_api = safe_jira_api
+        self.confluence_api = confluence_api
+        self.jira_api = jira_api
 
     def find_issue_on_page(
         self, page_id: str, issue_type_map: Dict[str, str]
@@ -79,11 +76,7 @@ class IssueFinderService:
 
         soup = BeautifulSoup(page_content["body"]["storage"]["value"], "html.parser")
 
-        # Iterate through all Jira macros on the page.
         for macro in soup.find_all("ac:structured-macro", {"ac:name": "jira"}):
-            # This logic prevents finding Jira issues that are nested inside
-            # other aggregation macros (like 'excerpt-include' or 'table-filter').
-            # This ensures we only find issues directly placed on the page.
             if macro.find_parent(
                 "ac:structured-macro",
                 {
@@ -97,8 +90,6 @@ class IssueFinderService:
             if key_param:
                 issue_key = key_param.get_text(strip=True)
 
-                # Fetch the issue type to validate if it's a target parent type.
-                # This is a lightweight initial call.
                 jira_issue = self.jira_api.get_issue(issue_key, fields="issuetype")
 
                 if (
@@ -110,7 +101,6 @@ class IssueFinderService:
                         f"Found matching parent issue '{issue_key}' on page "
                         f"'{page_id}'."
                     )
-                    # If it's a match, get the full details needed and return.
                     return self.jira_api.get_issue(
                         issue_key, fields="key,issuetype,assignee,reporter"
                     )
