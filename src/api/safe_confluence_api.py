@@ -46,7 +46,15 @@ class SafeConfluenceApi:
                                   REST API calls.
     """
 
-    def __init__(self, confluence_client: Confluence):
+    jira_macro_server_name: str
+    jira_macro_server_id: str
+
+    def __init__(
+        self,
+        confluence_client: Confluence,
+        jira_macro_server_name: str = config.JIRA_MACRO_SERVER_NAME,
+        jira_macro_server_id: str = config.JIRA_MACRO_SERVER_ID,
+    ):
         """
         Initializes the SafeConfluenceApi.
 
@@ -54,6 +62,8 @@ class SafeConfluenceApi:
             confluence_client (Confluence): An authenticated instance of the
                                             atlassian-python-api Confluence
                                             client.
+            jira_macro_server_name (str): The name of the Jira server for macros.
+            jira_macro_server_id (str): The ID of the Jira server for macros.
         """
         self.client = confluence_client
         self.base_url = config.CONFLUENCE_URL.rstrip("/")
@@ -61,6 +71,8 @@ class SafeConfluenceApi:
             "Authorization": f"Bearer {config.CONFLUENCE_API_TOKEN}",
             "Content-Type": "application/json",
         }
+        self.jira_macro_server_name = jira_macro_server_name
+        self.jira_macro_server_id = jira_macro_server_id
 
     def get_page_id_from_url(self, url: str) -> Optional[str]:
         """
@@ -78,10 +90,16 @@ class SafeConfluenceApi:
             Optional[str]: The extracted page ID, or None if it cannot be
                            resolved or found.
         """
-        # First, check for a standard long URL format.
-        long_url_match = re.search(r"/pages/(\d+)", url)
-        if long_url_match:
-            return long_url_match.group(1)
+
+        # First, check for a standard long URL format with pageId query param
+        page_id_query_match = re.search(r"pageId=(\d+)", url)
+        if page_id_query_match:
+            return page_id_query_match.group(1)
+
+        # Then, check for clean /pages/<id> format
+        long_url_path_match = re.search(r"/pages/(\d+)", url)
+        if long_url_path_match:
+            return long_url_path_match.group(1)
 
         # If not found, assume it's a short URL and try to resolve it.
         logger.info(f"Attempting to resolve short URL: {url}")
@@ -91,16 +109,21 @@ class SafeConfluenceApi:
                 url,
                 headers=self.headers,
                 allow_redirects=True,
-                timeout=15,
-                verify=False,
+                timeout=5,
+                verify=config.VERIFY_SSL,
             )
             response.raise_for_status()
             final_url = response.url
             logger.info(f"Short URL resolved to: {final_url}")
 
-            resolved_match = re.search(r"/pages/(\d+)", final_url)
-            if resolved_match:
-                return resolved_match.group(1)
+            # FIX: Apply both regex checks to the final_url explicitly and separately
+            resolved_page_id_query_match = re.search(r"pageId=(\d+)", final_url)
+            if resolved_page_id_query_match:
+                return resolved_page_id_query_match.group(1)
+
+            resolved_long_url_path_match = re.search(r"/pages/(\d+)", final_url)
+            if resolved_long_url_path_match:
+                return resolved_long_url_path_match.group(1)
 
             logger.error(
                 "Could not extract page ID from the final resolved URL: " f"{final_url}"
@@ -183,14 +206,40 @@ class SafeConfluenceApi:
     def _fallback_get_page_child_by_type(
         self, page_id: str, page_type: str
     ) -> List[Dict[str, Any]]:
-        """Fallback method to get child pages using a direct REST call."""
-        url = f"{self.base_url}/rest/api/content/{page_id}/child/{page_type}"
-        response = make_request(
-            "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
-        )
-        if response:
-            return response.json().get("results", [])
-        return []
+        """Fallback method to get child pages using a direct REST call, with pagination."""
+        all_results: List[Dict[str, Any]] = []
+        start = 0
+        limit = 50
+
+        while True:
+            # Add pagination parameters to the URL
+            url = (
+                f"{self.base_url}/rest/api/content/{page_id}/child/{page_type}"
+                f"?start={start}&limit={limit}"
+            )
+            response = make_request(
+                "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
+            )
+
+            if not response:
+                logger.error(
+                    f"Failed to retrieve child pages for '{page_id}' "
+                    f"at start={start}. Returning partial results."
+                )
+                break  # Exit loop on API failure
+
+            data = response.json()
+            current_results = data.get("results", [])
+            all_results.extend(current_results)
+
+            # FIX: Only break if there are no more results OR no 'next' link
+            # If current_results is empty, implies no more pages, even if _links.next might be present
+            if not current_results or "next" not in data.get("_links", {}):
+                break
+
+            start += len(current_results)
+
+        return all_results
 
     def update_page(self, page_id: str, title: str, body: str, **kwargs) -> bool:
         """
@@ -218,7 +267,7 @@ class SafeConfluenceApi:
                 f"A network error occurred while update page '{page_id}'. "
                 f"Falling back. Error: {e}"
             )
-            return self._fallback_update_page(page_id, **kwargs)
+            return self._fallback_update_page(page_id, title, body, **kwargs)
         except Exception as e:
             logger.warning(
                 f"Library update_page for '{page_id}' failed. "
@@ -233,6 +282,9 @@ class SafeConfluenceApi:
         url = f"{self.base_url}/rest/api/content/{page_id}"
         current_page = self.get_page_by_id(page_id, expand="version")
         if not current_page:
+            logger.error(
+                f"Could not retrieve page '{page_id}' for update (during fallback)."
+            )  # FIX: Add logger.error here
             return False
 
         new_version = current_page["version"]["number"] + 1
@@ -390,7 +442,10 @@ class SafeConfluenceApi:
                 {"ac:name": lambda x: x in config.AGGREGATION_CONFLUENCE_MACRO},
             ):
                 continue
-
+            # A task is nested if its immediate parent <ac:task-list> has an <ac:task-body> as its parent.
+            parent_task_list = task_element.find_parent("ac:task-list")
+            if parent_task_list and parent_task_list.find_parent("ac:task-body"):
+                continue  # This task is nested within another task's body.
             # Parse the task element into a structured object
             parsed_task = self._parse_single_task(task_element, page_details)
             if parsed_task:
@@ -484,7 +539,7 @@ class SafeConfluenceApi:
         if not page:
             logger.error(f"Could not retrieve page {page_id} to update.")
             return
-
+        # FIX: Moved this line inside the 'if page:' block for correctness.
         soup = BeautifulSoup(page["body"]["storage"]["value"], "html.parser")
         modified = False
 
@@ -544,8 +599,8 @@ class SafeConfluenceApi:
         return (
             f'<p><ac:structured-macro ac:name="jira" ac:schema-version="1" '
             f'ac:macro-id="{macro_id}">'
-            f'<ac:parameter ac:name="server">{config.JIRA_MACRO_SERVER_NAME}</ac:parameter>'
-            f'<ac:parameter ac:name="serverId">{config.JIRA_MACRO_SERVER_ID}</ac:parameter>'
+            f'<ac:parameter ac:name="server">{self.jira_macro_server_name}</ac:parameter>'
+            f'<ac:parameter ac:name="serverId">{self.jira_macro_server_id}</ac:parameter>'
             f'<ac:parameter ac:name="key">{jira_key}</ac:parameter>'
             f"</ac:structured-macro></p>"
         )
