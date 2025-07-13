@@ -92,7 +92,9 @@ class SafeJiraApi:
     ) -> Optional[Dict[str, Any]]:
         """Fallback method to get an issue by key using a direct REST call."""
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}?fields={fields}"
-        response = make_request("GET", url, headers=self.headers, verify_ssl=False)
+        response = make_request(
+            "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
+        )
         if response:
             return response.json()
         return None
@@ -133,7 +135,11 @@ class SafeJiraApi:
         """Fallback method to create an issue using a direct REST call."""
         url = f"{self.base_url}/rest/api/2/issue"
         response = make_request(
-            "POST", url, headers=self.headers, json_data=issue_fields, verify_ssl=False
+            "POST",
+            url,
+            headers=self.headers,
+            json_data=issue_fields,
+            verify_ssl=config.VERIFY_SSL,
         )
         if response:
             return response.json()
@@ -151,7 +157,9 @@ class SafeJiraApi:
                                   empty list on failure.
         """
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
-        response = make_request("GET", url, headers=self.headers, verify_ssl=False)
+        response = make_request(
+            "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
+        )
         if response:
             return response.json().get("transitions", [])
         return []
@@ -217,7 +225,7 @@ class SafeJiraApi:
                 f"Falling back. Error: {e}"
             )
             return self._fallback_transition_issue(
-                issue_key, target_status, transition_id
+                issue_key, transition_id, target_status
             )
         except Exception as e:
             logger.warning(
@@ -235,7 +243,11 @@ class SafeJiraApi:
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
         payload = {"transition": {"id": transition_id}}
         response = make_request(
-            "POST", url, headers=self.headers, json_data=payload, verify_ssl=False
+            "POST",
+            url,
+            headers=self.headers,
+            json_data=payload,
+            verify_ssl=config.VERIFY_SSL,
         )
         if response:
             logger.info(
@@ -256,7 +268,9 @@ class SafeJiraApi:
                                       or None on failure.
         """
         url = f"{self.base_url}/rest/api/2/myself"
-        response = make_request("GET", url, headers=self.headers, verify_ssl=False)
+        response = make_request(
+            "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
+        )
         if response:
             return response.json()
         return None
@@ -265,8 +279,7 @@ class SafeJiraApi:
         """
         Safely searches Jira issues using JQL.
 
-        Tries to search using the library client and falls back to a
-        direct REST API call upon failure.
+        Direct fallback to a REST API call.
 
         Args:
             jql (str): The JQL query string.
@@ -275,30 +288,16 @@ class SafeJiraApi:
         Returns:
             List[Dict[str, Any]]: A list of dictionaries containing issue data.
         """
-        try:
-            # The atlassian-python-api client's jql method returns JiraIssue objects
-            # We need to convert them to raw dictionaries.
-            issues = self.client.jql(jql, fields=fields)
-            return [issue.raw for issue in issues]
-        except requests.exceptions.RequestException as e:
-            logger.warning(
-                f"A network error occurred while searching issues with JQL '{jql}'. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_search_issues(jql, fields)
-        except Exception as e:
-            logger.warning(
-                f"Library search_issues for JQL '{jql}' failed. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_search_issues(jql, fields)
+        return self._fallback_search_issues(jql, fields)
 
     def _fallback_search_issues(self, jql: str, fields: str) -> List[Dict[str, Any]]:
         """Fallback method to search issues using a direct REST call."""
         # Ensure JQL is properly quoted for URL
         quoted_jql = requests.utils.quote(jql)
         url = f"{self.base_url}/rest/api/2/search?jql={quoted_jql}&fields={fields}"
-        response = make_request("GET", url, headers=self.headers, verify_ssl=False)
+        response = make_request(
+            "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
+        )
         if response:
             return response.json().get("issues", [])
         return []
@@ -314,29 +313,17 @@ class SafeJiraApi:
             Optional[Dict[str, Any]]: A dictionary containing issue type data,
                                       or None if retrieval fails.
         """
-        try:
-            # The atlassian-python-api client might not have a direct get_issue_type_by_id.
-            # We'll use the direct REST API call as the primary and fallback.
-            return self._fallback_get_issue_type_details_by_id(type_id)
-        except requests.exceptions.RequestException as e:
-            logger.warning(
-                f"A network error occurred while getting issue type '{type_id}'. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_get_issue_type_details_by_id(type_id)
-        except Exception as e:
-            logger.warning(
-                f"Library call for issue type '{type_id}' failed or not available. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_get_issue_type_details_by_id(type_id)
+
+        return self._fallback_get_issue_type_details_by_id(type_id)
 
     def _fallback_get_issue_type_details_by_id(
         self, type_id: str
     ) -> Optional[Dict[str, Any]]:
         """Fallback method to get issue type details by ID using a direct REST call."""
         url = f"{self.base_url}/rest/api/2/issuetype/{type_id}"
-        response = make_request("GET", url, headers=self.headers, verify_ssl=False)
+        response = make_request(
+            "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
+        )
         if response:
             return response.json()
         return None

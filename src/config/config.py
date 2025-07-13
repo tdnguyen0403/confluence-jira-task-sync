@@ -206,3 +206,6 @@ DEFAULT_DUE_DATE_DAYS: int = 14
 DEFAULT_DUE_DATE: str = (date.today() + timedelta(days=DEFAULT_DUE_DATE_DAYS)).strftime(
     "%Y-%m-%d"
 )
+
+# --- SSL Verification ---
+VERIFY_SSL = False  # Set to True in production for secure connections, False for testing or self-signed certs

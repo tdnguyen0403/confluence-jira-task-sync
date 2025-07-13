@@ -148,7 +148,11 @@ class SafeConfluenceApi:
         params = {k: v for k, v in kwargs.items() if v is not None}
         url = f"{self.base_url}/rest/api/content/{page_id}"
         response = make_request(
-            "GET", url, headers=self.headers, params=params, verify_ssl=False
+            "GET",
+            url,
+            headers=self.headers,
+            params=params,
+            verify_ssl=config.VERIFY_SSL,
         )
         if response:
             return response.json()
@@ -181,7 +185,9 @@ class SafeConfluenceApi:
     ) -> List[Dict[str, Any]]:
         """Fallback method to get child pages using a direct REST call."""
         url = f"{self.base_url}/rest/api/content/{page_id}/child/{page_type}"
-        response = make_request("GET", url, headers=self.headers, verify_ssl=False)
+        response = make_request(
+            "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
+        )
         if response:
             return response.json().get("results", [])
         return []
@@ -237,7 +243,11 @@ class SafeConfluenceApi:
             "body": {"storage": {"value": body, "representation": "storage"}},
         }
         response = make_request(
-            "PUT", url, headers=self.headers, json_data=payload, verify_ssl=False
+            "PUT",
+            url,
+            headers=self.headers,
+            json_data=payload,
+            verify_ssl=config.VERIFY_SSL,
         )
         if response:
             logger.info(f"Successfully updated page {page_id} via REST call.")
@@ -282,7 +292,11 @@ class SafeConfluenceApi:
             ),
         }
         response = make_request(
-            "POST", url, headers=self.headers, json_data=payload, verify_ssl=False
+            "POST",
+            url,
+            headers=self.headers,
+            json_data=payload,
+            verify_ssl=config.VERIFY_SSL,
         )
         if response:
             return response.json()
@@ -315,7 +329,9 @@ class SafeConfluenceApi:
     ) -> Optional[Dict[str, Any]]:
         """Fallback for getting user details via direct REST call."""
         url = f"{self.base_url}/rest/api/user?{identifier_type}={identifier_value}"
-        response = make_request("GET", url, headers=self.headers, verify_ssl=False)
+        response = make_request(
+            "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
+        )
         if response:
             return response.json()
         return None

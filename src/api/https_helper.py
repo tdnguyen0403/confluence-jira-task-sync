@@ -13,7 +13,7 @@ def make_request(
     json_data: Optional[Dict[str, Any]] = None,
     params: Optional[Dict[str, str]] = None,
     timeout: int = 15,
-    verify_ssl: bool = False,
+    verify_ssl: bool = True,
 ) -> Optional[requests.Response]:
     """
     Makes an HTTPS request and handles common exceptions, returning the response object.
