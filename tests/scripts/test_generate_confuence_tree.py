@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup  # Added: Import BeautifulSoup for HTML parsing
 # Add the project root to the path to allow for imports from `src`.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.generate_confluence_tree import ConfluenceTreeGenerator
+from src.scripts.generate_confluence_tree import ConfluenceTreeGenerator
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
 from src.services.business_logic.issue_finder_service import IssueFinderService
@@ -28,7 +28,7 @@ class TestConfluenceTreeGenerator(unittest.TestCase):
         self.mock_issue_finder_service = Mock(spec=IssueFinderService)
 
         # Set up mock config values used by the generator
-        self.mock_config_patcher = patch("src.generate_confluence_tree.config")
+        self.mock_config_patcher = patch("src.scripts.generate_confluence_tree.config")
         self.mock_config = self.mock_config_patcher.start()
         self.mock_config.JIRA_MACRO_SERVER_NAME = "TestJiraServer"
         self.mock_config.JIRA_MACRO_SERVER_ID = "TestJiraServerId"
@@ -52,7 +52,7 @@ class TestConfluenceTreeGenerator(unittest.TestCase):
         )
 
         self.mock_uuid4_patcher = patch(
-            "src.generate_confluence_tree.uuid.uuid4",
+            "src.scripts.generate_confluence_tree.uuid.uuid4",
             side_effect=[
                 self.mock_uuid_obj_1,
                 self.mock_uuid_obj_2,
@@ -98,7 +98,7 @@ class TestConfluenceTreeGenerator(unittest.TestCase):
             "testuser"
         )
 
-    @patch("src.generate_confluence_tree.datetime")
+    @patch("src.scripts.generate_confluence_tree.datetime")
     def test_generate_page_hierarchy_single_page(self, mock_datetime):
         """Test generating a single page with tasks and a WP link."""
         mock_datetime.now.return_value = datetime(2025, 7, 5, 10, 0, 0)
