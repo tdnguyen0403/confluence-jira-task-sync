@@ -159,13 +159,14 @@ class JiraService(JiraApiServiceInterface):
         )
 
         final_description = "\n\n".join(description_parts)
+        due_date = task.due_date if task.due_date else config.DEFAULT_DUE_DATE
 
         fields = {
             "project": {"key": project_key},  # Dynamically set project key
             "summary": task.task_summary,
             "issuetype": {"id": config.TASK_ISSUE_TYPE_ID},
             "description": final_description,
-            "duedate": task.due_date,
+            "duedate": due_date,
             config.JIRA_PARENT_WP_CUSTOM_FIELD_ID: parent_key,
         }
         if task.assignee_name:

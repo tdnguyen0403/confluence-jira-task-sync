@@ -19,6 +19,7 @@ fastapi = "^0.111.0"
 httpx = "^0.27.0"
 uvicorn = {extras = ["standard"], version = "^0.29.0"}
 python-multipart = "^0.0.9"
+pytest-cov = "^6.2.0"
 
 [tool.poetry.group.dev.dependencies]
 # Tools for testing, formatting, and linting
