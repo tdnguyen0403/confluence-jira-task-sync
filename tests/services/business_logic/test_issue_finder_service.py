@@ -1,43 +1,39 @@
 import pytest
-from unittest.mock import Mock
+from typing import Any, Dict, Optional
 
+# Import the service and its interfaces
+from src.services.business_logic.issue_finder_service import IssueFinderService
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.services.orchestration.confluence_issue_updater_service import (
-    ConfluenceIssueUpdaterService,
-)
-from src.exceptions import InvalidInputError
 from src.config import config
 from src.models.data_models import ConfluenceTask
 
-# --- Stubs ---
+# --- Stubs for Dependencies ---
 
 
 class ConfluenceServiceStub(ConfluenceApiServiceInterface):
+    """A controlled stub for the Confluence service."""
+
     def __init__(self):
-        self._pages = {}
-        self._descendants = {}
-        self.mock = Mock()
-        self._api = Mock()
-        self._api._generate_jira_macro_html.side_effect = (
-            lambda key: f"<p>New Macro for {key}</p>"
-        )
+        self._page_content: Optional[str] = ""
+
+    def get_page_by_id(
+        self, page_id: str, expand: str = ""
+    ) -> Optional[Dict[str, Any]]:
+        if self._page_content is None:
+            return None
+        return {"body": {"storage": {"value": self._page_content}}}
+
+    def set_page_content(self, html: Optional[str]):
+        """Helper to set the page content for a test."""
+        self._page_content = html
+
+    # --- Methods not used in these tests, but required by the interface ---
+    def get_all_descendants(self, page_id: str) -> list:
+        pass
 
     def get_page_id_from_url(self, url: str) -> str:
-        self.mock.get_page_id_from_url(url)
-        return "root_page_id" if url != "invalid_url" else None
-
-    def get_all_descendants(self, page_id: str) -> list:
-        self.mock.get_all_descendants(page_id)
-        return self._descendants.get(page_id, [])
-
-    def get_page_by_id(self, page_id: str, **kwargs) -> dict:
-        self.mock.get_page_by_id(page_id, **kwargs)
-        return self._pages.get(page_id)
-
-    def update_page_content(self, page_id: str, new_title: str, new_body: str) -> bool:
-        self.mock.update_page_content(page_id, new_title, new_body)
-        return True
+        pass
 
     def get_tasks_from_page(self, page_details: dict) -> list:
         pass
@@ -48,41 +44,41 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
     def create_page(self, **kwargs) -> dict:
         pass
 
+    def update_page_content(self, page_id: str, title: str, body: str) -> bool:
+        pass
+
     def get_user_details_by_username(self, username: str) -> dict:
         pass
 
-    def add_page(self, page_id, page_data):
-        self._pages[page_id] = page_data
-
-    def add_descendants(self, parent_id, descendant_ids):
-        self._descendants[parent_id] = descendant_ids
-
 
 class JiraServiceStub(JiraApiServiceInterface):
-    def __init__(self):
-        self.mock = Mock()
-        self._issues = {}
-        self._issue_type_names = {}
-        self._jql_results = {}
+    """A controlled stub for the Jira service."""
 
-    def get_issue(self, issue_key: str, fields: str = "*all") -> dict:
-        self.mock.get_issue(issue_key, fields)
+    def __init__(self):
+        self._issues = {}
+
+    def get_issue(
+        self, issue_key: str, fields: str = "*all"
+    ) -> Optional[Dict[str, Any]]:
         return self._issues.get(issue_key)
 
-    def get_issue_type_name_by_id(self, type_id: str) -> str:
-        self.mock.get_issue_type_name_by_id(type_id)
-        return self._issue_type_names.get(type_id)
+    def add_issue(self, key: str, data: dict):
+        """Helper to preload the stub with issue data."""
+        self._issues[key] = data
 
-    def search_issues_by_jql(self, jql_query: str, fields: str = "*all") -> list:
-        self.mock.search_issues_by_jql(jql_query, fields=fields)
-        return self._jql_results.get(jql_query, [])
-
+    # --- Methods not used in these tests, but required by the interface ---
     def create_issue(
         self, task: ConfluenceTask, parent_key: str, request_user: str = "jira-user"
     ) -> str:
         pass
 
     def transition_issue(self, issue_key: str, target_status: str) -> bool:
+        pass
+
+    def search_issues_by_jql(self, jql_query: str, fields: str = "*all") -> list:
+        pass
+
+    def get_issue_type_name_by_id(self, type_id: str) -> str:
         pass
 
     def get_current_user_display_name(self) -> str:
@@ -93,17 +89,8 @@ class JiraServiceStub(JiraApiServiceInterface):
     ) -> dict:
         pass
 
-    def add_issue(self, key, issue_data):
-        self._issues[key] = issue_data
 
-    def add_issue_type_name(self, type_id, name):
-        self._issue_type_names[type_id] = name
-
-    def add_jql_result(self, jql, result):
-        self._jql_results[jql] = result
-
-
-# --- Fixtures ---
+# --- Pytest Fixtures ---
 
 
 @pytest.fixture
@@ -117,161 +104,140 @@ def jira_stub():
 
 
 @pytest.fixture
-def updater_service(confluence_stub, jira_stub, monkeypatch):
-    monkeypatch.setattr(config, "JIRA_PROJECT_ISSUE_TYPE_ID", "10200")
-    monkeypatch.setattr(config, "JIRA_PHASE_ISSUE_TYPE_ID", "11001")
-    monkeypatch.setattr(config, "JIRA_WORK_PACKAGE_ISSUE_TYPE_ID", "10100")
-    return ConfluenceIssueUpdaterService(confluence_stub, jira_stub)
+def issue_finder_service(confluence_stub, jira_stub):
+    """Provides an IssueFinderService instance with stubbed dependencies."""
+    return IssueFinderService(confluence_api=confluence_stub, jira_api=jira_stub)
 
 
-# --- Tests ---
+# --- Tests for IssueFinderService ---
 
 
-def test_get_relevant_jira_issues_success(updater_service, jira_stub):
-    """Tests that the JQL query is correctly formed and issues are filtered."""
+def test_find_issue_success(issue_finder_service, confluence_stub, jira_stub):
+    """Test the happy path where a matching Jira macro is found."""
     # Arrange
-    jira_stub.add_issue_type_name("10100", "Work Package")
-    jql = (
-        "issuetype in (\"Work Package\") AND issue in relation('PROJ-ROOT', '', 'all')"
-    )
-    jira_stub.add_jql_result(
-        jql,
-        [
-            {"fields": {"issuetype": {"id": "10100"}}},
-            {"fields": {"issuetype": {"id": "99999"}}},  # Should be filtered out
-        ],
-    )
-
-    # Act
-    issues = updater_service._get_relevant_jira_issues_under_root(
-        "PROJ-ROOT", {"10100"}
-    )
-
-    # Assert
-    assert len(issues) == 1
-    assert issues[0]["fields"]["issuetype"]["id"] == "10100"
-    jira_stub.mock.search_issues_by_jql.assert_called_once_with(
-        jql, fields="key,issuetype,summary"
-    )
-
-
-def test_find_best_match_exact(updater_service):
-    """Tests finding a replacement issue with an exact summary match."""
-    old = {"fields": {"issuetype": {"id": "10100"}, "summary": "Exact Summary"}}
-    candidates = [
-        {
-            "key": "NEW-1",
-            "fields": {"issuetype": {"id": "10100"}, "summary": "Exact Summary"},
-        }
-    ]
-    match = updater_service._find_best_new_issue_match(old, candidates, 0.7)
-    assert match["key"] == "NEW-1"
-
-
-def test_find_best_match_fuzzy(updater_service, mocker):
-    """Tests finding a replacement with a high fuzzy summary match score."""
-    mocker.patch("difflib.SequenceMatcher.ratio", return_value=0.9)  # High similarity
-    old = {"fields": {"issuetype": {"id": "10100"}, "summary": "Original"}}
-    candidates = [
-        {"key": "NEW-1", "fields": {"issuetype": {"id": "10100"}, "summary": "Similar"}}
-    ]
-    match = updater_service._find_best_new_issue_match(old, candidates, 0.7)
-    assert match["key"] == "NEW-1"
-
-
-def test_find_best_match_no_type_match(updater_service):
-    """Tests that no match is found if issue types differ."""
-    old = {"fields": {"issuetype": {"id": "10100"}, "summary": "Summary"}}
-    candidates = [
-        {"key": "NEW-1", "fields": {"issuetype": {"id": "99999"}, "summary": "Summary"}}
-    ]
-    match = updater_service._find_best_new_issue_match(old, candidates, 0.7)
-    assert match is None
-
-
-def test_find_and_replace_macros_success(updater_service, confluence_stub, jira_stub):
-    """Tests that a Jira macro on a page is successfully found and replaced."""
-    # Arrange
-    html = '<p><ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">OLD-1</ac:parameter></ac:structured-macro></p>'
+    html = '<p><ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">WP-1</ac:parameter></ac:structured-macro></p>'
+    confluence_stub.set_page_content(html)
     jira_stub.add_issue(
-        "OLD-1",
+        "WP-1",
         {
-            "key": "OLD-1",
-            "fields": {"issuetype": {"id": "10100"}, "summary": "Old Summary"},
+            "key": "WP-1",
+            "fields": {
+                "issuetype": {"id": config.PARENT_ISSUES_TYPE_ID["Work Package"]}
+            },
         },
     )
-    candidates = [
-        {
-            "key": "NEW-1",
-            "fields": {"issuetype": {"id": "10100"}, "summary": "Old Summary"},
-        }
-    ]
 
     # Act
-    modified_html, did_modify = updater_service._find_and_replace_jira_macros_on_page(
-        {}, html, candidates, {"10100"}
+    result = issue_finder_service.find_issue_on_page(
+        "page1", config.PARENT_ISSUES_TYPE_ID
     )
 
     # Assert
-    assert did_modify is True
-    assert "New Macro for NEW-1" in modified_html
+    assert result is not None
+    assert result["key"] == "WP-1"
 
 
-def test_update_hierarchy_success(updater_service, confluence_stub, mocker):
-    """Tests the main success path of the high-level update method."""
+def test_find_issue_no_content(issue_finder_service, confluence_stub):
+    """Test that the service returns None if the page content is missing."""
     # Arrange
-    confluence_stub.add_page(
-        "root_page_id",
+    confluence_stub.set_page_content(None)
+
+    # Act
+    result = issue_finder_service.find_issue_on_page(
+        "page1", config.PARENT_ISSUES_TYPE_ID
+    )
+
+    # Assert
+    assert result is None
+
+
+def test_find_issue_no_macros(issue_finder_service, confluence_stub):
+    """Test that the service returns None if the page has no Jira macros."""
+    # Arrange
+    confluence_stub.set_page_content("<p>Some text, but no macros.</p>")
+
+    # Act
+    result = issue_finder_service.find_issue_on_page(
+        "page1", config.PARENT_ISSUES_TYPE_ID
+    )
+
+    # Assert
+    assert result is None
+
+
+def test_find_issue_wrong_type(issue_finder_service, confluence_stub, jira_stub):
+    """Test that a macro is ignored if it's not a matching issue type."""
+    # Arrange
+    html = '<p><ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">TASK-123</ac:parameter></ac:structured-macro></p>'
+    confluence_stub.set_page_content(html)
+    jira_stub.add_issue(
+        "TASK-123",
+        {"key": "TASK-123", "fields": {"issuetype": {"id": "not_a_work_package_id"}}},
+    )
+
+    # Act
+    result = issue_finder_service.find_issue_on_page(
+        "page1", config.PARENT_ISSUES_TYPE_ID
+    )
+
+    # Assert
+    assert result is None
+
+
+def test_find_issue_jira_api_fails(issue_finder_service, confluence_stub, jira_stub):
+    """Test that the service handles it gracefully if the Jira API returns None for an issue."""
+    # Arrange
+    html = '<p><ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">GHOST-1</ac:parameter></ac:structured-macro></p>'
+    confluence_stub.set_page_content(html)
+    # Don't add "GHOST-1" to the jira_stub, so it will return None
+
+    # Act
+    result = issue_finder_service.find_issue_on_page(
+        "page1", config.PARENT_ISSUES_TYPE_ID
+    )
+
+    # Assert
+    assert result is None
+
+
+def test_find_issue_nested_macro_ignored(
+    issue_finder_service, confluence_stub, jira_stub, monkeypatch
+):
+    """Test that a Jira macro is ignored if it's nested inside an aggregation macro."""
+    # Arrange
+    monkeypatch.setattr(config, "AGGREGATION_CONFLUENCE_MACRO", ["jira-issues"])
+    html = (
+        '<ac:structured-macro ac:name="jira-issues">'
+        '  <ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">WP-NESTED</ac:parameter></ac:structured-macro>'
+        "</ac:structured-macro>"
+        '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">WP-VALID</ac:parameter></ac:structured-macro>'
+    )
+    confluence_stub.set_page_content(html)
+    jira_stub.add_issue(
+        "WP-NESTED",
         {
-            "id": "root_page_id",
-            "title": "Root",
-            "body": {"storage": {"value": "content"}},
+            "key": "WP-NESTED",
+            "fields": {
+                "issuetype": {"id": config.PARENT_ISSUES_TYPE_ID["Work Package"]}
+            },
         },
     )
-    mocker.patch.object(
-        updater_service,
-        "_get_relevant_jira_issues_under_root",
-        return_value=[{"key": "NEW-1"}],
-    )
-    mocker.patch.object(
-        updater_service,
-        "_find_and_replace_jira_macros_on_page",
-        return_value=("new html", True),
+    jira_stub.add_issue(
+        "WP-VALID",
+        {
+            "key": "WP-VALID",
+            "fields": {
+                "issuetype": {"id": config.PARENT_ISSUES_TYPE_ID["Work Package"]}
+            },
+        },
     )
 
     # Act
-    results = updater_service.update_confluence_hierarchy_with_new_jira_project(
-        "http://ok", "PROJ-ROOT"
+    result = issue_finder_service.find_issue_on_page(
+        "page1", config.PARENT_ISSUES_TYPE_ID
     )
 
     # Assert
-    confluence_stub.mock.update_page_content.assert_called_once_with(
-        "root_page_id", "Root", "new html"
-    )
-    assert len(results) == 1
-    assert results[0]["page_id"] == "root_page_id"
-
-
-def test_update_hierarchy_invalid_url(updater_service):
-    """Tests that an InvalidInputError is raised for a bad URL."""
-    with pytest.raises(InvalidInputError):
-        updater_service.update_confluence_hierarchy_with_new_jira_project(
-            "invalid_url", "PROJ-ROOT"
-        )
-
-
-def test_update_hierarchy_no_candidates(updater_service, confluence_stub, mocker):
-    """Tests that the process exits early if no candidate issues are found in Jira."""
-    # Arrange
-    mocker.patch.object(
-        updater_service, "_get_relevant_jira_issues_under_root", return_value=[]
-    )  # No candidates
-
-    # Act
-    results = updater_service.update_confluence_hierarchy_with_new_jira_project(
-        "http://ok", "PROJ-ROOT"
-    )
-
-    # Assert
-    assert results == []
-    confluence_stub.mock.get_page_by_id.assert_not_called()  # Should not proceed to process pages
+    assert result is not None
+    # It should find the valid, non-nested macro
+    assert result["key"] == "WP-VALID"
