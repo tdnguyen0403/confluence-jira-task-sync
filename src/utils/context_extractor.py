@@ -26,6 +26,8 @@ def get_task_context(task_element: BeautifulSoup) -> str:
     4.  **Preceding Text Block:** As a fallback, it searches backwards to
         find the nearest preceding paragraph, heading, or list item.
     """
+    if not task_element:
+        return ""
     # --- PRIORITY 1: Check for a preceding Jira Macro (NEW ROBUST LOGIC) ---
     # Find the task list that contains the current task.
     parent_task_list = task_element.find_parent("ac:task-list")
