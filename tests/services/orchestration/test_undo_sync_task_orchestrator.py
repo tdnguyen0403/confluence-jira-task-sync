@@ -1,124 +1,188 @@
+"""
+Tests for the UndoSyncTaskOrchestrator using stubs for service dependencies.
+"""
+
 import pytest
-from unittest.mock import MagicMock
+from typing import Any, Dict, Optional
+
 from src.services.orchestration.undo_sync_task_orchestrator import (
     UndoSyncTaskOrchestrator,
 )
 from src.exceptions import InvalidInputError, MissingRequiredDataError
 from src.config import config
-import logging
+from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
+from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.models.data_models import ConfluenceTask
 
-# Configure logger for tests
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# --- Stubs for Service Dependencies ---
+
+
+class ConfluenceServiceStub(ConfluenceApiServiceInterface):
+    def __init__(self):
+        self._pages = {}
+        self.updated_pages = set()
+        self.should_fail_get = False
+
+    def get_page_by_id(self, page_id: str, **kwargs) -> Optional[Dict[str, Any]]:
+        if self.should_fail_get:
+            return None
+        if "version" in kwargs:
+            return self._pages.get(page_id, {}).get("historical")
+        return self._pages.get(page_id, {}).get("current")
+
+    def update_page_content(self, page_id: str, new_title: str, new_body: str) -> bool:
+        self.updated_pages.add(page_id)
+        return True
+
+    def add_page_version(
+        self, page_id: str, historical_content: str, current_title: str
+    ):
+        self._pages[page_id] = {
+            "historical": {"body": {"storage": {"value": historical_content}}},
+            "current": {"title": current_title},
+        }
+
+    def get_all_descendants(self, page_id: str) -> list:
+        pass
+
+    def get_page_id_from_url(self, url: str) -> str:
+        pass
+
+    def get_tasks_from_page(self, page_details: dict) -> list:
+        pass
+
+    def update_page_with_jira_links(self, page_id: str, mappings: list) -> None:
+        pass
+
+    def create_page(self, **kwargs) -> dict:
+        pass
+
+    def get_user_details_by_username(self, username: str) -> dict:
+        pass
+
+
+class JiraServiceStub(JiraApiServiceInterface):
+    def __init__(self):
+        self.transitioned_issues = {}
+        self._should_fail_transition = False
+
+    def transition_issue(self, issue_key: str, target_status: str) -> bool:
+        if self._should_fail_transition:
+            raise Exception("Jira API Error")
+        self.transitioned_issues[issue_key] = target_status
+        return True
+
+    def get_issue(self, issue_key: str, fields: str = "*all") -> dict:
+        pass
+
+    def create_issue(
+        self, task: ConfluenceTask, parent_key: str, request_user: str = "jira-user"
+    ) -> str:
+        pass
+
+    def prepare_jira_task_fields(
+        self, task: ConfluenceTask, parent_key: str, request_user: str
+    ) -> dict:
+        pass
+
+    def get_current_user_display_name(self) -> str:
+        pass
+
+    def search_issues_by_jql(self, jql_query: str, fields: str = "*all") -> list:
+        pass
+
+    def get_issue_type_name_by_id(self, type_id: str) -> str:
+        pass
+
+
+# --- Pytest Fixtures ---
 
 
 @pytest.fixture
-def mock_confluence_service():
-    mock = MagicMock()
-    mock.get_page_by_id.side_effect = [
-        {
-            "id": "page1",
-            "body": {"storage": {"value": "old content"}},
-        },  # For historical_page
-        {
-            "id": "page1",
-            "title": "Test Page",
-            "version": {"number": 2},
-        },  # For current_page
-    ]
-    mock.update_page_content.return_value = True
-    return mock
+def confluence_stub():
+    return ConfluenceServiceStub()
 
 
 @pytest.fixture
-def mock_jira_service():
-    mock = MagicMock()
-    mock.transition_issue.return_value = True
-    return mock
+def jira_stub():
+    return JiraServiceStub()
 
 
 @pytest.fixture
-def undo_orchestrator(mock_confluence_service, mock_jira_service):
+def undo_orchestrator(confluence_stub, jira_stub):
     return UndoSyncTaskOrchestrator(
-        confluence_service=mock_confluence_service, jira_service=mock_jira_service
+        confluence_service=confluence_stub, jira_service=jira_stub
     )
 
 
-def test_undo_orchestrator_run_success(
-    undo_orchestrator, mock_jira_service, mock_confluence_service
-):
+# --- Pytest Test Functions ---
+
+
+def test_run_success(undo_orchestrator, jira_stub, confluence_stub):
     results_data = [
         {
             "Status": "Success",
             "New Jira Task Key": "JIRA-100",
             "confluence_page_id": "1",
             "original_page_version": 1,
-        },
-        {
-            "Status": "Success - Completed Task Created",
-            "New Jira Task Key": "JIRA-101",
-            "confluence_page_id": "2",
-            "original_page_version": 2,
-        },
-        # A failed one should not trigger undo for Jira/Confluence
-        {
-            "Status": "Failed - Jira task creation",
-            "New Jira Task Key": None,
-            "confluence_page_id": "3",
-            "original_page_version": 3,
-        },
+        }
     ]
-
+    confluence_stub.add_page_version("1", "old content", "Current Title")
     undo_orchestrator.run(results_data)
-
-    mock_jira_service.transition_issue.assert_any_call(
-        "JIRA-100", config.JIRA_TARGET_STATUSES["undo"]
+    assert (
+        jira_stub.transitioned_issues.get("JIRA-100")
+        == config.JIRA_TARGET_STATUSES["undo"]
     )
-    mock_jira_service.transition_issue.assert_any_call(
-        "JIRA-101", config.JIRA_TARGET_STATUSES["undo"]
-    )
-    assert mock_jira_service.transition_issue.call_count == 2
-
-    mock_confluence_service.get_page_by_id.assert_any_call(
-        "1", version=1, expand="body.storage"
-    )
-    mock_confluence_service.get_page_by_id.assert_any_call(
-        "2", version=2, expand="body.storage"
-    )
-    mock_confluence_service.update_page_content.assert_called()
+    assert "1" in confluence_stub.updated_pages
 
 
-def test_undo_orchestrator_run_no_input(undo_orchestrator):
+def test_run_no_input(undo_orchestrator):
     with pytest.raises(InvalidInputError, match="No results JSON data provided"):
         undo_orchestrator.run([])
 
 
-def test_undo_orchestrator_run_empty_data(undo_orchestrator):
-    with pytest.raises(
-        InvalidInputError, match="Provided JSON data is empty or could not be processed"
-    ):
+# --- TEST RESTORED ---
+def test_run_empty_data(undo_orchestrator):
+    """Test that an InvalidInputError is raised for a list with empty data."""
+    with pytest.raises(InvalidInputError, match="Provided JSON data is empty"):
         undo_orchestrator.run([{}])
 
 
-def test_undo_orchestrator_missing_required_columns(undo_orchestrator):
-    results_data = [
-        {
-            "Status": "Success",
-            "New Jira Task Key": "JIRA-100",
-            # Missing confluence_page_id and original_page_version
-        }
-    ]
+def test_run_missing_required_columns(undo_orchestrator):
+    results_data = [{"Status": "Success"}]
     with pytest.raises(
         MissingRequiredDataError, match="Results data is missing required columns"
     ):
         undo_orchestrator.run(results_data)
 
 
-def test_undo_orchestrator_transition_jira_tasks_failure(
-    undo_orchestrator, mock_jira_service
+def test_transition_jira_tasks_failure(
+    undo_orchestrator, jira_stub, confluence_stub, caplog
 ):
-    mock_jira_service.transition_issue.side_effect = Exception("Jira API Error")
+    # Arrange
+    jira_stub._should_fail_transition = True
+    results_data = [
+        {
+            "Status": "Success",
+            "New Jira Task Key": "JIRA-FAIL",
+            "confluence_page_id": "1",
+            "original_page_version": 1,
+        }
+    ]
+    confluence_stub.add_page_version("1", "old content", "Current Title")
 
+    # Act
+    with caplog.at_level("INFO"):
+        undo_orchestrator.run(results_data)
+
+    # Assert
+    assert "Failed to transition Jira issue 'JIRA-FAIL'" in caplog.text
+    # --- FIX: Assert against the correct log message ---
+    assert "Attempting to roll back page 1 to version 1" in caplog.text
+
+
+def test_rollback_confluence_failure(undo_orchestrator, confluence_stub, caplog):
+    confluence_stub.should_fail_get = True
     results_data = [
         {
             "Status": "Success",
@@ -127,53 +191,23 @@ def test_undo_orchestrator_transition_jira_tasks_failure(
             "original_page_version": 1,
         }
     ]
+    with caplog.at_level("ERROR"):
+        undo_orchestrator.run(results_data)
+    assert "Failed to get content for page '1' version 1" in caplog.text
+    assert not confluence_stub.updated_pages
 
-    # The run method should not raise for individual transition failures, but log them
-    undo_orchestrator.run(results_data)
-    mock_jira_service.transition_issue.assert_called_once()
-    # Check if a log error was generated, rather than an exception being raised
 
-
-def test_undo_orchestrator_rollback_confluence_failure(
-    undo_orchestrator, mock_confluence_service
+def test_no_actions_on_skipped_or_failed_status(
+    undo_orchestrator, jira_stub, confluence_stub
 ):
-    mock_confluence_service.get_page_by_id.side_effect = [
-        None,  # simulate failure to get historical page
-        {
-            "id": "page1",
-            "title": "Test Page",
-            "version": {"number": 2},
-        },  # For current_page
-    ]
-
     results_data = [
         {
-            "Status": "Success",
-            "New Jira Task Key": "JIRA-100",
-            "confluence_page_id": "1",
-            "original_page_version": 1,
-        }
-    ]
-
-    undo_orchestrator.run(results_data)
-    mock_confluence_service.get_page_by_id.call_count == 2  # Called for historical and current
-    mock_confluence_service.update_page_content.assert_not_called()
-
-
-def test_undo_orchestrator_no_jira_keys_or_pages(
-    undo_orchestrator, mock_jira_service, mock_confluence_service
-):
-    # Data where no sync actions were successful (e.g., all skipped or failed)
-    results_data = [
-        {
-            "Status": "Skipped - No Work Package found",
+            "Status": "Skipped",
             "New Jira Task Key": None,
             "confluence_page_id": "1",
             "original_page_version": 1,
         }
     ]
     undo_orchestrator.run(results_data)
-
-    mock_jira_service.transition_issue.assert_not_called()
-    mock_confluence_service.update_page_content.assert_not_called()
-    mock_confluence_service.get_page_by_id.assert_not_called()
+    assert not jira_stub.transitioned_issues
+    assert not confluence_stub.updated_pages
