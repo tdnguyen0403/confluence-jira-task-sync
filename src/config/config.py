@@ -4,36 +4,22 @@ Application-wide configuration settings.
 This module centralizes all configuration variables for the application. It
 loads sensitive data (like API tokens and URLs) from environment variables
 using `dotenv` and defines project-specific constants and settings.
-
-The configuration is organized into logical sections for clarity:
-- Directory and Server Configuration
-- Authentication
-- Jira and Confluence specific settings
-- Automation behavior
-- Test data generation settings
-
 """
 
-import logging
 import os
 from datetime import date, timedelta
 from typing import Dict, List, Optional
-
 from dotenv import load_dotenv
-
-# Initialize logger for this module
-logger = logging.getLogger(__name__)
 
 # Load environment variables from a .env file if it exists
 load_dotenv()
 
-# Base directory of the project (adjust if your project structure is different)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# --- Environment & Paths ---
+# Use an environment variable to distinguish environments. Default to 'development'.
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
-# Define root directories for logs, inputs, and outputs
-LOGS_ROOT_DIR = os.path.join(BASE_DIR, "logs")
-INPUT_ROOT_DIR = os.path.join(BASE_DIR, "input")
-OUTPUT_ROOT_DIR = os.path.join(BASE_DIR, "output")
+# Convert string "true" or "false" from env var to boolean
+VERIFY_SSL = os.getenv("VERIFY_SSL", "true").lower() == "true"
 
 # --- Jira & Confluence Server Configuration ---
 # Loaded from environment variables for security and flexibility.
@@ -50,35 +36,46 @@ API_SECRET_KEY: Optional[str] = os.getenv("API_SECRET_KEY")
 JIRA_MACRO_SERVER_NAME: Optional[str] = os.getenv("JIRA_MACRO_SERVER_NAME")
 JIRA_MACRO_SERVER_ID: Optional[str] = os.getenv("JIRA_MACRO_SERVER_ID")
 
-# --- Master Data / Custom IDs (Project Specific) ---
-# Issue type IDs for different parent issues in Jira for task creation.
+# --- Master Data / Custom IDs (Loaded from Environment) ---
 PARENT_ISSUES_TYPE_ID: Dict[str, str] = {
-    "Work Package": "10100",
-    "Risk": "11404",
-    "Deviation": "10103",
+    "Work Package": os.getenv("JIRA_PARENT_ID_WORK_PACKAGE", "10100"),
+    "Risk": os.getenv("JIRA_PARENT_ID_RISK", "11404"),
+    "Deviation": os.getenv("JIRA_PARENT_ID_DEVIATION", "10103"),
 }
-TASK_ISSUE_TYPE_ID: str = "10002"
-# Specific Issue Type IDs for Project, Phase, and Work Package for new project confluence page sync.
-JIRA_PROJECT_ISSUE_TYPE_ID: str = "10200"
-JIRA_PHASE_ISSUE_TYPE_ID: str = "11001"
-JIRA_WORK_PACKAGE_ISSUE_TYPE_ID: str = "10100"
-
-# The custom field ID in Jira used to link tasks to a work package.
-JIRA_PARENT_WP_CUSTOM_FIELD_ID: str = "customfield_10207"
+TASK_ISSUE_TYPE_ID: Optional[str] = os.getenv("JIRA_TASK_ISSUE_TYPE_ID", "10002")
+JIRA_PROJECT_ISSUE_TYPE_ID: Optional[str] = os.getenv(
+    "JIRA_PROJECT_ISSUE_TYPE_ID", "10200"
+)
+JIRA_PHASE_ISSUE_TYPE_ID: Optional[str] = os.getenv("JIRA_PHASE_ISSUE_TYPE_ID", "11001")
+JIRA_WORK_PACKAGE_ISSUE_TYPE_ID: Optional[str] = os.getenv(
+    "JIRA_WORK_PACKAGE_ISSUE_TYPE_ID", "10100"
+)
+JIRA_PARENT_WP_CUSTOM_FIELD_ID: Optional[str] = os.getenv(
+    "JIRA_PARENT_WP_CUSTOM_FIELD_ID", "customfield_10207"
+)
 
 # --- Automation Settings ---
-# Set to True to run in production mode. Should be False for testing.
-PRODUCTION_MODE: bool = False
-# Defines the target statuses for issue transitions in different scenarios.
+# Production mode is now determined by the ENVIRONMENT variable.
+PRODUCTION_MODE: bool = ENVIRONMENT.lower() == "production"
+
 JIRA_TARGET_STATUSES: Dict[str, str] = {
-    "new_task_dev": "Backlog",
-    "completed_task": "Done",
-    "undo": "Backlog",
+    "new_task_dev": os.getenv("JIRA_STATUS_NEW", "Backlog"),
+    "completed_task": os.getenv("JIRA_STATUS_DONE", "Done"),
+    "undo": os.getenv("JIRA_STATUS_UNDO", "Backlog"),
 }
 
+# --- Due Date Settings ---
+DEFAULT_DUE_DATE_DAYS: int = int(os.getenv("DEFAULT_DUE_DATE_DAYS", "14"))
+DEFAULT_DUE_DATE: str = (date.today() + timedelta(days=DEFAULT_DUE_DATE_DAYS)).strftime(
+    "%Y-%m-%d"
+)
+
+# ======================================================================
+# The constants below are part of the application's core logic or are
+# for specific, non-production scripts. They should NOT be externalized.
+# ======================================================================
+
 # --- HTML Parsing Settings ---
-# A list of Confluence macro names whose content should be ignored during
-# task extraction to avoid parsing tasks from aggregated content.
 AGGREGATION_CONFLUENCE_MACRO: List[str] = [
     "jira",
     "jiraissues",
@@ -98,7 +95,6 @@ AGGREGATION_CONFLUENCE_MACRO: List[str] = [
 ]
 
 # --- Test Data Generation Settings ---
-# These settings are used by the test data generator scripts.
 BASE_PARENT_CONFLUENCE_PAGE_ID: str = "422189655"
 CONFLUENCE_SPACE_KEY: str = "EUDEMHTM0589"
 ASSIGNEE_USERNAME_FOR_GENERATED_TASKS: str = "tdnguyen"
@@ -110,12 +106,3 @@ TEST_WORK_PACKAGE_KEYS_TO_DISTRIBUTE: List[str] = [
 DEFAULT_MAX_DEPTH: int = 2
 DEFAULT_TASKS_PER_PAGE: int = 1
 DEFAULT_NUM_WORK_PACKAGES: int = 3
-
-# --- Fixed Default Due Date ---
-DEFAULT_DUE_DATE_DAYS: int = 14
-DEFAULT_DUE_DATE: str = (date.today() + timedelta(days=DEFAULT_DUE_DATE_DAYS)).strftime(
-    "%Y-%m-%d"
-)
-
-# --- SSL Verification ---
-VERIFY_SSL = False  # Set to True in production for secure connections, False for testing or self-signed certs
