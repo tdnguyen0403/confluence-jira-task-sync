@@ -18,6 +18,14 @@ load_dotenv()
 # Use an environment variable to distinguish environments. Default to 'development'.
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
+# Base directory of the project (adjust if your project structure is different)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Define root directories for logs, inputs, and outputs
+LOGS_ROOT_DIR = os.path.join(BASE_DIR, "logs")
+INPUT_ROOT_DIR = os.path.join(BASE_DIR, "input")
+OUTPUT_ROOT_DIR = os.path.join(BASE_DIR, "output")
+
 # Convert string "true" or "false" from env var to boolean
 VERIFY_SSL = os.getenv("VERIFY_SSL", "true").lower() == "true"
 

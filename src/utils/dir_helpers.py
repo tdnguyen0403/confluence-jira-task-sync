@@ -1,14 +1,11 @@
 import os
 from datetime import datetime
 from typing import Optional
-
-# Base directory of the project (adjust if your project structure is different)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Define root directories for logs, inputs, and outputs
-LOGS_ROOT_DIR = os.path.join(BASE_DIR, "logs")
-INPUT_ROOT_DIR = os.path.join(BASE_DIR, "input")
-OUTPUT_ROOT_DIR = os.path.join(BASE_DIR, "output")
+from src.config.config import (
+    LOGS_ROOT_DIR,
+    INPUT_ROOT_DIR,
+    OUTPUT_ROOT_DIR,
+)
 
 ENDPOINT_SUBFOLDERS = {
     # Log subfolders (retaining 'logs_' prefix)
