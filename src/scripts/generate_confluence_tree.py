@@ -17,6 +17,7 @@ from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
 from src.services.business_logic.issue_finder_service import IssueFinderService
 from src.utils.logging_config import setup_logging_local
+from src.utils.dir_helpers import get_output_path
 
 # Suppress insecure request warnings for local/dev environments
 warnings.filterwarnings(
@@ -276,7 +277,7 @@ if __name__ == "__main__":
             output_filename = config.generate_timestamped_filename(
                 "generate_page_result", suffix=".json"
             )
-            output_path = config.get_output_path("generate", output_filename)
+            output_path = get_output_path("generate", output_filename)
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(generated_page_info, f, ensure_ascii=False, indent=4)
             logger.info(f"Generated page info saved to: {output_path}")

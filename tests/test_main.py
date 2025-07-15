@@ -84,10 +84,10 @@ def client(
     # Prevent all file system interaction by mocking high-level functions
     mocker.patch("main.setup_logging")
     mocker.patch(
-        "src.config.config.get_input_path", return_value="/mock/path/input.json"
+        "src.utils.dir_helpers.get_input_path", return_value="/mock/path/input.json"
     )
     mocker.patch(
-        "src.config.config.get_output_path", return_value="/mock/path/output.json"
+        "src.utils.dir_helpers.get_output_path", return_value="/mock/path/output.json"
     )
     mocker.patch("builtins.open", mocker.mock_open())
     mocker.patch("json.dump")

@@ -4,7 +4,7 @@ import logging
 import os
 import sys
 from datetime import datetime
-from src.config import config  # Ensure this import path is correct for your setup
+from src.utils.dir_helpers import get_log_path, generate_timestamped_filename
 from typing import Optional
 
 
@@ -39,11 +39,11 @@ def setup_logging(
 
     logger.setLevel(log_level)
 
-    # Use the new config.py to get the log file path
-    log_filename = config.generate_timestamped_filename(
+    # Use the new helper functions to get the log file path
+    log_filename = generate_timestamped_filename(
         log_file_prefix, suffix=".log", user=user
     )
-    log_file_path = config.get_log_path(endpoint_name, log_filename)
+    log_file_path = get_log_path(endpoint_name, log_filename)
 
     # Store the log file path in the custom logger instance
     if isinstance(logger, CustomLogger):

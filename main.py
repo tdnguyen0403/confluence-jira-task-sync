@@ -6,8 +6,12 @@ from typing import List, Dict
 import requests
 from fastapi import FastAPI, HTTPException, status, Depends
 
-from src.config import config
 from src.utils.logging_config import setup_logging
+from src.utils.dir_helpers import (
+    generate_timestamped_filename,
+    get_input_path,
+    get_output_path,
+)
 from src.exceptions import (
     SyncError,
     MissingRequiredDataError,
@@ -71,10 +75,10 @@ async def sync_confluence_tasks(
     sync_input = request.model_dump()
 
     try:
-        input_filename = config.generate_timestamped_filename(
+        input_filename = generate_timestamped_filename(
             "sync_task_request", suffix=".json", user=request.request_user
         )
-        input_path = config.get_input_path("sync_task", input_filename)
+        input_path = get_input_path("sync_task", input_filename)
         with open(input_path, "w", encoding="utf-8") as f:
             json.dump(sync_input, f, ensure_ascii=False, indent=4)
         logger.info(f"Input request saved to '{input_filename}'")
@@ -86,10 +90,10 @@ async def sync_confluence_tasks(
         response_results = [res.to_dict() for res in sync_orchestrator.results]
 
         if response_results:
-            output_filename = config.generate_timestamped_filename(
+            output_filename = generate_timestamped_filename(
                 "sync_task_result", suffix=".json", user=request.request_user
             )
-            output_path = config.get_output_path("sync_task", output_filename)
+            output_path = get_output_path("sync_task", output_filename)
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(response_results, f, indent=4)
             logger.info(f"Results have been saved to '{output_path}'")
@@ -151,10 +155,10 @@ async def undo_sync_run(
     logger.info(f"Received /undo request for {len(undo_data)} entries.")
 
     try:
-        input_filename = config.generate_timestamped_filename(
+        input_filename = generate_timestamped_filename(
             "undo_sync_task_request", suffix=".json"
         )
-        input_path = config.get_input_path("undo_sync_task", input_filename)
+        input_path = get_input_path("undo_sync_task", input_filename)
         with open(input_path, "w", encoding="utf-8") as f:
             json.dump(
                 [item.model_dump(by_alias=True) for item in undo_data], f, indent=4
@@ -220,10 +224,10 @@ async def update_confluence_project(
     )
 
     try:
-        input_filename = config.generate_timestamped_filename(
+        input_filename = generate_timestamped_filename(
             "sync_project_request", suffix=".json", user=request.request_user
         )
-        input_path = config.get_input_path("sync_project", input_filename)
+        input_path = get_input_path("sync_project", input_filename)
         with open(input_path, "w", encoding="utf-8") as f:
             json.dump(request.model_dump(), f, indent=4)
         logger.info(f"Undo request saved to '{input_path}'")
@@ -235,10 +239,10 @@ async def update_confluence_project(
             phase_issue_type_id=request.phase_issue_type_id,
         )
         if updated_pages_summary:
-            output_filename = config.generate_timestamped_filename(
+            output_filename = generate_timestamped_filename(
                 "sync_project_result", suffix=".json", user=request.request_user
             )
-            output_path = config.get_output_path("sync_project", output_filename)
+            output_path = get_output_path("sync_project", output_filename)
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(updated_pages_summary, f, indent=4)
             logger.info(

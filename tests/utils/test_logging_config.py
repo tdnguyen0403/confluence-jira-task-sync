@@ -17,7 +17,7 @@ def test_setup_logging_creates_file_and_logs(mocker):
     """
     # Arrange: Use the mocker fixture to patch dependencies
     # This is the modern pytest equivalent of using @patch decorators
-    mock_get_log_path = mocker.patch("src.utils.logging_config.config.get_log_path")
+    mock_get_log_path = mocker.patch("src.utils.logging_config.get_log_path")
     mock_file_handler = mocker.patch("src.utils.logging_config.logging.FileHandler")
     mock_stream_handler = mocker.patch("src.utils.logging_config.logging.StreamHandler")
     mock_logger = mocker.patch("src.utils.logging_config.logging.getLogger")
