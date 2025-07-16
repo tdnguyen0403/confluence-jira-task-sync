@@ -15,8 +15,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Environment & Paths ---
-# Use an environment variable to distinguish environments. Default to 'development'.
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+# Use an environment variable to distinguish environments. Default to true.
+DEV_ENVIRONMENT: bool = os.getenv("DEV_ENVIRONMENT", "true").lower() in (
+    "true",
+    "1",
+    "t",
+)
 
 # Base directory of the project (adjust if your project structure is different)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -62,15 +66,13 @@ JIRA_PARENT_WP_CUSTOM_FIELD_ID: Optional[str] = os.getenv(
     "JIRA_PARENT_WP_CUSTOM_FIELD_ID", "customfield_10207"
 )
 
-# --- Automation Settings ---
-# Production mode is now determined by the ENVIRONMENT variable.
-PRODUCTION_MODE: bool = ENVIRONMENT.lower() == "production"
-
 JIRA_TARGET_STATUSES: Dict[str, str] = {
     "new_task_dev": os.getenv("JIRA_STATUS_NEW", "Backlog"),
     "completed_task": os.getenv("JIRA_STATUS_DONE", "Done"),
     "undo": os.getenv("JIRA_STATUS_UNDO", "Backlog"),
 }
+
+FUZZY_MATCH_THRESHOLD: float = float(os.getenv("FUZZY_MATCH_THRESHOLD", 0.7))
 
 # --- Due Date Settings ---
 DEFAULT_DUE_DATE_DAYS: int = int(os.getenv("DEFAULT_DUE_DATE_DAYS", "14"))

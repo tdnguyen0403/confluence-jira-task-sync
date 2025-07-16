@@ -293,7 +293,9 @@ class ConfluenceIssueUpdaterService:
         soup = BeautifulSoup(html_content, "html.parser")
         modified = False
 
-        FUZZY_MATCH_THRESHOLD = 0.7  # Set a threshold for fuzzy matching summaries
+        FUZZY_MATCH_THRESHOLD = (
+            config.FUZZY_MATCH_THRESHOLD
+        )  # Default threshold from config
 
         for macro in soup.find_all("ac:structured-macro", {"ac:name": "jira"}):
             key_param = macro.find("ac:parameter", {"ac:name": "key"})

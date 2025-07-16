@@ -258,7 +258,7 @@ def test_completed_task_transition(
 def test_dev_mode_new_task_transition(sync_orchestrator, jira_stub, monkeypatch):
     """Test that in dev mode, a new task is transitioned to 'Backlog'."""
     # Arrange
-    monkeypatch.setattr(config, "PRODUCTION_MODE", False)  # Set dev mode
+    monkeypatch.setattr(config, "DEV_ENVIRONMENT", False)  # Set dev mode
     jira_stub.created_issue_key = "JIRA-300"
     input_data = {
         "confluence_page_urls": ["http://example.com/page1"],

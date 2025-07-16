@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jira-sync-config
+data:
+  # --- Environment & SSL ---
+  DEV_ENVIRONMENT: "true"
+  VERIFY_SSL: "true"
+
+  # --- Jira & Confluence Server Configuration ---
+  JIRA_URL="https://pfjira.pepperl-fuchs.com/"
+  CONFLUENCE_URL="https://pfteamspace.pepperl-fuchs.com/"
+
+  # --- Confluence Jira Macro Settings ---
+  JIRA_MACRO_SERVER_NAME: "P+F Jira"
+  JIRA_MACRO_SERVER_ID: "a9986ca6-387c-3b09-9a85-450e12a1cf94"
+
+  # --- Master Data / Custom IDs (CHECK THESE IN YOUR PROD JIRA INSTANCE) ---
+  JIRA_PARENT_ID_WORK_PACKAGE: "10100"
+  JIRA_PARENT_ID_RISK: "11404"
+  JIRA_PARENT_ID_DEVIATION: "10103"
+  JIRA_TASK_ISSUE_TYPE_ID: "10002"
+  JIRA_PROJECT_ISSUE_TYPE_ID: "10200"
+  JIRA_PHASE_ISSUE_TYPE_ID: "11001"
+  JIRA_WORK_PACKAGE_ISSUE_TYPE_ID: "10100"
+  JIRA_PARENT_WP_CUSTOM_FIELD_ID: "customfield_10207"
+
+  # --- Automation Settings (Workflow Statuses) ---
+  JIRA_STATUS_NEW: "Backlog"
+  JIRA_STATUS_DONE: "Done"
+  JIRA_STATUS_UNDO: "Backlog"

@@ -193,7 +193,7 @@ class SyncTaskOrchestrator:
                     )
                 else:
                     # For new, incomplete tasks in a non-production environment.
-                    if not config.PRODUCTION_MODE:
+                    if not config.DEV_ENVIRONMENT:
                         target_status = config.JIRA_TARGET_STATUSES["new_task_dev"]
                         self.jira.transition_issue(new_key, target_status)
                     self.results.append(

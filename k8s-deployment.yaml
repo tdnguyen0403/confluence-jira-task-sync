@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jira-confluence-sync-deployment
+  labels:
+    app: jira-confluence-sync
+spec:
+  replicas: 2 # Run two pods for high availability
+  selector:
+    matchLabels:
+      app: jira-confluence-sync
+  template:
+    metadata:
+      labels:
+        app: jira-confluence-sync
+    spec:
+      containers:
+      - name: jira-confluence-sync-api
+        image: your-dockerhub-username/your-repo:latest # Replace with your image
+        ports:
+        - containerPort: 8000
+        # Load all key-value pairs from the ConfigMap and Secret as environment variables
+        envFrom:
+        - configMapRef:
+            name: jira-confluence-sync-config
+        - secretRef:
+            name: jira-confluence-sync-secrets
