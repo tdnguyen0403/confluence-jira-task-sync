@@ -16,11 +16,8 @@ load_dotenv()
 
 # --- Environment & Paths ---
 # Use an environment variable to distinguish environments. Default to true.
-DEV_ENVIRONMENT: bool = os.getenv("DEV_ENVIRONMENT", "true").lower() in (
-    "true",
-    "1",
-    "t",
-)
+DEV_ENVIRONMENT: bool = os.getenv("DEV_ENVIRONMENT", "false").lower() == "true"
+# DEV_ENVIRONMENT = False
 
 # Base directory of the project (adjust if your project structure is different)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -73,6 +70,10 @@ JIRA_TARGET_STATUSES: Dict[str, str] = {
 }
 
 FUZZY_MATCH_THRESHOLD: float = float(os.getenv("FUZZY_MATCH_THRESHOLD", 0.7))
+
+# --- Jira Max Character Limits ---
+JIRA_SUMMARY_MAX_CHARS: int = int(os.getenv("JIRA_SUMMARY_MAX_CHARS", 255))
+JIRA_DESCRIPTION_MAX_CHARS: int = int(os.getenv("JIRA_DESCRIPTION_MAX_CHARS", 32768))
 
 # ======================================================================
 # The constants below are part of the application's core logic or are

@@ -7,6 +7,7 @@ from unittest.mock import Mock
 from datetime import datetime, date, timedelta
 
 # Import the code to be tested and its dependencies
+from src.config import config
 from src.api.safe_jira_api import SafeJiraApi
 from src.models.data_models import ConfluenceTask, SyncContext
 from src.services.adaptors.jira_service import JiraService
@@ -207,3 +208,27 @@ def test_get_current_user_display_name_fallback(jira_service):
     api_stub._myself_response = None
     display_name = service.get_current_user_display_name()
     assert display_name == "Unknown User"
+
+
+def test_prepare_jira_task_fields_trims_long_summary(jira_service, mock_task):
+    """Verify that a summary exceeding the character limit is truncated."""
+    service, _ = jira_service
+    mock_task.task_summary = "A" * (config.JIRA_SUMMARY_MAX_CHARS + 100)
+    mock_context = SyncContext(request_user="test_user", days_to_due_date=7)
+    result = service.prepare_jira_task_fields(mock_task, "PROJ-123", mock_context)
+
+    assert result is not None
+    assert len(result["fields"]["summary"]) == config.JIRA_SUMMARY_MAX_CHARS
+    assert result["fields"]["summary"].endswith("...")
+
+
+def test_prepare_jira_task_fields_trims_long_description(jira_service, mock_task):
+    """Verify that a description exceeding the character limit is truncated."""
+    service, _ = jira_service
+    mock_task.context = "B" * (config.JIRA_DESCRIPTION_MAX_CHARS + 100)
+    mock_context = SyncContext(request_user="test_user", days_to_due_date=7)
+    result = service.prepare_jira_task_fields(mock_task, "PROJ-123", mock_context)
+
+    assert result is not None
+    assert len(result["fields"]["description"]) == config.JIRA_DESCRIPTION_MAX_CHARS
+    assert result["fields"]["description"].endswith("...")

@@ -9,7 +9,7 @@ from src.interfaces.confluence_service_interface import ConfluenceApiServiceInte
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.interfaces.issue_finder_service_interface import (
     IssueFinderServiceInterface,
-)  # New import
+)
 from src.models.data_models import AutomationResult, ConfluenceTask, SyncContext
 from src.exceptions import SyncError, InvalidInputError
 
@@ -186,10 +186,11 @@ class SyncTaskOrchestrator:
                         )
                     )
                 else:
-                    # For new, incomplete tasks in a non-production environment.
+                    # For new, incomplete tasks in a development environment, transition to a specific status for new_tasks.
                     if config.DEV_ENVIRONMENT:
                         target_status = config.JIRA_TARGET_STATUSES["new_task_dev"]
                         self.jira.transition_issue(new_key, target_status)
+                    # If not in development, create the task in the default status.
                     self.results.append(
                         AutomationResult(
                             task_data=task,

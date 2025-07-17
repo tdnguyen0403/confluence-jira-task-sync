@@ -176,12 +176,28 @@ class JiraService(JiraApiServiceInterface):
             due_date = calculated_due_date.strftime("%Y-%m-%d")
             logger.info(f"Calculating due date: {due_date}")
 
+        # Ensure the summary does not exceed Jira's maximum character limit.
+        summary = task.task_summary or "No Summary Provided"
+        if len(summary) > config.JIRA_SUMMARY_MAX_CHARS:
+            logger.warning(
+                f"Task summary is too long ({len(summary)} > {config.JIRA_SUMMARY_MAX_CHARS}). "
+                f"Truncating summary for Confluence Task ID: {task.confluence_task_id}."
+            )
+            summary = summary[: config.JIRA_SUMMARY_MAX_CHARS - 3] + "..."
+        # Ensure the description does not exceed Jira's maximum character limit.
+        description = final_description or "No Description Provided"
+        if len(description) > config.JIRA_DESCRIPTION_MAX_CHARS:
+            logger.warning(
+                f"Task description is too long ({len(description)} > {config.JIRA_DESCRIPTION_MAX_CHARS}). "
+                f"Truncating description for Confluence Task ID: {task.confluence_task_id}."
+            )
+            description = description[: config.JIRA_DESCRIPTION_MAX_CHARS - 3] + "..."
         # Prepare the fields for the Jira issue creation.
         fields = {
             "project": {"key": project_key},
-            "summary": task.task_summary,
+            "summary": summary,
             "issuetype": {"id": config.TASK_ISSUE_TYPE_ID},
-            "description": final_description,
+            "description": description,
             "duedate": due_date,
             config.JIRA_PARENT_WP_CUSTOM_FIELD_ID: parent_key,
         }

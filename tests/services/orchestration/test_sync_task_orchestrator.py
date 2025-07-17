@@ -287,3 +287,30 @@ def test_dev_mode_new_task_transition(
     assert (
         jira_stub.transitioned_to_status == config.JIRA_TARGET_STATUSES["new_task_dev"]
     )
+
+
+def test_prod_mode_new_task_no_transition(
+    sync_orchestrator, jira_stub, monkeypatch, sync_context
+):
+    """Test that in produciton mode, a new task is not transitioned to 'Backlog'."""
+    # Arrange
+    monkeypatch.setattr(config, "DEV_ENVIRONMENT", False)  # Set dev mode
+    jira_stub.created_issue_key = "JIRA-300"
+    input_data = {
+        "confluence_page_urls": ["http://example.com/page1"],
+        "context": {
+            "request_user": "test_user",
+            "days_to_due_date": 5,
+        },
+    }
+
+    # Act
+    sync_orchestrator.run(input_data, sync_context)
+
+    # Assert
+    assert len(sync_orchestrator.results) == 1
+    assert sync_orchestrator.results[0].status == "Success"
+    assert jira_stub.transitioned_issue_key is None  # No transition in production mode
+    assert (
+        jira_stub.transitioned_to_status is None  # No transition in production mode
+    )
