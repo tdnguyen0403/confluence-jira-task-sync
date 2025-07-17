@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
+# models used for the /sync endpoint
 class ConfluenceTask(BaseModel):
     """
     Represents a single, structured task item extracted from a Confluence page.
@@ -136,6 +137,7 @@ class SyncRequest(BaseModel):
     context: SyncContext = Field(default_factory=SyncContext)
 
 
+# models used for the /undo endpoint
 class UndoRequestItem(BaseModel):
     """
     Represents an item in the request body for the /undo endpoint.
@@ -146,7 +148,6 @@ class UndoRequestItem(BaseModel):
     Status: str
     confluence_page_id: str
     original_page_version: int
-
     New_Jira_Task_Key: Optional[str] = Field(
         None, alias="New Jira Task Key", json_schema_extra={"example": "JIRA-123"}
     )
@@ -182,6 +183,7 @@ class UndoRequestItem(BaseModel):
     )
 
 
+# model used for the /update-confluence-project endpoint
 class ConfluenceUpdateProjectRequest(BaseModel):
     """
     Represents the request body for the /update-confluence-project endpoint.
