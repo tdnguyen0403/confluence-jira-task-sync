@@ -122,7 +122,6 @@ def tree_generator(confluence_stub, jira_stub, issue_finder_stub, monkeypatch):
     monkeypatch.setattr(
         config, "TEST_WORK_PACKAGE_KEYS_TO_DISTRIBUTE", ["WP-1", "WP-2"]
     )
-    monkeypatch.setattr(config, "DEFAULT_DUE_DATE", "2025-01-01")
 
     return ConfluenceTreeGenerator(
         confluence_service=confluence_stub,
@@ -182,7 +181,9 @@ def test_generate_page_hierarchy_single_page(tree_generator, confluence_stub, mo
     assert task is not None
     assert "Generated Task 0 for WP-1" in task.find("ac:task-body").text
     assert task.find("ac:task-assignee")["ac:account-id"] == "test_account_id"
-    assert task.find("time")["datetime"] == "2025-01-01"
+    assert task.find("time")[
+        "datetime"
+    ] == config.DEFAULT_DUE_DATE_FOR_TREE_GENERATION.strftime("%Y-%m-%d")
 
     # Assert final results summary
     assert len(results) == 1

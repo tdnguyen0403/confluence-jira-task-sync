@@ -135,7 +135,7 @@ class ConfluenceTreeGenerator:
                 tasks_html_parts.append(
                     f"<ac:task-list><ac:task><ac:task-id>{uuid.uuid4().hex[:8]}</ac:task-id>"
                     f"<ac:task-status>{task_status}</ac:task-status>"
-                    f'<ac:task-body><span>{task_summary} {assignee_html}</span><time datetime="{config.DEFAULT_DUE_DATE}"></time>'
+                    f'<ac:task-body><span>{task_summary} {assignee_html}</span><time datetime="{(config.DEFAULT_DUE_DATE_FOR_TREE_GENERATION).strftime("%Y-%m-%d")}"></time>'
                     f"</ac:task-body></ac:task></ac:task-list>"
                 )
 

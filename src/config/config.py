@@ -74,12 +74,6 @@ JIRA_TARGET_STATUSES: Dict[str, str] = {
 
 FUZZY_MATCH_THRESHOLD: float = float(os.getenv("FUZZY_MATCH_THRESHOLD", 0.7))
 
-# --- Due Date Settings ---
-DEFAULT_DUE_DATE_DAYS: int = int(os.getenv("DEFAULT_DUE_DATE_DAYS", "14"))
-DEFAULT_DUE_DATE: str = (date.today() + timedelta(days=DEFAULT_DUE_DATE_DAYS)).strftime(
-    "%Y-%m-%d"
-)
-
 # ======================================================================
 # The constants below are part of the application's core logic or are
 # for specific, non-production scripts. They should NOT be externalized.
@@ -116,3 +110,4 @@ TEST_WORK_PACKAGE_KEYS_TO_DISTRIBUTE: List[str] = [
 DEFAULT_MAX_DEPTH: int = 2
 DEFAULT_TASKS_PER_PAGE: int = 1
 DEFAULT_NUM_WORK_PACKAGES: int = 3
+DEFAULT_DUE_DATE_FOR_TREE_GENERATION: date = date.today() + timedelta(days=14)

@@ -10,7 +10,7 @@ from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.interfaces.issue_finder_service_interface import (
     IssueFinderServiceInterface,
 )  # New import
-from src.models.data_models import AutomationResult, ConfluenceTask
+from src.models.data_models import AutomationResult, ConfluenceTask, SyncContext
 from src.exceptions import SyncError, InvalidInputError
 
 warnings.filterwarnings(
@@ -48,13 +48,14 @@ class SyncTaskOrchestrator:
         self.results: List[AutomationResult] = []
         self.request_user: Optional[str] = None
 
-    def run(self, json_input: Dict[str, Any]) -> None:
+    def run(self, json_input: Dict[str, Any], context: SyncContext) -> None:
         """
         The main entry point for executing the automation workflow.
 
         Args:
             json_input (Dict[str, Any]): A JSON object containing
-                'confluence_page_urls' (list of URLs) and 'request_user' (string).
+                'confluence_page_urls' (list of URLs) and 'context' (SyncContext object).
+            context (SyncContext): Contextual information for the sync operation,
         Raises:
             InvalidInputError: If required input data is missing or malformed.
             SyncError: For general errors during the synchronization process.
@@ -74,25 +75,18 @@ class SyncTaskOrchestrator:
                 "No 'confluence_page_urls' found in the input for sync operation."
             )
 
-        self.request_user = json_input.get("request_user")
-        if not self.request_user:
-            logger.warning(
-                "No 'request_user' found in the input. Results will not include who requested the sync."
-            )
-
-        logging.info(f"Processing input for: {self.request_user or 'Unknown User'}")
-
         for url in page_urls:
-            self.process_page_hierarchy(url)
+            self.process_page_hierarchy(url, context)
 
         logging.info("\n--- Script Finished ---")
 
-    def process_page_hierarchy(self, root_page_url: str) -> None:
+    def process_page_hierarchy(self, root_page_url: str, context: SyncContext) -> None:
         """
         Processes a root Confluence page and all of its descendants.
 
         Args:
             root_page_url (str): The URL of the top-level page to start from.
+            context (SyncContext): Contextual information for the sync operation.
         Raises:
             SyncError: If the root page ID cannot be found.
         """
@@ -117,7 +111,7 @@ class SyncTaskOrchestrator:
         logging.info(
             f"\nDiscovered {len(all_tasks)} incomplete tasks. Now processing..."
         )
-        self._process_tasks(all_tasks)
+        self._process_tasks(all_tasks, context)
 
     def _collect_tasks(self, page_ids: List[str]) -> List[ConfluenceTask]:
         """Collects all tasks from a list of Confluence page IDs."""
@@ -130,7 +124,7 @@ class SyncTaskOrchestrator:
                 tasks.extend(self.confluence.get_tasks_from_page(page_details))
         return tasks
 
-    def _process_tasks(self, tasks: List[ConfluenceTask]) -> None:
+    def _process_tasks(self, tasks: List[ConfluenceTask], context: SyncContext) -> None:
         """
         Processes a list of tasks, creates Jira issues, and tracks results.
         Raises:
@@ -166,14 +160,14 @@ class SyncTaskOrchestrator:
                     AutomationResult(
                         task_data=task,
                         status="Skipped - No Work Package found",
-                        request_user=self.request_user,
+                        request_user=context.request_user,
                     )
                 )
                 continue
 
             closest_wp_key = closest_wp["key"]
 
-            new_issue = self.jira.create_issue(task, closest_wp_key, self.request_user)
+            new_issue = self.jira.create_issue(task, closest_wp_key, context)
 
             if new_issue and new_issue.get("key"):
                 new_key = new_issue["key"]
@@ -188,12 +182,12 @@ class SyncTaskOrchestrator:
                             status="Success - Completed Task Created",
                             new_jira_key=new_key,
                             linked_work_package=closest_wp_key,
-                            request_user=self.request_user,
+                            request_user=context.request_user,
                         )
                     )
                 else:
                     # For new, incomplete tasks in a non-production environment.
-                    if not config.DEV_ENVIRONMENT:
+                    if config.DEV_ENVIRONMENT:
                         target_status = config.JIRA_TARGET_STATUSES["new_task_dev"]
                         self.jira.transition_issue(new_key, target_status)
                     self.results.append(
@@ -202,7 +196,7 @@ class SyncTaskOrchestrator:
                             status="Success",
                             new_jira_key=new_key,
                             linked_work_package=closest_wp_key,
-                            request_user=self.request_user,
+                            request_user=context.request_user,
                         )
                     )
 

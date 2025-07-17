@@ -4,11 +4,11 @@ Tests for the high-level JiraService, using stubs and modern pytest practices.
 
 import pytest
 from unittest.mock import Mock
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 # Import the code to be tested and its dependencies
 from src.api.safe_jira_api import SafeJiraApi
-from src.models.data_models import ConfluenceTask
+from src.models.data_models import ConfluenceTask, SyncContext
 from src.services.adaptors.jira_service import JiraService
 
 
@@ -85,12 +85,15 @@ def jira_service(monkeypatch):
         "src.services.adaptors.jira_service.config.JIRA_PARENT_WP_CUSTOM_FIELD_ID",
         "customfield_10207",
     )
-    monkeypatch.setattr(
-        "src.services.adaptors.jira_service.config.DEFAULT_DUE_DATE", "2025-01-01"
-    )
     safe_api_stub = SafeJiraApiStub()
     service = JiraService(safe_api_stub)
     yield service, safe_api_stub
+
+
+@pytest.fixture
+def mock_context():
+    """Provides a default SyncContext object for tests."""
+    return SyncContext(request_user="default_user", days_to_due_date=7)
 
 
 # --- All 12 Original Tests, Now Correctly Refactored ---
@@ -104,31 +107,41 @@ def test_get_issue_delegates(jira_service):
     api_stub.mock.get_issue.assert_called_once_with("TEST-1", "summary")
 
 
-def test_prepare_jira_task_fields(jira_service, mock_task, mocker):
+def test_prepare_jira_task_fields(jira_service, mock_task, mock_context):
     service, _ = jira_service
-    # FIX: Patch the entire datetime module where it's used
-    mock_dt = mocker.patch("src.services.adaptors.jira_service.datetime")
-    mock_dt.now.return_value = datetime(2025, 1, 1, 12, 0, 0)
-
-    result = service.prepare_jira_task_fields(mock_task, "PROJ-123", "APIRequester")
-    assert result["fields"]["summary"] == "My Summary"
-    assert result["fields"]["assignee"]["name"] == "assignee_user_name"
-    assert (
-        "Created by AutomationBot on 2025-01-01 12:00:00 requested by APIRequester"
-        in result["fields"]["description"]
+    result = service.prepare_jira_task_fields(mock_task, "PROJ-123", mock_context)
+    expected_description = (
+        f"Context from Confluence:\n{mock_task.context}\n\n"
+        f"Created by AutomationBot on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} "
+        f"requested by {mock_context.request_user}"
     )
+    assert result["fields"]["summary"] == "My Summary"
+    assert result["fields"]["description"] == expected_description
+    assert result["fields"]["duedate"] == "2025-01-15"
+    assert result["fields"]["assignee"]["name"] == "assignee_user_name"
 
 
-def test_prepare_jira_task_fields_with_defaults(jira_service, mock_task, mocker):
+def test_prepare_jira_task_fields_with_defaults_context(
+    jira_service, mock_task, mock_context
+):
     service, _ = jira_service
-    mock_dt = mocker.patch("src.services.adaptors.jira_service.datetime")
-    mock_dt.now.return_value = datetime(2025, 1, 1, 12, 0, 0)
+    mock_task.due_date = None
+    expected_due_date = (date.today() + timedelta(days=7)).strftime("%Y-%m-%d")
+    result = service.prepare_jira_task_fields(mock_task, "ANOTHER-456", mock_context)
 
-    mock_task.assignee_name = None
-    mock_task.context = None
-    result = service.prepare_jira_task_fields(mock_task, "ANOTHER-456", "jira-user")
-    assert "assignee" not in result["fields"]
-    assert "Context from Confluence" not in result["fields"]["description"]
+    assert "assignee" not in result  # No assignee if user is None in context
+    assert (
+        result["fields"]["duedate"] == expected_due_date
+    )  # Verifies calculated due date
+
+
+def test_prepare_fields_with_jira_key_context(jira_service, mock_task, mock_context):
+    service, api_stub = jira_service
+    mock_task.context = "JIRA_KEY_CONTEXT::PARENT-1"
+    api_stub.add_issue("PARENT-1", {"fields": {"description": "Parent description."}})
+    result = service.prepare_jira_task_fields(mock_task, "WP-123", mock_context)
+    assert "Context from parent issue PARENT-1" in result["fields"]["description"]
+    assert "Parent description." in result["fields"]["description"]
 
 
 def test_create_issue_delegates(jira_service, mock_task, mocker):
@@ -136,7 +149,7 @@ def test_create_issue_delegates(jira_service, mock_task, mocker):
     mocker.patch.object(
         service, "prepare_jira_task_fields", return_value={"fields": {}}
     )
-    jira_key = service.create_issue(mock_task, "PARENT-1", "ExplicitUser")
+    jira_key = service.create_issue(mock_task, "PARENT-1", mock_context)
     assert jira_key == "JIRA-STUB-1"
     api_stub.mock.create_issue.assert_called_once_with({"fields": {}})
 
@@ -149,7 +162,7 @@ def test_create_issue_api_failure(jira_service, mock_task, mocker):
         "prepare_jira_task_fields",
         return_value={"fields": {"summary": "Failing Task"}},
     )
-    result_key = service.create_issue(mock_task, "FAIL-1", "TestUser")
+    result_key = service.create_issue(mock_task, "FAIL-1", mock_context)
     assert result_key is None
 
 
@@ -194,12 +207,3 @@ def test_get_current_user_display_name_fallback(jira_service):
     api_stub._myself_response = None
     display_name = service.get_current_user_display_name()
     assert display_name == "Unknown User"
-
-
-def test_prepare_fields_with_jira_key_context(jira_service, mock_task):
-    service, api_stub = jira_service
-    mock_task.context = "JIRA_KEY_CONTEXT::PARENT-1"
-    api_stub.add_issue("PARENT-1", {"fields": {"description": "Parent description."}})
-    result = service.prepare_jira_task_fields(mock_task, "WP-123", "test_user")
-    assert "Context from parent issue PARENT-1" in result["fields"]["description"]
-    assert "Parent description." in result["fields"]["description"]

@@ -37,7 +37,6 @@ def mock_config_values(monkeypatch):
     monkeypatch.setattr(
         config, "AGGREGATION_CONFLUENCE_MACRO", ["jira-issues"]
     )  # Example macro
-    monkeypatch.setattr(config, "DEFAULT_DUE_DATE", "2025-01-01")
     monkeypatch.setattr(config, "VERIFY_SSL", False)  # Test with SSL verification off
     # CONFLUENCE_HEAD_REQUEST_TIMEOUT is now hardcoded in source, so no need to patch here.
 
@@ -802,7 +801,7 @@ def test_get_all_descendants(safe_confluence_api_instance, mocker):
                     task_summary="Task Summary",
                     status="incomplete",
                     assignee_name=None,
-                    due_date="2025-01-01",
+                    due_date=None,
                     original_page_version=1,
                     original_page_version_by="User",
                     original_page_version_when="now",
@@ -891,7 +890,7 @@ def test_get_all_descendants(safe_confluence_api_instance, mocker):
                     task_summary="Parent task",
                     status="incomplete",
                     assignee_name=None,
-                    due_date="2025-01-01",
+                    due_date=None,
                     original_page_version=5,
                     original_page_version_by="Page Author",
                     original_page_version_when="2024-07-13T12:00:00.000Z",

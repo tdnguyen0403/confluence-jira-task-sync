@@ -6,7 +6,7 @@ import pytest
 from typing import Any, Dict, List, Optional
 
 from src.services.orchestration.sync_task_orchestrator import SyncTaskOrchestrator
-from src.models.data_models import ConfluenceTask
+from src.models.data_models import ConfluenceTask, SyncContext
 from src.exceptions import InvalidInputError, SyncError
 from src.config import config
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
@@ -87,7 +87,7 @@ class JiraServiceStub(JiraApiServiceInterface):
         self,
         task: ConfluenceTask,
         parent_key: str,
-        request_user: Optional[str] = "jira-user",
+        context: SyncContext,
     ) -> Optional[Dict[str, Any]]:
         return {"key": self.created_issue_key} if self.created_issue_key else None
 
@@ -126,6 +126,9 @@ class IssueFinderServiceStub(IssueFinderServiceInterface):
 
 
 # --- Pytest Fixtures ---
+@pytest.fixture
+def sync_context():
+    return SyncContext(request_user="test_orchestrator", days_to_due_date=5)
 
 
 @pytest.fixture
@@ -156,7 +159,7 @@ def sync_orchestrator(confluence_stub, jira_stub, issue_finder_stub):
 # --- Pytest Test Functions ---
 
 
-def test_run_success(sync_orchestrator, confluence_stub, jira_stub):
+def test_run_success(sync_orchestrator, confluence_stub, jira_stub, sync_context):
     """Test the main success path where a task is found and synced."""
     # Arrange
     input_data = {
@@ -165,7 +168,7 @@ def test_run_success(sync_orchestrator, confluence_stub, jira_stub):
     }
 
     # Act
-    sync_orchestrator.run(input_data)
+    sync_orchestrator.run(input_data, sync_context)
 
     # Assert
     assert len(sync_orchestrator.results) == 1
@@ -175,25 +178,29 @@ def test_run_success(sync_orchestrator, confluence_stub, jira_stub):
     assert confluence_stub.updated_with_links is True
 
 
-def test_run_no_input(sync_orchestrator):
+def test_run_no_input(sync_orchestrator, sync_context):
     """Test that an error is raised for empty input."""
     with pytest.raises(InvalidInputError, match="No input JSON provided"):
-        sync_orchestrator.run({})
+        sync_orchestrator.run({}, sync_context)
 
 
-def test_run_no_urls(sync_orchestrator):
+def test_run_no_urls(sync_orchestrator, sync_context):
     """Test that an error is raised if no URLs are provided."""
     with pytest.raises(InvalidInputError, match="No 'confluence_page_urls' found"):
-        sync_orchestrator.run({"confluence_page_urls": []})
+        sync_orchestrator.run({"confluence_page_urls": []}, sync_context)
 
 
-def test_process_page_hierarchy_no_page_id(sync_orchestrator):
+def test_process_page_hierarchy_no_page_id(sync_orchestrator, sync_context):
     """Test that an error is raised if a Confluence URL cannot be resolved."""
     with pytest.raises(SyncError, match="Could not find Confluence page ID"):
-        sync_orchestrator.process_page_hierarchy("http://example.com/nonexistent")
+        sync_orchestrator.process_page_hierarchy(
+            "http://example.com/nonexistent", sync_context
+        )
 
 
-def test_no_work_package_found(sync_orchestrator, issue_finder_stub, sample_task):
+def test_no_work_package_found(
+    sync_orchestrator, issue_finder_stub, sample_task, sync_context
+):
     """Test that a task is skipped if no parent Work Package is found."""
     # Arrange
     issue_finder_stub.found_issue_key = None  # Simulate not finding a WP
@@ -203,7 +210,7 @@ def test_no_work_package_found(sync_orchestrator, issue_finder_stub, sample_task
     }
 
     # Act
-    sync_orchestrator.run(input_data)
+    sync_orchestrator.run(input_data, sync_context)
 
     # Assert
     assert len(sync_orchestrator.results) == 1
@@ -212,7 +219,7 @@ def test_no_work_package_found(sync_orchestrator, issue_finder_stub, sample_task
     assert result.task_data.task_summary == sample_task.task_summary
 
 
-def test_jira_creation_failure(sync_orchestrator, jira_stub):
+def test_jira_creation_failure(sync_orchestrator, jira_stub, sync_context):
     """Test that an error is raised if the Jira issue creation fails."""
     # Arrange
     jira_stub.created_issue_key = None  # Simulate Jira API failure
@@ -223,14 +230,14 @@ def test_jira_creation_failure(sync_orchestrator, jira_stub):
 
     # Act & Assert
     with pytest.raises(SyncError, match="Failed to create Jira task"):
-        sync_orchestrator.run(input_data)
+        sync_orchestrator.run(input_data, sync_context)
 
     assert len(sync_orchestrator.results) == 1
     assert sync_orchestrator.results[0].status == "Failed - Jira task creation"
 
 
 def test_completed_task_transition(
-    sync_orchestrator, confluence_stub, jira_stub, sample_task
+    sync_orchestrator, confluence_stub, jira_stub, sample_task, sync_context
 ):
     """Test that a completed Confluence task is transitioned to 'Done' in Jira."""
     # Arrange
@@ -243,7 +250,7 @@ def test_completed_task_transition(
     }
 
     # Act
-    sync_orchestrator.run(input_data)
+    sync_orchestrator.run(input_data, sync_context)
 
     # Assert
     assert len(sync_orchestrator.results) == 1
@@ -255,18 +262,23 @@ def test_completed_task_transition(
     )
 
 
-def test_dev_mode_new_task_transition(sync_orchestrator, jira_stub, monkeypatch):
+def test_dev_mode_new_task_transition(
+    sync_orchestrator, jira_stub, monkeypatch, sync_context
+):
     """Test that in dev mode, a new task is transitioned to 'Backlog'."""
     # Arrange
-    monkeypatch.setattr(config, "DEV_ENVIRONMENT", False)  # Set dev mode
+    monkeypatch.setattr(config, "DEV_ENVIRONMENT", True)  # Set dev mode
     jira_stub.created_issue_key = "JIRA-300"
     input_data = {
         "confluence_page_urls": ["http://example.com/page1"],
-        "request_user": "test_user",
+        "context": {
+            "request_user": "test_user",
+            "days_to_due_date": 5,
+        },
     }
 
     # Act
-    sync_orchestrator.run(input_data)
+    sync_orchestrator.run(input_data, sync_context)
 
     # Assert
     assert len(sync_orchestrator.results) == 1

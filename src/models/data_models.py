@@ -35,7 +35,7 @@ class ConfluenceTask(BaseModel):
     task_summary: str
     status: str
     assignee_name: Optional[str]
-    due_date: str
+    due_date: Optional[str] = None
     original_page_version: int
     original_page_version_by: str
     original_page_version_when: str
@@ -112,6 +112,16 @@ class AutomationResult(BaseModel):
         return result_dict
 
 
+class SyncContext(BaseModel):
+    """
+    Holds all context for a single synchronization task request.
+    This can be extended without changing the API endpoint.
+    """
+
+    request_user: Optional[str] = "Unknown User"
+    days_to_due_date: Optional[int] = 14
+
+
 class SyncRequest(BaseModel):
     """
     Represents the request body for the /sync endpoint.
@@ -123,7 +133,7 @@ class SyncRequest(BaseModel):
             "example": ["https://your.confluence.com/display/SPACE/PageName"]
         },
     )
-    request_user: str = Field(..., json_schema_extra={"example": "your.username"})
+    context: SyncContext = Field(default_factory=SyncContext)
 
 
 class UndoRequestItem(BaseModel):

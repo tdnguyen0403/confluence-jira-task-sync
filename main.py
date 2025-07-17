@@ -65,18 +65,17 @@ async def sync_confluence_tasks(
         log_level=logging.INFO,
         log_file_prefix="sync_task_run",
         endpoint_name="sync_task",
-        user=request.request_user,
+        user=request.context.request_user,
     )
     logger = logging.getLogger("")
     logger.info(
-        f"Received /sync request for user: {request.request_user} with {len(request.confluence_page_urls)} URLs."
+        f"Received /sync request for user: {request.context.request_user} with {len(request.confluence_page_urls)} URLs."
     )
 
     sync_input = request.model_dump()
-
     try:
         input_filename = generate_timestamped_filename(
-            "sync_task_request", suffix=".json", user=request.request_user
+            "sync_task_request", suffix=".json", user=request.context.request_user
         )
         input_path = get_input_path("sync_task", input_filename)
         with open(input_path, "w", encoding="utf-8") as f:
@@ -86,12 +85,12 @@ async def sync_confluence_tasks(
         logger.error(f"Failed to save input request to file: {e}", exc_info=True)
 
     try:
-        sync_orchestrator.run(sync_input)
+        sync_orchestrator.run(sync_input, request.context)
         response_results = [res.to_dict() for res in sync_orchestrator.results]
 
         if response_results:
             output_filename = generate_timestamped_filename(
-                "sync_task_result", suffix=".json", user=request.request_user
+                "sync_task_result", suffix=".json", user=request.context.request_user
             )
             output_path = get_output_path("sync_task", output_filename)
             with open(output_path, "w", encoding="utf-8") as f:

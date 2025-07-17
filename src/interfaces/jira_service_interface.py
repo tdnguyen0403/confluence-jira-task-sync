@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
-from src.models.data_models import ConfluenceTask
+from src.models.data_models import ConfluenceTask, SyncContext
 
 
 class JiraApiServiceInterface(ABC):
@@ -33,7 +33,7 @@ class JiraApiServiceInterface(ABC):
         self,
         task: ConfluenceTask,
         parent_key: str,
-        request_user: Optional[str] = "jira-user",
+        context: SyncContext,
     ) -> Optional[str]:
         """
         Creates a new Jira issue.
@@ -64,7 +64,10 @@ class JiraApiServiceInterface(ABC):
 
     @abstractmethod
     def prepare_jira_task_fields(
-        self, task: ConfluenceTask, parent_key: str, request_user: str
+        self,
+        task: ConfluenceTask,
+        parent_key: str,
+        context: SyncContext,
     ) -> Dict[str, Any]:
         """
         Prepares the field structure for creating a Jira task from a

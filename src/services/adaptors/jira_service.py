@@ -10,13 +10,16 @@ Confluence task data, handling issue transitions, and retrieving user
 information.
 """
 
-from datetime import datetime
+import logging
+from datetime import datetime, date, timedelta
 from typing import Any, Dict, List, Optional
 
 from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.models.data_models import ConfluenceTask
+from src.models.data_models import ConfluenceTask, SyncContext
+
+logger = logging.getLogger(__name__)
 
 
 class JiraService(JiraApiServiceInterface):
@@ -49,7 +52,7 @@ class JiraService(JiraApiServiceInterface):
         self,
         task: ConfluenceTask,
         parent_key: str,
-        request_user: Optional[str] = "jira-user",
+        context: SyncContext,
     ) -> Optional[str]:
         """
         Creates a new Jira issue from a Confluence task.
@@ -57,12 +60,12 @@ class JiraService(JiraApiServiceInterface):
         Args:
             task (ConfluenceTask): The task data from Confluence.
             parent_key (str): The key of the parent issue (e.g., Work Package).
-            request_user (Optional[str]): The user who initiated the sync request
+            sync_context (SyncContext): Contextual information for the sync operation.
 
         Returns:
             Optional[str]: The key of the newly created issue, or None on failure.
         """
-        issue_fields = self.prepare_jira_task_fields(task, parent_key, request_user)
+        issue_fields = self.prepare_jira_task_fields(task, parent_key, context)
         new_issue = self._api.create_issue(issue_fields)
         return new_issue if new_issue else None
 
@@ -89,7 +92,10 @@ class JiraService(JiraApiServiceInterface):
         return self._current_user_name
 
     def prepare_jira_task_fields(
-        self, task: ConfluenceTask, parent_key: str, request_user: str
+        self,
+        task: ConfluenceTask,
+        parent_key: str,
+        context: SyncContext,
     ) -> Dict[str, Any]:
         """
         Prepares the field structure for creating a new Jira issue.
@@ -102,7 +108,7 @@ class JiraService(JiraApiServiceInterface):
         Args:
             task (ConfluenceTask): The source Confluence task.
             parent_key (str): The key of the parent Jira issue (e.g., 'WP-1').
-            request_user: The user who initiated the sync request.
+            sync_context (SyncContext): Contextual information for the sync operation.
 
         Returns:
             Dict[str, Any]: A dictionary of fields ready for the API.
@@ -155,14 +161,24 @@ class JiraService(JiraApiServiceInterface):
 
         # Add metadata about the task creation for traceability.
         description_parts.append(
-            f"Created by {user_name} on {creation_time} requested by {request_user}"
+            f"Created by {user_name} on {creation_time} requested by {context.request_user}"
         )
 
         final_description = "\n\n".join(description_parts)
-        due_date = task.due_date if task.due_date else config.DEFAULT_DUE_DATE
 
+        if task.due_date:
+            due_date = task.due_date
+            logger.info(f"Using due date from Confluence task: {due_date}")
+        else:
+            calculated_due_date = date.today() + timedelta(
+                days=context.days_to_due_date
+            )
+            due_date = calculated_due_date.strftime("%Y-%m-%d")
+            logger.info(f"Calculating due date: {due_date}")
+
+        # Prepare the fields for the Jira issue creation.
         fields = {
-            "project": {"key": project_key},  # Dynamically set project key
+            "project": {"key": project_key},
             "summary": task.task_summary,
             "issuetype": {"id": config.TASK_ISSUE_TYPE_ID},
             "description": final_description,

@@ -487,7 +487,7 @@ class SafeConfluenceApi:
         due_date = (
             due_date_tag["datetime"]
             if due_date_tag and "datetime" in due_date_tag.attrs
-            else config.DEFAULT_DUE_DATE
+            else None
         )
 
         page_version = page_details.get("version", {})

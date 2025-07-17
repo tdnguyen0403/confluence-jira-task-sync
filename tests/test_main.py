@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
+from src.models.data_models import SyncContext
 
 # Import the app and dependencies
 from main import app
@@ -121,20 +122,23 @@ def test_read_root(client):
 def test_sync_confluence_tasks_success(client, mock_sync_orchestrator):
     sync_request_payload = {
         "confluence_page_urls": ["http://example.com/page1"],
-        "request_user": "test_user",
+        "context": {"request_user": "Unknown User", "days_to_due_date": 14},
     }
+    expected_context = SyncContext(request_user="Unknown User", days_to_due_date=14)
     headers = {"X-API-Key": "test_api_key"}
     response = client.post("/sync_task", json=sync_request_payload, headers=headers)
     assert response.status_code == 200
     assert len(response.json()) == 1
-    mock_sync_orchestrator.run.assert_called_once_with(sync_request_payload)
+    mock_sync_orchestrator.run.assert_called_once_with(
+        sync_request_payload, expected_context
+    )
 
 
 def test_sync_confluence_tasks_no_tasks_processed(client, mock_sync_orchestrator):
     mock_sync_orchestrator.results = []
     sync_request_payload = {
         "confluence_page_urls": ["http://example.com/page1"],
-        "request_user": "test_user",
+        "context": {"request_user": "Unknown User", "days_to_due_date": 14},
     }
     headers = {"X-API-Key": "test_api_key"}
     response = client.post("/sync_task", json=sync_request_payload, headers=headers)
@@ -146,7 +150,10 @@ def test_sync_confluence_tasks_invalid_input_error(client, mock_sync_orchestrato
     mock_sync_orchestrator.run.side_effect = InvalidInputError("Missing URLs")
     response = client.post(
         "/sync_task",
-        json={"confluence_page_urls": [], "request_user": "test"},
+        json={
+            "confluence_page_urls": [],
+            "context": {},
+        },
         headers={"X-API-Key": "test_api_key"},
     )
     assert response.status_code == 400
@@ -159,7 +166,7 @@ def test_sync_confluence_tasks_sync_error(client, mock_sync_orchestrator):
         "/sync_task",
         json={
             "confluence_page_urls": ["http://example.com/page1"],
-            "request_user": "test",
+            "context": {"request_user": "Unknown User", "days_to_due_date": 14},
         },
         headers={"X-API-Key": "test_api_key"},
     )
