@@ -4,20 +4,21 @@ import logging
 import uuid
 import warnings
 import sys
+import asyncio  # New import for async operations
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional  # Added Optional
 
 import requests
-from atlassian import Confluence, Jira
 
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.api.safe_jira_api import SafeJiraApi
+from src.api.https_helper import HTTPSHelper  # New import for HTTPSHelper
 from src.config import config
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
 from src.services.business_logic.issue_finder_service import IssueFinderService
 from src.utils.logging_config import setup_logging_local
-from src.utils.dir_helpers import get_output_path
+from src.utils.dir_helpers import get_output_path, generate_timestamped_filename
 
 # Suppress insecure request warnings for local/dev environments
 warnings.filterwarnings(
@@ -71,24 +72,33 @@ class ConfluenceTreeGenerator:
         self.tasks_per_page = tasks_per_page
         self.generated_page_ids: List[str] = []
 
-        # Get assignee account ID once for efficiency
-        self.assignee_account_id = None
-        user_details = self.confluence.get_user_details_by_username(assignee_username)
+        # Initialize assignee_account_id as None; it will be set by an async method
+        self.assignee_account_id: Optional[str] = None
+
+    async def _initialize_assignee(self):
+        """
+        Asynchronously fetches and sets the assignee's account ID.
+        This method must be called after the object is instantiated.
+        """
+        logger.info(f"Fetching account ID for assignee: {self.assignee_username}")
+        user_details = await self.confluence.get_user_details_by_username(
+            self.assignee_username
+        )
         if user_details:
             self.assignee_account_id = user_details.get("accountId")
             logger.info(
-                f"Assignee '{assignee_username}' account ID: {self.assignee_account_id}"
+                f"Assignee '{self.assignee_username}' account ID: {self.assignee_account_id}"
             )
         else:
             logger.warning(
-                f"Could not find account ID for assignee: {assignee_username}. Tasks might not be assignable."
+                f"Could not find account ID for assignee: {self.assignee_username}. Tasks might not be assignable."
             )
 
-    def generate_page_hierarchy(
+    async def generate_page_hierarchy(
         self, parent_page_id: str, current_depth: int = 0
     ) -> List[Dict[str, str]]:
         """
-        Recursively generates a hierarchy of pages and adds tasks.
+        Recursively generates a hierarchy of pages and adds tasks asynchronously.
 
         Args:
             parent_page_id (str): The ID of the current parent page.
@@ -116,7 +126,7 @@ class ConfluenceTreeGenerator:
 
             # Confluence storage format for Jira macro
             jira_macro_html = (
-                f'<p><ac:structured-macro ac:name="jira" ac:schema-version="1" ac:macro-id="{uuid.uuid4()}">'
+                f'<p><ac:structured-macro ac:name="jira" ac:schema-version="1">'
                 f'<ac:parameter ac:name="server">{config.JIRA_MACRO_SERVER_NAME}</ac:parameter>'
                 f'<ac:parameter ac:name="serverId">{config.JIRA_MACRO_SERVER_ID}</ac:parameter>'
                 f'<ac:parameter ac:name="key">{wp_key}</ac:parameter>'
@@ -142,8 +152,8 @@ class ConfluenceTreeGenerator:
             # Combine Jira macro and tasks into the page body
             page_body = f"{jira_macro_html}\n{''.join(tasks_html_parts)}"
 
-            new_page = self.confluence.create_page(
-                space=self.confluence_space_key,
+            new_page = await self.confluence.create_page(  # Await the async call
+                space_key=self.confluence_space_key,  # Renamed parameter
                 title=page_title,
                 body=page_body,
                 parent_id=parent_page_id,
@@ -158,7 +168,9 @@ class ConfluenceTreeGenerator:
 
                 # Recursively generate children
                 results.extend(
-                    self.generate_page_hierarchy(new_page_id, current_depth + 1)
+                    await self.generate_page_hierarchy(
+                        new_page_id, current_depth + 1
+                    )  # Await recursive call
                 )
             else:
                 logger.error(
@@ -166,8 +178,6 @@ class ConfluenceTreeGenerator:
                 )
 
         return results
-
-    # Removed the cleanup_generated_pages method
 
     @staticmethod
     def _parse_args() -> argparse.Namespace:
@@ -221,7 +231,7 @@ class ConfluenceTreeGenerator:
 
 
 # The __main__ block is only for standalone execution.
-if __name__ == "__main__":
+async def main_async():  # Renamed to an async function
     setup_logging_local("logs/logs_generate", "generate_tree_run")
     logging.info("--- Starting Confluence Test Data Generation Script ---")
 
@@ -237,25 +247,17 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        jira_client = Jira(
-            url=config.JIRA_URL,
-            token=config.JIRA_API_TOKEN,
-            cloud=False,
-            verify_ssl=False,
-        )
-        confluence_client = Confluence(
-            url=config.CONFLUENCE_URL,
-            token=config.CONFLUENCE_API_TOKEN,
-            cloud=False,
-            verify_ssl=False,
-        )
+        # Initialize HTTPSHelper
+        https_helper = HTTPSHelper(verify_ssl=False)
 
-        safe_jira_api = SafeJiraApi(jira_client)
-        safe_confluence_api = SafeConfluenceApi(confluence_client)
+        # Pass HTTPSHelper to SafeJiraApi and SafeConfluenceApi
+        safe_jira_api = SafeJiraApi(config.JIRA_URL, https_helper)
+        safe_confluence_api = SafeConfluenceApi(config.CONFLUENCE_URL, https_helper)
 
         jira_service = JiraService(safe_jira_api)
         confluence_service = ConfluenceService(safe_confluence_api)
-        issue_finder_service = IssueFinderService(safe_confluence_api, safe_jira_api)
+        # IssueFinderService only takes jira_api, as per the issue_finder_service.py
+        issue_finder_service = IssueFinderService(jira_api=safe_jira_api)
 
         generator = ConfluenceTreeGenerator(
             confluence_service=confluence_service,
@@ -269,12 +271,17 @@ if __name__ == "__main__":
             tasks_per_page=args.tasks_per_page,
         )
 
-        generated_page_info = generator.generate_page_hierarchy(
-            parent_page_id=args.base_parent_page_id
+        # Initialize assignee account ID asynchronously
+        await generator._initialize_assignee()
+
+        generated_page_info = (
+            await generator.generate_page_hierarchy(  # Await the async method
+                parent_page_id=args.base_parent_page_id
+            )
         )
 
         if generated_page_info:
-            output_filename = config.generate_timestamped_filename(
+            output_filename = generate_timestamped_filename(
                 "generate_page_result", suffix=".json"
             )
             output_path = get_output_path("generate", output_filename)
@@ -289,6 +296,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     finally:
-        # Removed the call to generator.cleanup_generated_pages()
-        pass  # The finally block now just passes if cleanup is not needed
+        # Ensure httpx.AsyncClient is closed
+        if https_helper:  # Check if helper was instantiated
+            await https_helper.close()
         logging.info("--- Confluence Test Data Generation Script Finished ---")
+
+
+if __name__ == "__main__":
+    asyncio.run(main_async())  # Run the async main function

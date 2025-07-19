@@ -183,3 +183,11 @@ class HTTPSHelper:
             "DELETE", url, headers=headers, params=params, timeout=timeout
         )
         return response
+
+    async def close(self):
+        """Closes the httpx.AsyncClient if it was initialized."""
+        if self._client:
+            logger.info("Closing httpx.AsyncClient.")
+            await self._client.aclose()  # Use aclose for AsyncClient
+            self._client = None
+            logger.info("httpx.AsyncClient closed successfully.")

@@ -34,3 +34,16 @@ requests-mock = "^1.12.1"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+addopts = "--cov=. --cov-report=term-missing --cov-report=html:htmlcov/"
+
+[tool.coverage.run]
+omit = [
+    "*/__init__.py", # Excludes all __init__.py files
+    "tests/*",       # Excludes all tests
+    "venv/*",        # Example: Exclude virtual environment files
+]
+
+[tool.coverage.report]
+skip_empty = true # Optional: Also skip completely empty files (often __init__.py)
