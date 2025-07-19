@@ -2,8 +2,6 @@
 Tests for the logging configuration utility.
 """
 
-import logging
-
 # Assuming your project structure allows this import path
 from src.utils.logging_config import setup_logging
 
@@ -28,7 +26,6 @@ def test_setup_logging_creates_file_and_logs(mocker):
 
     # Act
     setup_logging(
-        log_level=logging.INFO,
         log_file_prefix="test_run",
         endpoint_name="test_endpoint",
     )

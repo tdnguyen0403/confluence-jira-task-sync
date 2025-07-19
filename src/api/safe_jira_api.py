@@ -14,12 +14,9 @@ transitions.
 import logging
 from typing import Any, Dict, List, Optional
 
-import requests
-from atlassian import Jira
-
 # Local application imports
 from src.config import config
-from src.api.https_helper import make_request
+from src.api.https_helper import HTTPSHelper
 
 # Configure logging for this module
 logger = logging.getLogger(__name__)
@@ -27,303 +24,183 @@ logger = logging.getLogger(__name__)
 
 class SafeJiraApi:
     """
-    A resilient, low-level service for all Jira operations.
-
-    This class provides a safe wrapper around the Jira client, with built-in
-    fallbacks to raw REST API calls for increased reliability.
-
-    Attributes:
-        client (Jira): The primary `atlassian-python-api` client.
-        base_url (str): The base URL for the Jira instance.
-        headers (Dict[str, str]): The authorization headers for direct
-                                  REST API calls.
+    Safe wrapper for Jira API interactions, using the asynchronous HTTPSHelper.
     """
 
-    def __init__(self, jira_client: Jira):
+    def __init__(self, base_url: str, https_helper: HTTPSHelper):
         """
         Initializes the SafeJiraApi.
 
         Args:
-            jira_client (Jira): An authenticated instance of the
-                                atlassian-python-api Jira client.
+            base_url (str): The base URL of the Jira instance.
+            https_helper (HTTPSHelper): An instance of the asynchronous HTTPSHelper.
         """
-        self.client = jira_client
         self.base_url = config.JIRA_URL.rstrip("/")
+        self.https_helper = https_helper  # Correctly initialize https_helper
+        # Construct the Authorization header directly using username and PAT
         self.headers = {
-            "Authorization": f"Bearer {config.JIRA_API_TOKEN}",
+            "Accept": "application/json",
             "Content-Type": "application/json",
+            "Authorization": f"Bearer {config.JIRA_API_TOKEN}",
         }
 
-    def get_issue(
-        self, issue_key: str, fields: str = "*all"
-    ) -> Optional[Dict[str, Any]]:
+    async def get_issue(
+        self, issue_key: str, fields: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         """
-        Safely retrieves a Jira issue by its key.
-
-        Tries to fetch the issue using the library client and falls back to a
-        direct REST API call upon failure.
-
-        Args:
-            issue_key (str): The key of the issue to retrieve (e.g., 'PROJ-123').
-            fields (str): A comma-separated list of fields to retrieve.
-                          Defaults to '*all'.
-
-        Returns:
-            Optional[Dict[str, Any]]: A dictionary containing the issue data,
-                                      or None if retrieval fails.
+        Retrieves a single Jira issue asynchronously.
         """
+        url = f"{self.base_url}/rest/api/2/issue/{issue_key}"
+        params = {"fields": ",".join(fields)} if fields else {}
         try:
-            return self.client.get_issue(issue_key, fields=fields)
-        except requests.exceptions.RequestException as e:
-            logger.warning(
-                f"A network error occurred while getting issue '{issue_key}'. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_get_issue(issue_key, fields)
+            # Pass headers directly to https_helper
+            return await self.https_helper.get(url, headers=self.headers, params=params)
         except Exception as e:
-            logger.warning(
-                f"Library get_issue for '{issue_key}' failed. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_get_issue(issue_key, fields)
+            logger.error(f"Failed to get Jira issue {issue_key}: {e}")
+            raise
 
-    def _fallback_get_issue(
-        self, issue_key: str, fields: str
-    ) -> Optional[Dict[str, Any]]:
-        """Fallback method to get an issue by key using a direct REST call."""
-        url = f"{self.base_url}/rest/api/2/issue/{issue_key}?fields={fields}"
-        response = make_request(
-            "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
-        )
-        if response:
-            return response.json()
-        return None
-
-    def create_issue(self, issue_fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def create_issue(self, fields: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Safely creates a new Jira issue.
-
-        Tries to create the issue using the library client and falls back to a
-        direct REST API call upon failure.
-
-        Args:
-            issue_fields (Dict[str, Any]): A dictionary representing the
-                                           issue's fields, conforming to the
-                                           Jira API structure.
-
-        Returns:
-            Optional[Dict[str, Any]]: A dictionary containing the newly created
-                                      issue's data, or None if creation fails.
+        Creates a new Jira issue asynchronously.
+        'fields' should contain all necessary fields like project, issuetype, summary, etc.
+        Example fields:
+        {
+            "project": {"key": "YOUR_PROJECT_KEY"},
+            "issuetype": {"name": "Task"},
+            "summary": "This is a new task created from Python",
+            "description": "Details about the task."
+        }
         """
-        try:
-            # The library expects the fields directly, not nested.
-            # Assuming issue_fields comes with 'fields' key as per prepare_jira_task_fields
-            return self.client.issue_create(fields=issue_fields["fields"])
-        except requests.exceptions.RequestException as e:
-            logger.warning(
-                f"A network error occurred while creating issue '{issue_fields}'. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_create_issue(issue_fields)
-        except Exception as e:
-            logger.warning(f"Library create_issue failed. Falling back. Error: {e}")
-            return self._fallback_create_issue(issue_fields)
-
-    def _fallback_create_issue(
-        self, issue_fields: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        """Fallback method to create an issue using a direct REST call."""
         url = f"{self.base_url}/rest/api/2/issue"
-        response = make_request(
-            "POST",
-            url,
-            headers=self.headers,
-            json_data=issue_fields,
-            verify_ssl=config.VERIFY_SSL,
-        )
-        if response:
-            return response.json()
-        return None
+        payload = {"fields": fields}
+        try:
+            return await self.https_helper.post(
+                url, headers=self.headers, json_data=payload
+            )
+        except Exception as e:
+            logger.error(f"Failed to create Jira issue with fields {fields}: {e}")
+            raise
 
-    def get_available_transitions(self, issue_key: str) -> List[Dict[str, Any]]:
+    async def get_available_transitions(self, issue_key: str) -> List[Dict[str, Any]]:
         """
-        Gets all available workflow transitions for a given issue.
-
-        Args:
-            issue_key (str): The key of the issue.
-
-        Returns:
-            List[Dict[str, Any]]: A list of available transition objects, or an
-                                  empty list on failure.
+        Retrieves all available transitions for a given Jira issue asynchronously.
         """
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
-        response = make_request(
-            "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
-        )
-        if response:
-            return response.json().get("transitions", [])
-        return []
+        try:
+            response_data = await self.https_helper.get(url, headers=self.headers)
+            return response_data.get("transitions", [])
+        except Exception as e:
+            logger.error(
+                f"Failed to get available transitions for issue {issue_key}: {e}"
+            )
+            raise
 
-    def find_transition_id_by_name(
-        self, issue_key: str, target_status: str
+    async def find_transition_id_by_name(
+        self, issue_key: str, transition_name: str
     ) -> Optional[str]:
         """
-        Finds a transition ID by its target status name.
-
-        This is necessary because the API requires a transition ID, not the
-        name of the status you want to move to.
-
-        Args:
-            issue_key (str): The key of the issue.
-            target_status (str): The name of the destination status (e.g.,
-                                 'Done', 'In Progress').
-
-        Returns:
-            Optional[str]: The found transition ID, or None if no matching
-                           transition is available.
+        Finds the ID of a transition by its name for a given Jira issue asynchronously.
         """
-        transitions = self.get_available_transitions(issue_key)
-        for t in transitions:
-            # Compare names case-insensitively for robustness.
-            if str(t.get("to", {}).get("name", "")).lower() == target_status.lower():
-                return t["id"]
-        logger.error(
-            f"Transition to status '{target_status}' not available for issue "
-            f"'{issue_key}'."
+        transitions = await self.get_available_transitions(issue_key)
+        for transition in transitions:
+            if transition.get("name", "").lower() == transition_name.lower():
+                return transition["id"]
+        logger.warning(
+            f"Transition '{transition_name}' not found for issue {issue_key}."
         )
         return None
 
-    def transition_issue(self, issue_key: str, target_status: str) -> bool:
+    async def transition_issue(
+        self, issue_key: str, transition_name: str
+    ) -> Dict[str, Any]:
         """
-        Transitions an issue to a target status.
-
-        This method first finds the correct transition ID for the target status
-        name and then attempts to perform the transition, with a fallback.
-
-        Args:
-            issue_key (str): The key of the issue to transition.
-            target_status (str): The name of the target status.
-
-        Returns:
-            bool: True if the transition was successful, False otherwise.
+        Transitions a Jira issue to a new status asynchronously.
         """
-        transition_id = self.find_transition_id_by_name(issue_key, target_status)
+        # Use the helper method to find the transition ID
+        transition_id = await self.find_transition_id_by_name(
+            issue_key, transition_name
+        )
+
         if not transition_id:
-            return False
-
-        try:
-            # The library's `issue_transition` method takes the status name.
-            self.client.issue_transition(issue_key, target_status)
-            logger.info(
-                f"Successfully transitioned '{issue_key}' to '{target_status}' "
-                "via library call."
-            )
-            return True
-        except requests.exceptions.RequestException as e:
-            logger.warning(
-                f"A network error occurred while transitioning issue '{issue_key}'. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_transition_issue(
-                issue_key, transition_id, target_status
-            )
-        except Exception as e:
-            logger.warning(
-                f"Library transition for '{issue_key}' failed. Falling back. Error: {e}"
-            )
-            # Pass the already found transition_id to the fallback.
-            return self._fallback_transition_issue(
-                issue_key, transition_id, target_status
+            # The find_transition_id_by_name method already logs a warning,
+            # but we raise a ValueError here to clearly indicate failure to the caller.
+            raise ValueError(
+                f"Transition '{transition_name}' not found for issue {issue_key}"
             )
 
-    def _fallback_transition_issue(
-        self, issue_key: str, transition_id: str, target_status: str
-    ) -> bool:
-        """Fallback method to transition an issue using a direct REST call."""
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
         payload = {"transition": {"id": transition_id}}
-        response = make_request(
-            "POST",
-            url,
-            headers=self.headers,
-            json_data=payload,
-            verify_ssl=config.VERIFY_SSL,
-        )
-        if response:
-            logger.info(
-                f"Successfully transitioned '{issue_key}' to '{target_status}' "
-                f"via REST call (ID: {transition_id})."
+        try:
+            # Pass headers directly to https_helper
+            response = await self.https_helper.post(
+                url, headers=self.headers, json_data=payload
             )
-            return True
-        return False
+            return response  # May be empty for 204
+        except Exception as e:
+            logger.error(
+                f"Failed to transition Jira issue {issue_key} to '{transition_name}': {e}"
+            )
+            raise
 
-    def get_myself(self) -> Optional[Dict[str, Any]]:
+    async def get_current_user(self) -> Dict[str, Any]:
         """
-        Retrieves the details of the currently authenticated user.
-
-        This is useful for verifying credentials or getting the user's account ID.
-
-        Returns:
-            Optional[Dict[str, Any]]: A dictionary of the user's details,
-                                      or None on failure.
+        Retrieves information about the current authenticated Jira user asynchronously.
+        Used for health checks.
         """
         url = f"{self.base_url}/rest/api/2/myself"
-        response = make_request(
-            "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
-        )
-        if response:
-            return response.json()
-        return None
+        try:
+            # Pass headers directly to https_helper
+            return await self.https_helper.get(url, headers=self.headers)
+        except Exception as e:
+            logger.error(f"Error getting current Jira user: {e}")
+            raise
 
-    def search_issues(self, jql: str, fields: str = "*all") -> List[Dict[str, Any]]:
+    async def search_issues(
+        self, jql_query: str, fields: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         """
-        Safely searches Jira issues using JQL.
-
-        Direct fallback to a REST API call.
-
-        Args:
-            jql (str): The JQL query string.
-            fields (str): A comma-separated list of fields to retrieve.
-
-        Returns:
-            List[Dict[str, Any]]: A list of dictionaries containing issue data.
+        Executes a JQL query and returns matching issues asynchronously.
         """
-        return self._fallback_search_issues(jql, fields)
+        url = f"{self.base_url}/rest/api/2/search"
+        params = {"jql": jql_query}
+        if fields:
+            params["fields"] = ",".join(fields)
 
-    def _fallback_search_issues(self, jql: str, fields: str) -> List[Dict[str, Any]]:
-        """Fallback method to search issues using a direct REST call."""
-        # Ensure JQL is properly quoted for URL
-        quoted_jql = requests.utils.quote(jql)
-        url = f"{self.base_url}/rest/api/2/search?jql={quoted_jql}&fields={fields}"
-        response = make_request(
-            "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
-        )
-        if response:
-            return response.json().get("issues", [])
-        return []
+        try:
+            # Pass headers directly to https_helper
+            return await self.https_helper.get(url, headers=self.headers, params=params)
+        except Exception as e:
+            logger.error(f"Error executing JQL search '{jql_query}': {e}")
+            raise
 
-    def get_issue_type_details_by_id(self, type_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Retrieves issue type details by its ID.
-
-        Args:
-            type_id (str): The ID of the issue type.
-
-        Returns:
-            Optional[Dict[str, Any]]: A dictionary containing issue type data,
-                                      or None if retrieval fails.
-        """
-
-        return self._fallback_get_issue_type_details_by_id(type_id)
-
-    def _fallback_get_issue_type_details_by_id(
-        self, type_id: str
+    async def get_issue_type_details_by_id(
+        self, issue_type_id: str
     ) -> Optional[Dict[str, Any]]:
-        """Fallback method to get issue type details by ID using a direct REST call."""
-        url = f"{self.base_url}/rest/api/2/issuetype/{type_id}"
-        response = make_request(
-            "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
-        )
-        if response:
-            return response.json()
-        return None
+        """
+        Retrieves details for a specific Jira issue type by its ID asynchronously.
+        """
+        url = f"{self.base_url}/rest/api/2/issuetype/{issue_type_id}"
+        try:
+            return await self.https_helper.get(url, headers=self.headers)
+        except Exception as e:
+            logger.error(
+                f"Failed to get Jira issue type details for ID {issue_type_id}: {e}"
+            )
+            return None
+
+    async def update_issue_description(
+        self, issue_key: str, new_description: str
+    ) -> Dict[str, Any]:
+        """
+        Updates the description of a Jira issue asynchronously.
+        """
+        url = f"{self.base_url}/rest/api/2/issue/{issue_key}"
+        payload = {"fields": {"description": new_description}}
+        try:
+            response = await self.https_helper.put(
+                url, headers=self.headers, json_data=payload
+            )
+            return response
+        except Exception as e:
+            logger.error(f"Failed to update Jira issue {issue_key} description: {e}")
+            raise

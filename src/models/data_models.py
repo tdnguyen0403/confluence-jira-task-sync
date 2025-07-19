@@ -72,8 +72,8 @@ class AutomationResult(BaseModel):
 
     Attributes:
         task_data (ConfluenceTask): The original task data that was processed.
-        status (str): A summary of the outcome (e.g., 'SUCCESS', 'SKIPPED').
-        new_jira_key (Optional[str]): The key of the Jira issue created from
+        status_text (str): A summary of the outcome (e.g., 'SUCCESS', 'SKIPPED').
+        new_jira_task_key (Optional[str]): The key of the Jira issue created from
                                       this task, if any.
         linked_work_package (Optional[str]): The parent work package the new
                                              Jira issue was linked to.
@@ -81,8 +81,8 @@ class AutomationResult(BaseModel):
     """
 
     task_data: ConfluenceTask
-    status: str
-    new_jira_key: Optional[str] = None
+    status_text: str
+    new_jira_task_key: Optional[str] = None
     linked_work_package: Optional[str] = None
     request_user: Optional[str] = None
 
@@ -97,10 +97,10 @@ class AutomationResult(BaseModel):
         """
         # Start with the fields from the AutomationResult class itself.
         result_dict = {
-            "Status": self.status,
-            "New Jira Task Key": self.new_jira_key,
-            "Linked Work Package": self.linked_work_package,
-            "Request User": self.request_user,
+            "status_text": self.status_text,
+            "new_jira_task_key": self.new_jira_task_key,
+            "linked_work_package": self.linked_work_package,
+            "request_user": self.request_user,
         }
 
         # Use model_dump() on the nested Pydantic model for task_data
@@ -140,23 +140,21 @@ class SyncRequest(BaseModel):
 # models used for the /undo endpoint
 class UndoRequestItem(BaseModel):
     """
-    Represents an item in the request body for the /undo endpoint.
+    Represents an item in the request body for the /undo_sync_task endpoint.
     This model is used to parse the results from a previous sync operation
     to identify Jira tasks to undo and Confluence pages to rollback.
     """
 
-    Status: str
+    status_text: str
     confluence_page_id: str
     original_page_version: int
-    New_Jira_Task_Key: Optional[str] = Field(
-        None, alias="New Jira Task Key", json_schema_extra={"example": "JIRA-123"}
+    new_jira_task_key: Optional[str] = Field(
+        None, json_schema_extra={"example": "JIRA-123"}
     )
-    Linked_Work_Package: Optional[str] = Field(
-        None, alias="Linked Work Package", json_schema_extra={"example": "WP-456"}
+    linked_work_package: Optional[str] = Field(
+        None, json_schema_extra={"example": "WP-456"}
     )
-    Request_User: Optional[str] = Field(
-        None, alias="Request User", json_schema_extra={"example": "username"}
-    )
+    request_user: Optional[str] = Field(None, json_schema_extra={"example": "username"})
     confluence_page_title: Optional[str] = Field(
         None, json_schema_extra={"example": "My Confluence Page"}
     )
@@ -220,4 +218,37 @@ class SyncProjectPageDetail(BaseModel):
     )
     root_project_linked: str = Field(
         ..., description="The Jira issue key of the main project linked to the root."
+    )
+
+
+# New models for Jira API responses and internal representation
+class JiraIssueStatus(BaseModel):
+    """Represents the status of a Jira issue."""
+
+    name: str = Field(
+        ..., description="The name of the status (e.g., 'To Do', 'Done')."
+    )
+    category: str = Field(
+        ...,
+        description="The category of the status (e.g., 'new', 'indeterminate', 'done').",
+    )
+
+
+class JiraIssue(BaseModel):
+    """Represents a simplified Jira issue object."""
+
+    key: str = Field(..., description="The issue key (e.g., 'PROJ-123').")
+    summary: str = Field(..., description="The issue summary.")
+    status: JiraIssueStatus = Field(..., description="The issue's current status.")
+    issue_type: str = Field(
+        ..., description="The name of the issue type (e.g., 'Task', 'Bug')."
+    )
+
+
+class JiraIssueMacro(BaseModel):
+    """Represents a Jira macro found in Confluence page HTML."""
+
+    issue_key: str = Field(..., description="The Jira issue key embedded in the macro.")
+    macro_html: str = Field(
+        ..., description="The full HTML string of the Confluence Jira macro."
     )

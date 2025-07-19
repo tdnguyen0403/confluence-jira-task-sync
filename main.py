@@ -1,78 +1,152 @@
+from typing import List, Dict, Any
+from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 import logging
-import warnings
-import json
-from typing import List, Dict
+import httpx  # Import httpx for lifespan management
+import json  # Import json for file operations
+# import urllib3 # Remove or comment out this line once SSL is properly handled
 
-import requests
-from fastapi import FastAPI, HTTPException, status, Depends
-
-from src.utils.logging_config import setup_logging
-from src.utils.dir_helpers import (
+from src.dependencies import (
+    get_sync_task_orchestrator,
+    get_undo_sync_task_orchestrator,
+    get_https_helper,  # To manage httpx client lifespan
+    get_safe_jira_api,  # For readiness probe
+    get_safe_confluence_api,  # For readiness probe
+    get_api_key,  # For API key validation
+    get_confluence_issue_updater_service,  # For /sync_project endpoint
+)
+from src.models.data_models import (
+    SyncRequest,
+    UndoRequestItem,
+    ConfluenceUpdateProjectRequest,  # Added for /sync_project request
+    SyncProjectPageDetail,  # Added for /sync_project response
+)
+from src.exceptions import (
+    SyncError,
+    InvalidInputError,
+    UndoError,
+    MissingRequiredDataError,
+)
+from src.api.https_helper import HTTPSHelper  # For type hinting in lifespan
+from src.utils.logging_config import setup_logging  # For logging setup in endpoints
+from src.utils.dir_helpers import (  # For file operations
     generate_timestamped_filename,
     get_input_path,
     get_output_path,
 )
-from src.exceptions import (
-    SyncError,
-    MissingRequiredDataError,
-    InvalidInputError,
-    UndoError,
-)
-from src.dependencies import get_api_key, container
-from src.models.data_models import (
-    SyncRequest,
-    UndoRequestItem,
-    ConfluenceUpdateProjectRequest,
-    SyncProjectPageDetail,
-)
-from src.services.orchestration.sync_task_orchestrator import (
-    SyncTaskOrchestrator,
-)  # New import
-from src.services.orchestration.undo_sync_task_orchestrator import (
-    UndoSyncTaskOrchestrator,
-)  # New import
+
+logger = logging.getLogger(__name__)
+
+# Remove or comment out this line once SSL is properly handled (even in dev)
+# urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-warnings.filterwarnings(
-    "ignore", category=requests.packages.urllib3.exceptions.InsecureRequestWarning
-)
+# Lifespan context manager for managing resources like httpx client
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Application starting up...")
+    # Initialize the httpx client here to ensure connection pooling and proper shutdown
+    http_helper: HTTPSHelper = get_https_helper()
+    http_helper.client = httpx.AsyncClient(
+        verify=http_helper._verify_ssl, cookies=httpx.Cookies()
+    )  # Initialize client with verify_ssl setting
+    yield
+    # Shutdown event
+    logger.info("Application shutting down...")
+    await http_helper.client.aclose()  # Close the httpx client gracefully
+    logger.info("Application shutdown complete.")
+
 
 app = FastAPI(
     title="Jira-Confluence Automation API",
     description="API for synchronizing tasks from Confluence to Jira and undoing previous runs.",
     version="1.0.0",
+    lifespan=lifespan,  # Apply lifespan to the app
 )
 
 
+# --- Custom Exception Handlers (from previous recommendations) ---
+@app.exception_handler(InvalidInputError)
+async def invalid_input_exception_handler(request: Request, exc: InvalidInputError):
+    logger.warning(f"Invalid input received: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"message": str(exc)},
+    )
+
+
+@app.exception_handler(SyncError)
+async def sync_error_exception_handler(request: Request, exc: SyncError):
+    logger.error(f"Synchronization error: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"message": f"Synchronization failed: {exc}"},
+    )
+
+
+@app.exception_handler(UndoError)
+async def undo_error_exception_handler(request: Request, exc: UndoError):
+    logger.error(f"Undo error: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"message": f"Undo operation failed: {exc}"},
+    )
+
+
+@app.exception_handler(MissingRequiredDataError)
+async def missing_data_exception_handler(
+    request: Request, exc: MissingRequiredDataError
+):
+    logger.warning(f"Missing required data: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"message": str(exc)},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.critical(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "message": "An unexpected internal server error occurred. Please try again later or contact support."
+        },
+    )
+
+
+# --- API Endpoints ---
 @app.post(
     "/sync_task",
     summary="Synchronize Confluence tasks to Jira",
-    response_model=List[UndoRequestItem],
+    response_model=List[
+        Dict[str, Any]
+    ],  # Changed to List[Dict[str, Any]] to match the output
     dependencies=[Depends(get_api_key)],
 )
-async def sync_confluence_tasks(
+async def sync_task(
     request: SyncRequest,
-    sync_orchestrator: SyncTaskOrchestrator = Depends(
-        container.sync_orchestrator
-    ),  # Updated type hint
+    sync_orchestrator=Depends(get_sync_task_orchestrator),
 ):
     """
     Initiates the synchronization process to extract incomplete tasks from
     specified Confluence pages (and their descendants) and create corresponding
     Jira tasks.
     """
+    # Setup logging for this specific request
     setup_logging(
-        log_level=logging.INFO,
         log_file_prefix="sync_task_run",
         endpoint_name="sync_task",
         user=request.context.request_user,
     )
-    logger = logging.getLogger("")
-    logger.info(
-        f"Received /sync request for user: {request.context.request_user} with {len(request.confluence_page_urls)} URLs."
+    # Get a logger instance for this request context
+    current_request_logger = logging.getLogger("")
+    current_request_logger.info(
+        f"Received /sync_task request for user: {request.context.request_user} with {len(request.confluence_page_urls)} URLs."
     )
 
-    sync_input = request.model_dump()
+    sync_input = request.model_dump()  # Use model_dump for Pydantic model to dict
     try:
         input_filename = generate_timestamped_filename(
             "sync_task_request", suffix=".json", user=request.context.request_user
@@ -80,13 +154,20 @@ async def sync_confluence_tasks(
         input_path = get_input_path("sync_task", input_filename)
         with open(input_path, "w", encoding="utf-8") as f:
             json.dump(sync_input, f, ensure_ascii=False, indent=4)
-        logger.info(f"Input request saved to '{input_filename}'")
+        current_request_logger.info(f"Input request saved to '{input_filename}'")
     except Exception as e:
-        logger.error(f"Failed to save input request to file: {e}", exc_info=True)
+        current_request_logger.error(
+            f"Failed to save input request to file: {e}", exc_info=True
+        )
 
     try:
-        sync_orchestrator.run(sync_input, request.context)
-        response_results = [res.to_dict() for res in sync_orchestrator.results]
+        # The orchestrator's run method populates its internal self.results
+        await sync_orchestrator.run(
+            sync_input, request.context
+        )  # Await the orchestrator run
+        response_results = [
+            res.to_dict() for res in sync_orchestrator.results
+        ]  # Convert AutomationResult to dict
 
         if response_results:
             output_filename = generate_timestamped_filename(
@@ -95,31 +176,39 @@ async def sync_confluence_tasks(
             output_path = get_output_path("sync_task", output_filename)
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(response_results, f, indent=4)
-            logger.info(f"Results have been saved to '{output_path}'")
-            logger.info(f"Sync run completed. Processed {len(response_results)} tasks.")
+            current_request_logger.info(f"Results have been saved to '{output_path}'")
+            current_request_logger.info(
+                f"Sync run completed. Processed {len(response_results)} tasks."
+            )
             return response_results
         else:
-            logger.info("Sync run completed, but no actionable tasks were processed.")
+            current_request_logger.info(
+                "Sync run completed, but no actionable tasks were processed."
+            )
             return []
 
     except InvalidInputError as e:
-        logger.error(f"Invalid input for sync operation: {e}", exc_info=True)
+        current_request_logger.error(
+            f"Invalid input for sync operation: {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid Request: {e}"
         )
     except MissingRequiredDataError as e:
-        logger.error(f"Missing required data for sync operation: {e}", exc_info=True)
+        current_request_logger.error(
+            f"Missing required data for sync operation: {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing Data: {e}"
         )
     except SyncError as e:
-        logger.error(f"Sync operation failed: {e}", exc_info=True)
+        current_request_logger.error(f"Sync operation failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Synchronization failed due to an internal error: {e}",
         )
     except Exception as e:
-        logger.error(
+        current_request_logger.error(
             f"An unexpected error occurred during sync operation: {e}", exc_info=True
         )
         raise HTTPException(
@@ -131,48 +220,60 @@ async def sync_confluence_tasks(
 @app.post(
     "/undo_sync_task",
     summary="Undo a previous synchronization run",
-    response_model=Dict[str, str],
+    response_model=Dict[str, str],  # Original response model was Dict[str, str]
     dependencies=[Depends(get_api_key)],
 )
-async def undo_sync_run(
-    undo_data: List[UndoRequestItem],
-    undo_orchestrator: UndoSyncTaskOrchestrator = Depends(
-        container.undo_orchestrator
-    ),  # Updated type hint
+async def undo_sync_task(  # Original function name: undo_sync_run (renamed to undo_sync_task for consistency)
+    undo_data: List[UndoRequestItem],  # Original parameter name: undo_data
+    undo_orchestrator=Depends(get_undo_sync_task_orchestrator),
 ):
     """
     Reverts actions from a previous synchronization run by transitioning
     created Jira tasks back to 'Backlog' and rolling back modified Confluence pages.
-    Requires the full JSON results from a previous /sync run.
+    Requires the full JSON results from a previous /sync_task run.
     """
     setup_logging(
-        log_level=logging.INFO,
         log_file_prefix="undo_sync_task_run",
         endpoint_name="undo_sync_task",
+        user=undo_data[0].request_user
+        if undo_data and undo_data[0].request_user
+        else "unknown",  # Use request_user from first item
     )
-    logger = logging.getLogger("")
-    logger.info(f"Received /undo request for {len(undo_data)} entries.")
+    current_request_logger = logging.getLogger("")
+    current_request_logger.info(
+        f"Received /undo_sync_task request for {len(undo_data)} entries."
+    )
 
     try:
         input_filename = generate_timestamped_filename(
-            "undo_sync_task_request", suffix=".json"
+            "undo_sync_task_request",
+            suffix=".json",
+            user=undo_data[0].request_user
+            if undo_data and undo_data[0].request_user
+            else "unknown",
         )
         input_path = get_input_path("undo_sync_task", input_filename)
         with open(input_path, "w", encoding="utf-8") as f:
             json.dump(
                 [item.model_dump(by_alias=True) for item in undo_data], f, indent=4
             )
-        undo_orchestrator.run([item.model_dump(by_alias=True) for item in undo_data])
+        current_request_logger.info(f"Input request saved to '{input_path}'")
 
-        logger.info("Undo run completed.")
+        await undo_orchestrator.run(
+            [item.model_dump(by_alias=True) for item in undo_data]
+        )  # Await orchestrator run
+
+        current_request_logger.info("Undo run completed.")
         return {"message": "Undo operation completed successfully."}
     except InvalidInputError as e:
-        logger.error(f"Invalid input for undo operation: {e}", exc_info=True)
+        current_request_logger.error(
+            f"Invalid input for undo operation: {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid Request: {e}"
         )
     except MissingRequiredDataError as e:
-        logger.error(
+        current_request_logger.error(
             f"Missing required data in results for undo operation: {e}", exc_info=True
         )
         raise HTTPException(
@@ -180,13 +281,13 @@ async def undo_sync_run(
             detail=f"Malformed Results Data: {e}",
         )
     except UndoError as e:
-        logger.error(f"Undo operation failed: {e}", exc_info=True)
+        current_request_logger.error(f"Undo operation failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Undo operation failed due to an internal error: {e}",
         )
     except Exception as e:
-        logger.error(
+        current_request_logger.error(
             f"An unexpected error occurred during undo operation: {e}", exc_info=True
         )
         raise HTTPException(
@@ -196,7 +297,7 @@ async def undo_sync_run(
 
 
 @app.post(
-    "/sync_project",
+    "/sync_project",  # Restored /sync_project endpoint
     summary="Update embedded Jira project/phase/work package issues on Confluence pages",
     response_model=List[SyncProjectPageDetail],
     dependencies=[Depends(get_api_key)],
@@ -204,21 +305,20 @@ async def undo_sync_run(
 async def update_confluence_project(
     request: ConfluenceUpdateProjectRequest,
     confluence_issue_updater_service=Depends(
-        container.confluence_issue_updater_service
-    ),
+        get_confluence_issue_updater_service
+    ),  # Use Depends with get_confluence_issue_updater_service
 ):
     """
     Updates existing Jira issue macros (Project, Phase, Work Package types)
     on a Confluence page hierarchy to link to a new Jira project key.
     """
     setup_logging(
-        log_level=logging.INFO,
         log_file_prefix="sync_project_run",
         endpoint_name="sync_project",
         user=request.request_user,
     )
-    logger = logging.getLogger("")
-    logger.info(
+    current_request_logger = logging.getLogger("")
+    current_request_logger.info(
         f"Received /sync_project request for root URL: {request.root_confluence_page_url} to find issues under root project: {request.root_project_issue_key}"
     )
 
@@ -229,42 +329,49 @@ async def update_confluence_project(
         input_path = get_input_path("sync_project", input_filename)
         with open(input_path, "w", encoding="utf-8") as f:
             json.dump(request.model_dump(), f, indent=4)
-        logger.info(f"Undo request saved to '{input_path}'")
+        current_request_logger.info(f"Input request saved to '{input_path}'")
 
-        updated_pages_summary = confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
+        # Await the asynchronous service call
+        updated_pages_summary = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
             root_confluence_page_url=request.root_confluence_page_url,
             root_project_issue_key=request.root_project_issue_key,
             project_issue_type_id=request.project_issue_type_id,
             phase_issue_type_id=request.phase_issue_type_id,
         )
         if updated_pages_summary:
+            # Convert SyncProjectPageDetail objects to dictionaries for JSON serialization
+            serializable_summary = [item.model_dump() for item in updated_pages_summary]
             output_filename = generate_timestamped_filename(
                 "sync_project_result", suffix=".json", user=request.request_user
             )
             output_path = get_output_path("sync_project", output_filename)
             with open(output_path, "w", encoding="utf-8") as f:
-                json.dump(updated_pages_summary, f, indent=4)
-            logger.info(
+                json.dump(serializable_summary, f, indent=4)
+            current_request_logger.info(
                 f"Update process completed. Modified {len(updated_pages_summary)} pages."
             )
             return updated_pages_summary
         else:
-            logger.info("Update process completed, but no pages were modified.")
+            current_request_logger.info(
+                "Update process completed, but no pages were modified."
+            )
             return []
 
     except InvalidInputError as e:
-        logger.error(f"Invalid input for update operation: {e}", exc_info=True)
+        current_request_logger.error(
+            f"Invalid input for update operation: {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid Request: {e}"
         )
     except SyncError as e:
-        logger.error(f"Confluence update failed: {e}", exc_info=True)
+        current_request_logger.error(f"Confluence update failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Confluence update failed due to an internal error: {e}",
         )
     except Exception as e:
-        logger.error(
+        current_request_logger.error(
             f"An unexpected error occurred during Confluence update operation: {e}",
             exc_info=True,
         )
@@ -279,3 +386,36 @@ async def read_root():
     return {
         "message": "Welcome to the Jira-Confluence Automation API. Visit /docs for API documentation."
     }
+
+
+# --- Health Checks (from previous recommendations) ---
+@app.get("/health", status_code=status.HTTP_200_OK)
+async def health_check():
+    """Liveness probe: Checks if the application is running."""
+    return {"status": "ok", "message": "Application is alive."}
+
+
+@app.get("/ready", status_code=status.HTTP_200_OK)
+async def readiness_check(
+    jira_api_dep=Depends(get_safe_jira_api),
+    confluence_api_dep=Depends(get_safe_confluence_api),
+):
+    """
+    Readiness probe: Checks if the application is ready to serve requests,
+    including connectivity to external dependencies.
+    """
+    setup_logging(log_file_prefix="api_readiness_check", endpoint_name="api")
+    try:
+        await jira_api_dep.get_current_user()
+        logger.info("Jira API is reachable and authenticated.")
+
+        await confluence_api_dep.get_all_spaces()
+        logger.info("Confluence API is reachable and authenticated.")
+
+        return {"status": "ready", "message": "Application and dependencies are ready."}
+    except Exception as e:
+        logger.error(f"Readiness check failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Dependencies not ready: {e}",
+        )

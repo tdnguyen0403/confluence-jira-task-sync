@@ -11,11 +11,14 @@ to the underlying `SafeConfluenceApi`, providing a clean and simple interface
 for the rest of the application.
 """
 
+import logging  # Added import
 from typing import Any, Dict, List, Optional
 
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
-from src.models.data_models import ConfluenceTask
+from src.models.data_models import ConfluenceTask  # Added ConfluenceTask
+
+logger = logging.getLogger(__name__)  # Added logger initialization
 
 
 class ConfluenceService(ConfluenceApiServiceInterface):
@@ -36,34 +39,42 @@ class ConfluenceService(ConfluenceApiServiceInterface):
         """
         self._api = safe_confluence_api
 
-    def get_page_id_from_url(self, url: str) -> Optional[str]:
-        """Delegates extracting a page ID from a URL to the API layer."""
-        return self._api.get_page_id_from_url(url)
+    async def get_page_id_from_url(self, url: str) -> Optional[str]:
+        """Delegates extracting a page ID from a URL to the API layer asynchronously."""
+        return await self._api.get_page_id_from_url(url)  # Await API call
 
-    def get_all_descendants(self, page_id: str) -> List[str]:
-        """Delegates fetching all descendant page IDs to the API layer."""
-        return self._api.get_all_descendants(page_id)
+    async def get_all_descendants(self, page_id: str) -> List[str]:
+        """Delegates fetching all descendant page IDs to the API layer asynchronously."""
+        return await self._api.get_all_descendants(page_id)  # Await API call
 
-    def get_page_by_id(self, page_id: str, **kwargs) -> Optional[Dict[str, Any]]:
-        """Delegates fetching a page by its ID to the API layer."""
-        return self._api.get_page_by_id(page_id, **kwargs)
+    async def get_page_by_id(self, page_id: str, **kwargs) -> Optional[Dict[str, Any]]:
+        """Delegates fetching a page by its ID to the API layer asynchronously."""
+        return await self._api.get_page_by_id(page_id, **kwargs)  # Await API call
 
-    def update_page_content(self, page_id: str, new_title: str, new_body: str) -> bool:
-        """Delegates updating page content to the API layer."""
-        return self._api.update_page(page_id, new_title, new_body)
+    async def update_page_content(
+        self, page_id: str, new_title: str, new_body: str
+    ) -> bool:
+        """Delegates updating page content to the API layer asynchronously."""
+        return await self._api.update_page(
+            page_id, new_title, new_body
+        )  # Await API call
 
-    def get_tasks_from_page(self, page_details: Dict) -> List[ConfluenceTask]:
-        """Delegates extracting tasks from a page to the API layer."""
-        return self._api.get_tasks_from_page(page_details)
+    async def get_tasks_from_page(self, page_details: Dict) -> List[ConfluenceTask]:
+        """Delegates extracting tasks from a page to the API layer asynchronously."""
+        return await self._api.get_tasks_from_page(page_details)  # Await API call
 
-    def update_page_with_jira_links(self, page_id: str, mappings: List[Dict]) -> None:
-        """Delegates updating a page with Jira links to the API layer."""
-        return self._api.update_page_with_jira_links(page_id, mappings)
+    async def update_page_with_jira_links(
+        self, page_id: str, mappings: List[Dict]
+    ) -> None:
+        """Delegates updating a page with Jira links to the API layer asynchronously."""
+        await self._api.update_page_with_jira_links(page_id, mappings)  # Await API call
 
-    def create_page(self, **kwargs) -> Optional[Dict[str, Any]]:
-        """Delegates creating a page to the API layer."""
-        return self._api.create_page(**kwargs)
+    async def create_page(self, **kwargs) -> Optional[Dict[str, Any]]:
+        """Delegates creating a page to the API layer asynchronously."""
+        return await self._api.create_page(**kwargs)  # Await API call
 
-    def get_user_details_by_username(self, username: str) -> Optional[Dict[str, Any]]:
-        """Delegates fetching user details to the API layer."""
-        return self._api.get_user_details_by_username(username)
+    async def get_user_details_by_username(
+        self, username: str
+    ) -> Optional[Dict[str, Any]]:
+        """Delegates fetching user details to the API layer asynchronously."""
+        return await self._api.get_user_details_by_username(username)  # Await API call

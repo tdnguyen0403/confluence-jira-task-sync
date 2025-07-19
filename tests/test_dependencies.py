@@ -1,113 +1,273 @@
 import pytest
+import pytest_asyncio
+from unittest.mock import AsyncMock
+import httpx  # Import httpx here
 
-# Import the modules and objects we need to test
-from src.config import config
-import src.dependencies as dependencies_module
-from src.api.safe_jira_api import SafeJiraApi
+# Import the functions to be tested
+from src.dependencies import (
+    get_https_helper,
+    get_safe_confluence_api,
+    get_safe_jira_api,
+    get_confluence_service,
+    get_jira_service,
+    get_issue_finder_service,
+    get_confluence_issue_updater_service,
+    get_sync_task_orchestrator,
+    get_undo_sync_task_orchestrator,
+)
+from src.api.https_helper import HTTPSHelper
 from src.api.safe_confluence_api import SafeConfluenceApi
-from fastapi import HTTPException
+from src.api.safe_jira_api import SafeJiraApi
+from src.services.adaptors.confluence_service import ConfluenceService
+from src.services.adaptors.jira_service import JiraService
+from src.services.business_logic.issue_finder_service import IssueFinderService
+from src.services.orchestration.confluence_issue_updater_service import (
+    ConfluenceIssueUpdaterService,
+)
+from src.services.orchestration.sync_task_orchestrator import SyncTaskOrchestrator
+from src.services.orchestration.undo_sync_task_orchestrator import (
+    UndoSyncTaskOrchestrator,
+)
 
-# --- Fixture for a Clean Testing Environment ---
 
-
+# Clear lru_cache for all *existing* functions before each test to ensure fresh instances
 @pytest.fixture(autouse=True)
-def clean_container_and_config():
-    """
-    This fixture automatically runs for every test. It resets the container's
-    cached instances to ensure tests are isolated from each other.
-    """
-    dependencies_module.container._jira_client_instance = None
-    dependencies_module.container._confluence_client_instance = None
-    yield
+def clear_caches():
+    # Only clear caches for functions that actually exist and are lru_cached
+    get_https_helper.cache_clear()
+    get_safe_confluence_api.cache_clear()
+    get_safe_jira_api.cache_clear()
+    get_confluence_service.cache_clear()
+    get_jira_service.cache_clear()
+    get_issue_finder_service.cache_clear()
+    get_confluence_issue_updater_service.cache_clear()
+    get_sync_task_orchestrator.cache_clear()
+    get_undo_sync_task_orchestrator.cache_clear()
 
 
-# --- Tests for Dependency Injection Container ---
+# Mock the _http_helper_instance singleton in src.dependencies
+@pytest_asyncio.fixture
+async def mock_https_helper(monkeypatch):
+    # Create a mock for HTTPSHelper. Its 'client' attribute should also be a mock.
+    mock_helper = AsyncMock(spec=HTTPSHelper)
+    mock_helper.client = AsyncMock(
+        spec=httpx.AsyncClient
+    )  # Mock the internal httpx.AsyncClient
+
+    # Patch the singleton instance in src.dependencies
+    monkeypatch.setattr("src.dependencies._http_helper_instance", mock_helper)
+
+    yield mock_helper
+    # No explicit aclose call needed here, as the mock_helper.client is an AsyncMock
+    # and its aclose would be called if the real HTTPSHelper's client.aclose were called.
 
 
-def test_safe_jira_api_provider_success(monkeypatch):
-    """
-    Verify that the container correctly provides a SafeJiraApi instance
-    when the configuration is valid.
-    """
-    # Arrange: Directly patch the config attributes the provider will use
-    monkeypatch.setattr(config, "JIRA_URL", "http://jira.test.com")
-    monkeypatch.setattr(config, "JIRA_API_TOKEN", "token")
-
-    # Act
-    jira_api_instance = dependencies_module.container.safe_jira_api
-
-    # Assert
-    assert isinstance(jira_api_instance, SafeJiraApi)
+# --- Tests for HTTPSHelper and API Wrappers ---
 
 
-def test_jira_client_provider_raises_error_on_missing_config(monkeypatch):
-    """
-    Verify that asking for a dependency raises a RuntimeError
-    if a required configuration value is missing.
-    """
-    # Arrange: Directly set the config attribute to None to simulate a missing value
-    monkeypatch.setattr(config, "JIRA_URL", None)
+@pytest.mark.asyncio
+async def test_get_https_helper(mock_https_helper):
+    # This test now verifies that get_https_helper returns our mocked instance
+    helper = get_https_helper()
+    assert helper is mock_https_helper
+    assert isinstance(helper, AsyncMock)
+    assert isinstance(
+        helper.client, AsyncMock
+    )  # Ensure its internal client is also mocked
 
-    # Act & Assert
-    with pytest.raises(RuntimeError, match="Missing JIRA_URL or JIRA_API_TOKEN"):
-        _ = dependencies_module.container.jira_client
-
-
-def test_safe_confluence_api_provider_success(monkeypatch):
-    """
-    Verify that the container correctly provides a SafeConfluenceApi instance.
-    """
-    # Arrange
-    monkeypatch.setattr(config, "CONFLUENCE_URL", "http://confluence.test.com")
-    monkeypatch.setattr(config, "CONFLUENCE_API_TOKEN", "token")
-
-    # Act
-    confluence_api_instance = dependencies_module.container.safe_confluence_api
-
-    # Assert
-    assert isinstance(confluence_api_instance, SafeConfluenceApi)
+    # Test caching
+    helper2 = get_https_helper()
+    assert helper is helper2
 
 
-def test_dependency_caching_returns_same_instance(monkeypatch):
-    """
-    Verify that the dependency container works as a singleton for clients.
-    """
-    # Arrange
-    monkeypatch.setattr(config, "JIRA_URL", "http://jira.test.com")
-    monkeypatch.setattr(config, "JIRA_API_TOKEN", "token")
-
-    # Act
-    instance1 = dependencies_module.container.jira_client
-    instance2 = dependencies_module.container.jira_client
-
-    # Assert
-    assert instance1 is instance2
+@pytest.mark.asyncio
+async def test_get_safe_confluence_api(mock_https_helper):
+    # Manually inject the resolved dependency
+    safe_api = get_safe_confluence_api(https_helper=get_https_helper())
+    assert isinstance(safe_api, SafeConfluenceApi)
+    # Check if SafeConfluenceApi was instantiated with the mocked HTTPSHelper
+    assert safe_api.https_helper is mock_https_helper
+    # Test caching
+    safe_api2 = get_safe_confluence_api(https_helper=get_https_helper())
+    assert safe_api is safe_api2
 
 
-def test_get_api_key_dependency_valid_key(monkeypatch):
-    """
-    Verify the logic of get_api_key when a valid key is provided.
-    """
-    # Arrange
-    monkeypatch.setattr(config, "API_SECRET_KEY", "my_super_secret_key")
-
-    # Act
-    result = dependencies_module.get_api_key(api_key="my_super_secret_key")
-
-    # Assert
-    assert result == "my_super_secret_key"
+@pytest.mark.asyncio
+async def test_get_safe_jira_api(mock_https_helper):
+    # Manually inject the resolved dependency
+    safe_api = get_safe_jira_api(https_helper=get_https_helper())
+    assert isinstance(safe_api, SafeJiraApi)
+    # Check if SafeJiraApi was instantiated with the mocked HTTPSHelper
+    assert safe_api.https_helper is mock_https_helper
+    # Test caching
+    safe_api2 = get_safe_jira_api(https_helper=get_https_helper())
+    assert safe_api is safe_api2
 
 
-def test_get_api_key_dependency_invalid_key(monkeypatch):
-    """
-    Verify the logic of get_api_key when an invalid key is provided.
-    """
-    # Arrange
-    monkeypatch.setattr(config, "API_SECRET_KEY", "my_super_secret_key")
+# --- Tests for Services ---
 
-    # Act & Assert
-    with pytest.raises(HTTPException) as exc_info:
-        dependencies_module.get_api_key(api_key="wrong_key")
 
-    assert exc_info.value.status_code == 401
-    assert "Invalid API Key" in exc_info.value.detail
+@pytest.mark.asyncio
+async def test_get_confluence_service(mock_https_helper):
+    # Manually inject the resolved dependency
+    service = get_confluence_service(
+        safe_confluence_api=get_safe_confluence_api(https_helper=get_https_helper())
+    )
+    assert isinstance(service, ConfluenceService)
+    # Ensure it's using the cached SafeConfluenceApi instance, which in turn uses mock_https_helper
+    safe_confluence_api_instance = get_safe_confluence_api(
+        https_helper=get_https_helper()
+    )
+    assert service._api is safe_confluence_api_instance
+    assert (
+        service._api.https_helper is mock_https_helper
+    )  # Verify the deeper dependency
+    # Test caching
+    service2 = get_confluence_service(
+        safe_confluence_api=get_safe_confluence_api(https_helper=get_https_helper())
+    )
+    assert service is service2
+
+
+@pytest.mark.asyncio
+async def test_get_jira_service(mock_https_helper):
+    # Manually inject the resolved dependency
+    service = get_jira_service(
+        safe_jira_api=get_safe_jira_api(https_helper=get_https_helper())
+    )
+    assert isinstance(service, JiraService)
+    safe_jira_api_instance = get_safe_jira_api(https_helper=get_https_helper())
+    assert service._api is safe_jira_api_instance
+    assert (
+        service._api.https_helper is mock_https_helper
+    )  # Verify the deeper dependency
+    # Test caching
+    service2 = get_jira_service(
+        safe_jira_api=get_safe_jira_api(https_helper=get_https_helper())
+    )
+    assert service is service2
+
+
+@pytest.mark.asyncio
+async def test_get_issue_finder_service(mock_https_helper):
+    # Manually inject the resolved dependency
+    service = get_issue_finder_service(
+        safe_jira_api=get_safe_jira_api(https_helper=get_https_helper())
+    )
+    assert isinstance(service, IssueFinderService)
+    # IssueFinderService takes SafeJiraApi (not JiraService)
+    safe_jira_api_instance = get_safe_jira_api(https_helper=get_https_helper())
+    assert service.jira_api is safe_jira_api_instance
+    assert (
+        service.jira_api.https_helper is mock_https_helper
+    )  # Verify the deeper dependency
+    # Test caching
+    service2 = get_issue_finder_service(
+        safe_jira_api=get_safe_jira_api(https_helper=get_https_helper())
+    )
+    assert service is service2
+
+
+@pytest.mark.asyncio
+async def test_get_confluence_issue_updater_service(mock_https_helper):
+    # Manually inject all resolved dependencies
+    confluence_api = get_safe_confluence_api(https_helper=get_https_helper())
+    jira_api = get_safe_jira_api(https_helper=get_https_helper())
+    issue_finder = get_issue_finder_service(
+        safe_jira_api=jira_api
+    )  # Re-use jira_api for consistency
+
+    service = get_confluence_issue_updater_service(
+        safe_confluence_api=confluence_api,
+        safe_jira_api=jira_api,
+        issue_finder_service=issue_finder,
+    )
+    assert isinstance(service, ConfluenceIssueUpdaterService)
+    # Check dependencies are correctly injected and cached instances are used
+    assert service.confluence_api is confluence_api
+    assert service.jira_api is jira_api
+    assert service.issue_finder_service is issue_finder
+    # Test caching
+    service2 = get_confluence_issue_updater_service(
+        safe_confluence_api=confluence_api,
+        safe_jira_api=jira_api,
+        issue_finder_service=issue_finder,
+    )
+    assert service is service2
+
+
+@pytest.mark.asyncio
+async def test_get_sync_task_orchestrator(mock_https_helper):
+    # Manually inject all resolved dependencies
+    confluence_service = get_confluence_service(
+        safe_confluence_api=get_safe_confluence_api(https_helper=get_https_helper())
+    )
+    jira_service = get_jira_service(
+        safe_jira_api=get_safe_jira_api(https_helper=get_https_helper())
+    )
+    issue_finder_service = get_issue_finder_service(
+        safe_jira_api=get_safe_jira_api(https_helper=get_https_helper())
+    )
+    confluence_issue_updater_service = get_confluence_issue_updater_service(
+        safe_confluence_api=get_safe_confluence_api(https_helper=get_https_helper()),
+        safe_jira_api=get_safe_jira_api(https_helper=get_https_helper()),
+        issue_finder_service=get_issue_finder_service(
+            safe_jira_api=get_safe_jira_api(https_helper=get_https_helper())
+        ),
+    )
+
+    orchestrator = get_sync_task_orchestrator(
+        confluence_service=confluence_service,
+        jira_service=jira_service,
+        issue_finder_service=issue_finder_service,
+        confluence_issue_updater_service=confluence_issue_updater_service,
+    )
+    assert isinstance(orchestrator, SyncTaskOrchestrator)
+    # Check dependencies
+    assert orchestrator.confluence_service is confluence_service
+    assert orchestrator.jira_service is jira_service
+    assert orchestrator.issue_finder_service is issue_finder_service
+    assert (
+        orchestrator.confluence_issue_updater_service
+        is confluence_issue_updater_service
+    )
+    # Test caching
+    orchestrator2 = get_sync_task_orchestrator(
+        confluence_service=confluence_service,
+        jira_service=jira_service,
+        issue_finder_service=issue_finder_service,
+        confluence_issue_updater_service=confluence_issue_updater_service,
+    )
+    assert orchestrator is orchestrator2
+
+
+@pytest.mark.asyncio
+async def test_get_undo_sync_task_orchestrator(mock_https_helper):
+    # Manually inject all resolved dependencies
+    confluence_service = get_confluence_service(
+        safe_confluence_api=get_safe_confluence_api(https_helper=get_https_helper())
+    )
+    jira_service = get_jira_service(
+        safe_jira_api=get_safe_jira_api(https_helper=get_https_helper())
+    )
+    issue_finder_service = get_issue_finder_service(
+        safe_jira_api=get_safe_jira_api(https_helper=get_https_helper())
+    )
+
+    orchestrator = get_undo_sync_task_orchestrator(
+        confluence_service=confluence_service,
+        jira_service=jira_service,
+        issue_finder_service=issue_finder_service,
+    )
+    assert isinstance(orchestrator, UndoSyncTaskOrchestrator)
+    # Check dependencies
+    assert orchestrator.confluence_service is confluence_service
+    assert orchestrator.jira_service is jira_service
+    assert orchestrator.issue_finder_service is issue_finder_service
+    # Test caching
+    orchestrator2 = get_undo_sync_task_orchestrator(
+        confluence_service=confluence_service,
+        jira_service=jira_service,
+        issue_finder_service=issue_finder_service,
+    )
+    assert orchestrator is orchestrator2

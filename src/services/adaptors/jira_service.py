@@ -14,10 +14,18 @@ import logging
 from datetime import datetime, date, timedelta
 from typing import Any, Dict, List, Optional
 
+# only for debug
+import json
+
 from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.models.data_models import ConfluenceTask, SyncContext
+from src.models.data_models import (
+    ConfluenceTask,
+    SyncContext,
+    JiraIssueStatus,
+    JiraIssue,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,20 +50,20 @@ class JiraService(JiraApiServiceInterface):
         self._api = safe_jira_api
         self._current_user_name: Optional[str] = None
 
-    def get_issue(
+    async def get_issue(
         self, issue_key: str, fields: str = "*all"
     ) -> Optional[Dict[str, Any]]:
-        """Delegates fetching a Jira issue to the API layer."""
-        return self._api.get_issue(issue_key, fields)
+        """Delegates fetching a Jira issue to the API layer asynchronously."""
+        return await self._api.get_issue(issue_key, fields)
 
-    def create_issue(
+    async def create_issue(
         self,
         task: ConfluenceTask,
         parent_key: str,
         context: SyncContext,
     ) -> Optional[str]:
         """
-        Creates a new Jira issue from a Confluence task.
+        Creates a new Jira issue from a Confluence task asynchronously.
 
         Args:
             task (ConfluenceTask): The task data from Confluence.
@@ -65,17 +73,31 @@ class JiraService(JiraApiServiceInterface):
         Returns:
             Optional[str]: The key of the newly created issue, or None on failure.
         """
-        issue_fields = self.prepare_jira_task_fields(task, parent_key, context)
-        new_issue = self._api.create_issue(issue_fields)
-        return new_issue if new_issue else None
+        issue_fields = await self.prepare_jira_task_fields(
+            task, parent_key, context
+        )  # Await prepare_jira_task_fields
+        new_issue = await self._api.create_issue(issue_fields)  # Await API call
+        logger.debug(
+            f"Attempting to create Jira issue with payload: {json.dumps(issue_fields, indent=2)}"
+        )  # Add this line
+        return (
+            new_issue.get("key") if new_issue else None
+        )  # Access 'key' from the returned dict
 
-    def transition_issue(self, issue_key: str, target_status: str) -> bool:
-        """Delegates transitioning a Jira issue to the API layer."""
-        return self._api.transition_issue(issue_key, target_status)
+    async def transition_issue(self, issue_key: str, target_status: str) -> bool:
+        """Delegates transitioning a Jira issue to the API layer asynchronously."""
+        try:
+            await self._api.transition_issue(issue_key, target_status)  # Await API call
+            return True
+        except Exception as e:
+            logger.error(
+                f"Failed to transition Jira issue {issue_key} to {target_status}: {e}"
+            )
+            return False
 
-    def get_current_user_display_name(self) -> str:
+    async def get_current_user_display_name(self) -> str:
         """
-        Gets the display name of the logged-in user, with caching.
+        Gets the display name of the logged-in user asynchronously, with caching.
 
         This method retrieves the user's display name on the first call and
         caches it for subsequent requests to improve efficiency.
@@ -84,21 +106,21 @@ class JiraService(JiraApiServiceInterface):
             str: The user's display name, or a 'Unknown User' as a fallback.
         """
         if self._current_user_name is None:
-            user_details = self._api.get_myself()
+            user_details = await self._api.get_current_user()  # Await API call
             if user_details and "displayName" in user_details:
                 self._current_user_name = user_details["displayName"]
             else:
                 self._current_user_name = "Unknown User"  # Fallback
         return self._current_user_name
 
-    def prepare_jira_task_fields(
+    async def prepare_jira_task_fields(
         self,
         task: ConfluenceTask,
         parent_key: str,
         context: SyncContext,
     ) -> Dict[str, Any]:
         """
-        Prepares the field structure for creating a new Jira issue.
+        Prepares the field structure for creating a new Jira issue asynchronously.
 
         This method constructs the full payload required by the Jira API,
         including a detailed description that combines contextual information
@@ -113,21 +135,21 @@ class JiraService(JiraApiServiceInterface):
         Returns:
             Dict[str, Any]: A dictionary of fields ready for the API.
         """
-        user_name = self.get_current_user_display_name()
+        user_name = await self.get_current_user_display_name()  # Await this call
         creation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # Dynamically determine the project key from the parent issue key.
         # For "WP-1", the project key will be "WP".
         project_key = parent_key.split("-")[0]
-
         description_parts = []
 
         if task.context and task.context.startswith("JIRA_KEY_CONTEXT::"):
             context_key = task.context.split("::")[1]
 
             # Fetch the parent issue, requesting both description and summary.
-            context_issue = self._api.get_issue(
-                context_key, fields="description,summary"
+            context_issue = await self._api.get_issue(  # Await API call
+                context_key,
+                fields=["description", "summary"],  # Use list for fields
             )
 
             context_found = False
@@ -189,7 +211,7 @@ class JiraService(JiraApiServiceInterface):
         if len(description) > config.JIRA_DESCRIPTION_MAX_CHARS:
             logger.warning(
                 f"Task description is too long ({len(description)} > {config.JIRA_DESCRIPTION_MAX_CHARS}). "
-                f"Truncating description for Confluence Task ID: {task.confluence_task_id}."
+                f"Truncating description for Confluence Task ID: {task.confluence_task_id}. "
             )
             description = description[: config.JIRA_DESCRIPTION_MAX_CHARS - 3] + "..."
         # Prepare the fields for the Jira issue creation.
@@ -199,24 +221,67 @@ class JiraService(JiraApiServiceInterface):
             "issuetype": {"id": config.TASK_ISSUE_TYPE_ID},
             "description": description,
             "duedate": due_date,
+            "assignee": {"name": task.assignee_name},
             config.JIRA_PARENT_WP_CUSTOM_FIELD_ID: parent_key,
         }
-        if task.assignee_name:
-            fields["assignee"] = {"name": task.assignee_name}
 
-        # The final payload must be nested under a "fields" key.
-        return {"fields": fields}
+        # The final payload MUST be a simple fields
+        return fields
 
-    def search_issues_by_jql(
+    async def search_issues_by_jql(
         self, jql_query: str, fields: str = "*all"
     ) -> List[Dict[str, Any]]:
-        """Delegates JQL search to the API layer."""
-        return self._api.search_issues(jql_query, fields=fields)
+        """Delegates JQL search to the API layer asynchronously."""
+        return await self._api.search_issues(jql_query, fields=fields)  # Await API call
 
-    def get_issue_type_name_by_id(self, type_id: str) -> Optional[str]:
+    async def get_issue_type_name_by_id(self, type_id: str) -> Optional[str]:
         """
-        Retrieves the name of a Jira issue type by its ID.
+        Retrieves the name of a Jira issue type by its ID asynchronously.
         Delegates to the API layer.
         """
-        issue_type_details = self._api.get_issue_type_details_by_id(type_id)
+        issue_type_details = await self._api.get_issue_type_details_by_id(
+            type_id
+        )  # Await API call
         return issue_type_details.get("name") if issue_type_details else None
+
+    async def get_issue_status(self, issue_key: str) -> Optional[JiraIssueStatus]:
+        """
+        Asynchronously retrieves the status of a Jira issue.
+        """
+        try:
+            issue_data = await self.jira_api.get_issue(issue_key, fields=["status"])
+            status_info = issue_data.get("fields", {}).get("status", {})
+            if status_info:
+                return JiraIssueStatus(  # <--- Used here
+                    name=status_info.get("name"),
+                    category=status_info.get("statusCategory", {}).get("key"),
+                )
+        except Exception as e:
+            logger.error(f"Could not retrieve status for Jira issue {issue_key}: {e}")
+        return None
+
+    async def get_jira_issue(self, issue_key: str) -> Optional[JiraIssue]:
+        """
+        Asynchronously retrieves a full Jira issue.
+        """
+        try:
+            issue_data = await self.jira_api.get_issue(
+                issue_key, fields=["summary", "status", "issuetype"]
+            )
+            if issue_data:
+                status_name = issue_data["fields"]["status"]["name"]
+                status_category = issue_data["fields"]["status"]["statusCategory"][
+                    "key"
+                ]
+                issue_status = JiraIssueStatus(
+                    name=status_name, category=status_category
+                )  # <--- Used here
+                return JiraIssue(  # <--- Used here
+                    key=issue_data["key"],
+                    summary=issue_data["fields"]["summary"],
+                    status=issue_status,
+                    issue_type=issue_data["fields"]["issuetype"]["name"],
+                )
+        except Exception as e:
+            logger.error(f"Could not retrieve full Jira issue {issue_key}: {e}")
+        return None

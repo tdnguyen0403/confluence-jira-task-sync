@@ -32,18 +32,22 @@ VERIFY_SSL = os.getenv("VERIFY_SSL", "true").lower() == "true"
 
 # --- Jira & Confluence Server Configuration ---
 # Loaded from environment variables for security and flexibility.
-JIRA_URL: Optional[str] = os.getenv("JIRA_URL")
-CONFLUENCE_URL: Optional[str] = os.getenv("CONFLUENCE_URL")
+JIRA_URL: str = os.getenv("JIRA_URL", "https://pfjira.pepperl-fuchs.com/")
+CONFLUENCE_URL: str = os.getenv(
+    "CONFLUENCE_URL", "https://pfteamspace.pepperl-fuchs.com/"
+)
 
 # --- Authentication ---
-JIRA_API_TOKEN: Optional[str] = os.getenv("JIRA_API_TOKEN")
-CONFLUENCE_API_TOKEN: Optional[str] = os.getenv("CONFLUENCE_API_TOKEN")
-API_SECRET_KEY: Optional[str] = os.getenv("API_SECRET_KEY")
+JIRA_API_TOKEN: str = os.getenv("JIRA_API_TOKEN")
+CONFLUENCE_API_TOKEN: str = os.getenv("CONFLUENCE_API_TOKEN")
+API_SECRET_KEY: str = os.getenv("API_SECRET_KEY")
 
 # --- Confluence Jira Macro Settings ---
 # These values are specific to your Confluence instance's Jira integration.
-JIRA_MACRO_SERVER_NAME: Optional[str] = os.getenv("JIRA_MACRO_SERVER_NAME")
-JIRA_MACRO_SERVER_ID: Optional[str] = os.getenv("JIRA_MACRO_SERVER_ID")
+JIRA_MACRO_SERVER_NAME: str = os.getenv("JIRA_MACRO_SERVER_NAME", "P+F Jira")
+JIRA_MACRO_SERVER_ID: str = os.getenv(
+    "JIRA_MACRO_SERVER_ID", "a9986ca6-387c-3b09-9a85-450e12a1cf94"
+)
 
 # --- Master Data / Custom IDs (Loaded from Environment) ---
 PARENT_ISSUES_TYPE_ID: Dict[str, str] = {
@@ -74,6 +78,9 @@ FUZZY_MATCH_THRESHOLD: float = float(os.getenv("FUZZY_MATCH_THRESHOLD", 0.7))
 # --- Jira Max Character Limits ---
 JIRA_SUMMARY_MAX_CHARS: int = int(os.getenv("JIRA_SUMMARY_MAX_CHARS", 255))
 JIRA_DESCRIPTION_MAX_CHARS: int = int(os.getenv("JIRA_DESCRIPTION_MAX_CHARS", 32768))
+
+# --- To adjust LOG LEVEL
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 # ======================================================================
 # The constants below are part of the application's core logic or are

@@ -3,10 +3,8 @@ Provides a resilient, low-level API wrapper for Confluence operations.
 
 This module contains the SafeConfluenceApi class, which is designed to
 interact with the Confluence API in a fault-tolerant way. It uses the
-atlassian-python-api library as its primary client but implements custom
-fallback mechanisms using direct REST API calls with `requests` for critical
-operations. This ensures that the application can continue to function even
-if the primary library encounters an issue.
+asynchronous HTTPSHelper for all direct REST API calls, ensuring robustness
+and high performance.
 
 The class handles various operations, including fetching and updating pages,
 resolving page URLs, finding tasks within page content, and updating pages
@@ -16,17 +14,16 @@ with links to Jira issues.
 import logging
 import re
 import uuid
+import asyncio  # Required for concurrent operations like get_all_descendants_concurrently
 from typing import Any, Dict, List, Optional
 
-import requests
-from atlassian import Confluence
 from bs4 import BeautifulSoup
 
 # Local application imports
 from src.config import config
 from src.models.data_models import ConfluenceTask
 from src.utils.context_extractor import get_task_context
-from src.api.https_helper import make_request
+from src.api.https_helper import HTTPSHelper  # Import the asynchronous HTTPSHelper
 
 # Configure logging for this module
 logger = logging.getLogger(__name__)
@@ -36,22 +33,22 @@ class SafeConfluenceApi:
     """
     A resilient, low-level service for all Confluence operations.
 
-    This class provides a safe wrapper around the Confluence client, with
-    built-in fallbacks to raw REST API calls for increased reliability.
+    This class provides a safe wrapper around the Confluence API, using
+    HTTPSHelper for all network interactions to ensure asynchronous operation.
 
     Attributes:
-        client (Confluence): The primary `atlassian-python-api` client.
         base_url (str): The base URL for the Confluence instance.
+        https_helper (HTTPSHelper): An instance of the asynchronous HTTPSHelper.
         headers (Dict[str, str]): The authorization headers for direct
-                                  REST API calls.
+                                   REST API calls.
+        jira_macro_server_name (str): The name of the Jira server for macros.
+        jira_macro_server_id (str): The ID of the Jira server for macros.
     """
-
-    jira_macro_server_name: str
-    jira_macro_server_id: str
 
     def __init__(
         self,
-        confluence_client: Confluence,
+        base_url: str,  # Pass base_url directly
+        https_helper: HTTPSHelper,  # Inject HTTPSHelper
         jira_macro_server_name: str = config.JIRA_MACRO_SERVER_NAME,
         jira_macro_server_id: str = config.JIRA_MACRO_SERVER_ID,
     ):
@@ -59,24 +56,26 @@ class SafeConfluenceApi:
         Initializes the SafeConfluenceApi.
 
         Args:
-            confluence_client (Confluence): An authenticated instance of the
-                                            atlassian-python-api Confluence
-                                            client.
+            base_url (str): The base URL for the Confluence instance.
+            https_helper (HTTPSHelper): An authenticated instance of the
+                                        asynchronous HTTPSHelper client.
             jira_macro_server_name (str): The name of the Jira server for macros.
             jira_macro_server_id (str): The ID of the Jira server for macros.
         """
-        self.client = confluence_client
         self.base_url = config.CONFLUENCE_URL.rstrip("/")
+        self.https_helper = https_helper
+        # Construct the Authorization header directly using Bearer Token
         self.headers = {
-            "Authorization": f"Bearer {config.CONFLUENCE_API_TOKEN}",
+            "Authorization": f"Bearer {config.CONFLUENCE_API_TOKEN}",  # Using config.CONFLUENCE_API_TOKEN directly
             "Content-Type": "application/json",
+            "Accept": "application/json",
         }
         self.jira_macro_server_name = jira_macro_server_name
         self.jira_macro_server_id = jira_macro_server_id
 
-    def get_page_id_from_url(self, url: str) -> Optional[str]:
+    async def get_page_id_from_url(self, url: str) -> Optional[str]:
         """
-        Extracts the Confluence page ID from a standard or short URL.
+        Extracts the Confluence page ID from a standard or short URL asynchronously.
 
         This utility method first attempts to parse the ID from a standard
         long-form URL. If that fails, it resolves the URL (assuming it's a
@@ -90,7 +89,6 @@ class SafeConfluenceApi:
             Optional[str]: The extracted page ID, or None if it cannot be
                            resolved or found.
         """
-
         # First, check for a standard long URL format with pageId query param
         page_id_query_match = re.search(r"pageId=(\d+)", url)
         if page_id_query_match:
@@ -104,19 +102,33 @@ class SafeConfluenceApi:
         # If not found, assume it's a short URL and try to resolve it.
         logger.info(f"Attempting to resolve short URL: {url}")
         try:
-            # Use a HEAD request for efficiency as we only need the final URL.
-            response = requests.head(
+            # Use an async HEAD request for efficiency as we only need the final URL.
+            # HTTPSHelper._make_request returns httpx.Response directly.
+            response = await self.https_helper._make_request(
+                "HEAD",
                 url,
                 headers=self.headers,
-                allow_redirects=True,
                 timeout=5,
-                verify=config.VERIFY_SSL,
+                follow_redirects=True,
             )
-            response.raise_for_status()
-            final_url = response.url
-            logger.info(f"Short URL resolved to: {final_url}")
+            if 300 <= response.status_code < 400 and response.headers.get("Location"):
+                redirect_url = response.headers["Location"]
+                logger.info(
+                    f"Received redirect status {response.status_code}. Following redirect to: {redirect_url}"
+                )
+                return await self.get_page_id_from_url(redirect_url)
+            elif response.status_code == 200:
+                # If it's a 200 OK, then response.url should be the final URL.
+                final_url = str(response.url)
+                logger.info(f"Short URL resolved to: {final_url}")
+            else:
+                # For other non-200/3xx statuses, it's an unexpected response.
+                logger.error(
+                    f"Unexpected status code {response.status_code} when resolving short URL '{url}'."
+                )
+                return None
 
-            # FIX: Apply both regex checks to the final_url explicitly and separately
+            # Apply both regex checks to the final_url explicitly and separately
             resolved_page_id_query_match = re.search(r"pageId=(\d+)", final_url)
             if resolved_page_id_query_match:
                 return resolved_page_id_query_match.group(1)
@@ -129,63 +141,49 @@ class SafeConfluenceApi:
                 "Could not extract page ID from the final resolved URL: " f"{final_url}"
             )
             return None
-        except (requests.exceptions.RequestException, Exception) as e:
+        except Exception as e:  # Catch all exceptions from _make_request
             logger.error(f"Could not resolve the short URL '{url}'. Details: {e}")
             return None
 
-    def get_page_by_id(self, page_id: str, **kwargs) -> Optional[Dict[str, Any]]:
+    async def get_page_by_id(
+        self, page_id: str, expand: Optional[str] = None, version: Optional[int] = None
+    ) -> Optional[Dict[str, Any]]:  # <--- Added version parameter
         """
-        Safely retrieves a Confluence page by its ID.
-
-        Tries to fetch the page using the library client and falls back to a
-        direct REST API call upon failure.
+        Retrieves a Confluence page by its ID asynchronously.
+        Can optionally retrieve a specific version of the page.
 
         Args:
             page_id (str): The ID of the Confluence page to retrieve.
-            **kwargs: Additional parameters to pass to the API call, such as
-                      `expand`.
+            expand (Optional[str]): A comma-separated list of properties to expand.
+            version (Optional[int]): The specific version number of the page to retrieve.
 
         Returns:
             Optional[Dict[str, Any]]: A dictionary containing the page data,
                                       or None if retrieval fails.
         """
+        if version is not None:
+            # The /rest/api/content/{id} endpoint supports 'version' as a query parameter.
+            url = f"{self.base_url}/rest/api/content/{page_id}"
+            params = {"version": version}  # Version is a query parameter
+            if expand:
+                params["expand"] = expand
+        else:
+            url = f"{self.base_url}/rest/api/content/{page_id}"
+            params = {"expand": expand} if expand else {}
+
         try:
-            return self.client.get_page_by_id(page_id, **kwargs)
-        except requests.exceptions.RequestException as e:
-            logger.warning(
-                f"A network error occurred while get page '{page_id}'. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_get_page_by_id(page_id, **kwargs)
+            return await self.https_helper.get(url, headers=self.headers, params=params)
         except Exception as e:
-            logger.warning(
-                f"Library call get_page_by_id for '{page_id}' failed. "
-                f"Falling back. Error: {e}"
+            logger.error(
+                f"Failed to get Confluence page {page_id} (version {version if version else 'latest'}): {e}"
             )
-            return self._fallback_get_page_by_id(page_id, **kwargs)
+            return None
 
-    def _fallback_get_page_by_id(
-        self, page_id: str, **kwargs
-    ) -> Optional[Dict[str, Any]]:
-        """Fallback method to get a page by ID using a direct REST call."""
-        params = {k: v for k, v in kwargs.items() if v is not None}
-        url = f"{self.base_url}/rest/api/content/{page_id}"
-        response = make_request(
-            "GET",
-            url,
-            headers=self.headers,
-            params=params,
-            verify_ssl=config.VERIFY_SSL,
-        )
-        if response:
-            return response.json()
-        return None
-
-    def get_page_child_by_type(
+    async def get_page_child_by_type(
         self, page_id: str, page_type: str = "page"
     ) -> List[Dict[str, Any]]:
         """
-        Safely retrieves child pages of a specific type.
+        Retrieves child pages of a specific type asynchronously, with pagination.
 
         Args:
             page_id (str): The ID of the parent page.
@@ -194,97 +192,51 @@ class SafeConfluenceApi:
         Returns:
             List[Dict[str, Any]]: A list of child page objects.
         """
-        try:
-            return self.client.get_page_child_by_type(page_id, type=page_type)
-        except (requests.exceptions.RequestException, Exception) as e:
-            logger.warning(
-                f"Library get_page_child_by_type for '{page_id}' failed. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_get_page_child_by_type(page_id, page_type)
-
-    def _fallback_get_page_child_by_type(
-        self, page_id: str, page_type: str
-    ) -> List[Dict[str, Any]]:
-        """Fallback method to get child pages using a direct REST call, with pagination."""
         all_results: List[Dict[str, Any]] = []
         start = 0
         limit = 50
 
         while True:
-            # Add pagination parameters to the URL
             url = (
                 f"{self.base_url}/rest/api/content/{page_id}/child/{page_type}"
                 f"?start={start}&limit={limit}"
             )
-            response = make_request(
-                "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
-            )
-
-            if not response:
+            try:
+                response_data = await self.https_helper.get(url, headers=self.headers)
+            except Exception as e:
                 logger.error(
                     f"Failed to retrieve child pages for '{page_id}' "
-                    f"at start={start}. Returning partial results."
+                    f"at start={start}. Returning partial results. Error: {e}"
                 )
                 break  # Exit loop on API failure
 
-            data = response.json()
-            current_results = data.get("results", [])
+            current_results = response_data.get("results", [])
             all_results.extend(current_results)
 
-            # FIX: Only break if there are no more results OR no 'next' link
-            # If current_results is empty, implies no more pages, even if _links.next might be present
-            if not current_results or "next" not in data.get("_links", {}):
+            # Check if there are more results based on size and _links.next
+            if not current_results or len(current_results) < limit:
                 break
 
             start += len(current_results)
 
         return all_results
 
-    def update_page(self, page_id: str, title: str, body: str, **kwargs) -> bool:
+    async def update_page(self, page_id: str, title: str, body: str) -> bool:
         """
-        Safely updates a Confluence page.
-
-        Tries to update the page using the library client and falls back to a
-        direct REST API call upon failure.
+        Updates a Confluence page asynchronously.
 
         Args:
             page_id (str): The ID of the page to update.
             title (str): The new title for the page.
             body (str): The new body content in Confluence storage format.
-            **kwargs: Additional parameters, primarily for versioning in the
-                      fallback.
 
         Returns:
             bool: True if the page was updated successfully, False otherwise.
         """
-        try:
-            self.client.update_page(page_id=page_id, title=title, body=body)
-            logger.info(f"Successfully updated page {page_id} via library call.")
-            return True
-        except requests.exceptions.RequestException as e:
-            logger.warning(
-                f"A network error occurred while update page '{page_id}'. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_update_page(page_id, title, body, **kwargs)
-        except Exception as e:
-            logger.warning(
-                f"Library update_page for '{page_id}' failed. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_update_page(page_id, title, body, **kwargs)
-
-    def _fallback_update_page(
-        self, page_id: str, title: str, body: str, **kwargs
-    ) -> bool:
-        """Fallback method to update a page using a direct REST call."""
         url = f"{self.base_url}/rest/api/content/{page_id}"
-        current_page = self.get_page_by_id(page_id, expand="version")
+        current_page = await self.get_page_by_id(page_id, expand="version")
         if not current_page:
-            logger.error(
-                f"Could not retrieve page '{page_id}' for update (during fallback)."
-            )  # FIX: Add logger.error here
+            logger.error(f"Could not retrieve page '{page_id}' for update.")
             return False
 
         new_version = current_page["version"]["number"] + 1
@@ -294,106 +246,87 @@ class SafeConfluenceApi:
             "title": title,
             "body": {"storage": {"value": body, "representation": "storage"}},
         }
-        response = make_request(
-            "PUT",
-            url,
-            headers=self.headers,
-            json_data=payload,
-            verify_ssl=config.VERIFY_SSL,
-        )
-        if response:
-            logger.info(f"Successfully updated page {page_id} via REST call.")
-            return True
+        try:
+            response = await self.https_helper.put(
+                url,
+                headers=self.headers,
+                json_data=payload,
+            )
+            if response:  # httpx.put returns a response object, check its status implicitly via raise_for_status()
+                logger.info(f"Successfully updated page {page_id} via REST call.")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to update page {page_id}: {e}")
         return False
 
-    def create_page(self, **kwargs) -> Optional[Dict[str, Any]]:
+    async def create_page(
+        self, space_key: str, title: str, body: str, parent_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """
-        Safely creates a new Confluence page.
+        Creates a new Confluence page asynchronously.
 
         Args:
-            **kwargs: Keyword arguments for page creation, such as `space`,
-                      `title`, `body`, and `parent_id`.
+            space_key (str): The key of the space where the page will be created.
+            title (str): The title of the new page.
+            body (str): The body content in Confluence storage format.
+            parent_id (Optional[str]): The ID of the parent page, if it's a child page.
 
         Returns:
             Optional[Dict[str, Any]]: The created page object, or None.
         """
-        try:
-            return self.client.create_page(**kwargs)
-        except requests.exceptions.RequestException as e:
-            logger.warning(
-                f"A network error occurred while create page. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_create_page(**kwargs)
-        except Exception as e:
-            logger.warning(f"Library create_page failed. Falling back. Error: {e}")
-            return self._fallback_create_page(**kwargs)
-
-    def _fallback_create_page(self, **kwargs) -> Optional[Dict[str, Any]]:
-        """Fallback method to create a page using a direct REST call."""
         url = f"{self.base_url}/rest/api/content"
         payload = {
             "type": "page",
-            "title": kwargs.get("title"),
-            "space": {"key": kwargs.get("space")},
-            "body": {
-                "storage": {"value": kwargs.get("body"), "representation": "storage"}
-            },
-            "ancestors": (
-                [{"id": kwargs.get("parent_id")}] if kwargs.get("parent_id") else []
-            ),
+            "title": title,
+            "space": {"key": space_key},
+            "body": {"storage": {"value": body, "representation": "storage"}},
+            "ancestors": ([{"id": parent_id}] if parent_id else []),
         }
-        response = make_request(
-            "POST",
-            url,
-            headers=self.headers,
-            json_data=payload,
-            verify_ssl=config.VERIFY_SSL,
-        )
-        if response:
-            return response.json()
+        try:
+            response = await self.https_helper.post(
+                url,
+                headers=self.headers,
+                json_data=payload,
+            )
+            if response:
+                return response  # httpx.post returns the JSON directly if successful
+        except Exception as e:
+            logger.error(f"Failed to create Confluence page '{title}': {e}")
         return None
 
-    def get_user_details_by_username(self, username: str) -> Optional[Dict[str, Any]]:
-        """Safely gets user details by username, with a fallback."""
-        try:
-            return self.client.get_user_details_by_username(username)
-        except (requests.exceptions.RequestException, Exception) as e:
-            logger.warning(
-                "Library get_user_details_by_username failed. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_get_user_details("username", username)
-
-    def get_user_details_by_userkey(self, userkey: str) -> Optional[Dict[str, Any]]:
-        """Safely gets user details by user key, with a fallback."""
-        try:
-            return self.client.get_user_details_by_userkey(userkey)
-        except (requests.exceptions.RequestException, Exception) as e:
-            logger.warning(
-                "Library get_user_details_by_userkey failed. "
-                f"Falling back. Error: {e}"
-            )
-            return self._fallback_get_user_details("key", userkey)
-
-    def _fallback_get_user_details(
-        self, identifier_type: str, identifier_value: str
+    async def get_user_details_by_username(
+        self, username: str
     ) -> Optional[Dict[str, Any]]:
-        """Fallback for getting user details via direct REST call."""
-        url = f"{self.base_url}/rest/api/user?{identifier_type}={identifier_value}"
-        response = make_request(
-            "GET", url, headers=self.headers, verify_ssl=config.VERIFY_SSL
-        )
-        if response:
-            return response.json()
-        return None
-
-    def get_all_descendants(self, page_id: str) -> List[str]:
         """
-        Recursively finds all descendant page IDs using safe API calls.
+        Retrieves user details by username asynchronously.
+        """
+        url = f"{self.base_url}/rest/api/user?username={username}"
+        try:
+            return await self.https_helper.get(url, headers=self.headers)
+        except Exception as e:
+            logger.error(f"Failed to get user details for username '{username}': {e}")
+            return None
+
+    async def get_user_details_by_userkey(
+        self, userkey: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves user details by user key asynchronously.
+        """
+        url = f"{self.base_url}/rest/api/user?key={userkey}"
+        try:
+            return await self.https_helper.get(url, headers=self.headers)
+        except Exception as e:
+            logger.error(f"Failed to get user details for userkey '{userkey}': {e}")
+            return None
+
+    async def get_all_descendants(self, page_id: str) -> List[str]:
+        """
+        Recursively finds all descendant page IDs using asynchronous API calls.
 
         This method builds a complete list of all child pages, and their
-        children, down the entire hierarchy from the starting page ID.
+        children, down the entire hierarchy from the starting page ID,
+        leveraging concurrent fetching.
 
         Args:
             page_id (str): The starting page ID.
@@ -402,16 +335,53 @@ class SafeConfluenceApi:
             List[str]: A flat list of all descendant page IDs.
         """
         all_ids = []
-        # This uses its own resilient get_page_child_by_type method.
-        child_pages = self.get_page_child_by_type(page_id, page_type="page")
-        for child in child_pages:
-            child_id = child["id"]
-            all_ids.append(child_id)
-            # Recursive call to build the full list of descendants.
-            all_ids.extend(self.get_all_descendants(child_id))
+        # Use the concurrent method to get all descendants
+        descendant_pages_data = await self.get_all_descendants_concurrently(page_id)
+        for page_data in descendant_pages_data:
+            all_ids.append(page_data["id"])
         return all_ids
 
-    def get_tasks_from_page(self, page_details: Dict[str, Any]) -> List[ConfluenceTask]:
+    async def get_all_descendants_concurrently(
+        self, page_id: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Recursively fetches all descendant pages of a given page concurrently.
+        This is an internal helper method for get_all_descendants.
+        """
+        all_pages = []
+        processed_page_ids = set()
+        pages_to_process = [page_id]  # Start with the initial page ID
+
+        while pages_to_process:
+            current_batch_ids = list(pages_to_process)  # Copy for iteration
+            pages_to_process = []  # Reset for next batch of children
+
+            tasks = []
+            for p_id in current_batch_ids:
+                if p_id not in processed_page_ids:
+                    processed_page_ids.add(p_id)
+                    tasks.append(
+                        self.get_page_child_by_type(p_id)
+                    )  # Calls the async method
+
+            if tasks:
+                # Run all child page fetches in the current batch concurrently
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for res in results:
+                    if isinstance(res, Exception):
+                        logger.error(f"Error fetching a batch of child pages: {res}")
+                        continue  # Continue processing other tasks
+                    for child_page in res:
+                        all_pages.append(child_page)
+                        pages_to_process.append(
+                            child_page["id"]
+                        )  # Add children to next batch
+
+        return all_pages
+
+    async def get_tasks_from_page(
+        self, page_details: Dict[str, Any]
+    ) -> List[ConfluenceTask]:
         """
         Extracts all Confluence tasks from a page's HTML content.
 
@@ -447,12 +417,14 @@ class SafeConfluenceApi:
             if parent_task_list and parent_task_list.find_parent("ac:task-body"):
                 continue  # This task is nested within another task's body.
             # Parse the task element into a structured object
-            parsed_task = self._parse_single_task(task_element, page_details)
+            parsed_task = await self._parse_single_task(
+                task_element, page_details
+            )  # Await this call
             if parsed_task:
                 tasks.append(parsed_task)
         return tasks
 
-    def _parse_single_task(
+    async def _parse_single_task(
         self, task_element: Any, page_details: Dict[str, Any]
     ) -> Optional[ConfluenceTask]:
         """
@@ -520,11 +492,80 @@ class SafeConfluenceApi:
             context=context,
         )
 
-    def update_page_with_jira_links(
+    async def _parse_single_task(
+        self, task_element: Any, page_details: Dict[str, Any]
+    ) -> Optional[ConfluenceTask]:
+        """
+        Parses a single <ac:task> element into a ConfluenceTask object asynchronously.
+
+        This helper method extracts all relevant details from a task element,
+        including its content, status, assignee, and due date.
+
+        Args:
+            task_element (Any): The BeautifulSoup tag for an `<ac:task>`.
+            page_details (Dict[str, Any]): The details of the parent page.
+
+        Returns:
+            Optional[ConfluenceTask]: A populated `ConfluenceTask` object, or
+                                      None if the task element is malformed.
+        """
+        task_body = task_element.find("ac:task-body")
+        task_id_tag = task_element.find("ac:task-id")
+        task_status_tag = task_element.find("ac:task-status")
+
+        if not (task_body and task_id_tag and task_status_tag):
+            return None
+
+        assignee_name: Optional[str] = None
+        if user_mention := task_element.find("ri:user"):
+            if user_key := user_mention.get("ri:userkey"):
+                # Await the call to get user details
+                user_details = await self.get_user_details_by_userkey(user_key)
+                if user_details:
+                    assignee_name = user_details.get("username")
+
+        due_date_tag = task_element.find("time")
+        due_date = (
+            due_date_tag["datetime"]
+            if due_date_tag and "datetime" in due_date_tag.attrs
+            else None
+        )
+
+        page_version = page_details.get("version", {})
+        context = get_task_context(task_element)
+
+        # Create a modifiable copy to avoid altering the main soup object.
+        task_body_copy = BeautifulSoup(str(task_body), "html.parser")
+
+        # Remove nested task lists to get only the parent task's summary.
+        for nested_task_list in task_body_copy.find_all("ac:task-list"):
+            nested_task_list.decompose()
+
+        # Clean the text to get a concise summary.
+        task_summary = " ".join(task_body_copy.get_text(separator=" ").split()).strip()
+
+        return ConfluenceTask(
+            confluence_page_id=page_details.get("id", "N/A"),
+            confluence_page_title=page_details.get("title", "N/A"),
+            confluence_page_url=page_details.get("_links", {}).get("webui", ""),
+            confluence_task_id=task_id_tag.get_text(strip=True),
+            task_summary=task_summary,
+            status=task_status_tag.get_text(strip=True),
+            assignee_name=assignee_name,
+            due_date=due_date,
+            original_page_version=int(page_version.get("number", -1)),
+            original_page_version_by=page_version.get("by", {}).get(
+                "displayName", "Unknown"
+            ),
+            original_page_version_when=page_version.get("when", "N/A"),
+            context=context,
+        )
+
+    async def update_page_with_jira_links(
         self, page_id: str, mappings: List[Dict[str, str]]
     ) -> None:
         """
-        Replaces completed Confluence tasks with Jira issue macros.
+        Replaces completed Confluence tasks with Jira issue macros asynchronously.
 
         This method retrieves a page, finds tasks based on the provided
         mappings, removes the original task element, and inserts a Jira
@@ -533,13 +574,15 @@ class SafeConfluenceApi:
         Args:
             page_id (str): The ID of the Confluence page to update.
             mappings (List[Dict[str, str]]): A list of dictionaries, each
-                mapping a `confluence_task_id` to a `jira_key`.
+                                             mapping a `confluence_task_id` to a `jira_key`.
         """
-        page = self.get_page_by_id(page_id, expand="body.storage,version")
+        page = await self.get_page_by_id(
+            page_id, expand="body.storage,version"
+        )  # Await this call
         if not page:
             logger.error(f"Could not retrieve page {page_id} to update.")
             return
-        # FIX: Moved this line inside the 'if page:' block for correctness.
+
         soup = BeautifulSoup(page["body"]["storage"]["value"], "html.parser")
         modified = False
 
@@ -579,7 +622,7 @@ class SafeConfluenceApi:
                 if not tl.find("ac:task"):
                     tl.decompose()
 
-            self.update_page(page_id, page["title"], str(soup))
+            await self.update_page(page_id, page["title"], str(soup))  # Await this call
         else:
             logger.warning(
                 f"No tasks were replaced on page {page_id}. Skipping update."
@@ -604,3 +647,16 @@ class SafeConfluenceApi:
             f'<ac:parameter ac:name="key">{jira_key}</ac:parameter>'
             f"</ac:structured-macro></p>"
         )
+
+    async def get_all_spaces(self) -> List[Dict[str, Any]]:
+        """
+        Retrieves a list of all Confluence spaces asynchronously.
+        Used for health checks.
+        """
+        url = f"{self.base_url}/rest/api/space"  # Confluence Server/DC API for spaces
+        try:
+            response_data = await self.https_helper.get(url, headers=self.headers)
+            return response_data.get("results", [])
+        except Exception as e:
+            logger.error(f"Error getting all Confluence spaces: {e}")
+            raise
