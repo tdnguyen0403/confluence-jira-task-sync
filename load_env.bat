@@ -38,3 +38,4 @@ endlocal & (
 )
 
 echo All variables loaded.
+pause >nul
