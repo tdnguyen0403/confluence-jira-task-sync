@@ -1,4 +1,5 @@
 import os
+import logging
 from datetime import datetime
 from typing import Optional
 from src.config.config import (
@@ -6,6 +7,8 @@ from src.config.config import (
     INPUT_ROOT_DIR,
     OUTPUT_ROOT_DIR,
 )
+
+logger = logging.getLogger(__name__)
 
 ENDPOINT_SUBFOLDERS = {
     # Log subfolders (retaining 'logs_' prefix)
@@ -39,7 +42,14 @@ def get_log_path(endpoint_name: str, filename: str) -> str:
     # Look up the specific log subfolder name using "log_" prefix
     subfolder = ENDPOINT_SUBFOLDERS.get(f"log_{endpoint_name}", f"logs_{endpoint_name}")
     folder_path = os.path.join(LOGS_ROOT_DIR, subfolder)
-    os.makedirs(folder_path, exist_ok=True)
+    try:
+        os.makedirs(folder_path, exist_ok=True)
+    except OSError as e:
+        logger.error(
+            f"Failed to create log directory {folder_path}: {e}", exc_info=True
+        )
+        # Fallback: use the root logs directory
+        folder_path = LOGS_ROOT_DIR
     return os.path.join(folder_path, filename)
 
 
@@ -57,7 +67,14 @@ def get_input_path(endpoint_name: str, filename: str) -> str:
         f"input_{endpoint_name}", f"input_{endpoint_name}"
     )
     folder_path = os.path.join(INPUT_ROOT_DIR, subfolder)
-    os.makedirs(folder_path, exist_ok=True)
+    try:
+        os.makedirs(folder_path, exist_ok=True)
+    except OSError as e:
+        logger.error(
+            f"Failed to create input directory {folder_path}: {e}", exc_info=True
+        )
+        # Fallback: use the root input directory
+        folder_path = INPUT_ROOT_DIR
     return os.path.join(folder_path, filename)
 
 
@@ -75,7 +92,14 @@ def get_output_path(endpoint_name: str, filename: str) -> str:
         f"output_{endpoint_name}", f"output_{endpoint_name}"
     )
     folder_path = os.path.join(OUTPUT_ROOT_DIR, subfolder)
-    os.makedirs(folder_path, exist_ok=True)
+    try:
+        os.makedirs(folder_path, exist_ok=True)
+    except OSError as e:
+        logger.error(
+            f"Failed to create output directory {folder_path}: {e}", exc_info=True
+        )
+        # Fallback: use the root output directory
+        folder_path = OUTPUT_ROOT_DIR
     return os.path.join(folder_path, filename)
 
 

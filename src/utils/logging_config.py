@@ -1,7 +1,5 @@
 import logging
 import os
-import re
-import sys  # Import sys for setup_logging_local
 from datetime import datetime
 from typing import Optional, Set  # Ensure Set is imported
 
@@ -22,34 +20,14 @@ class CustomLogger(logging.Logger):
 class SecretRedactingFilter(logging.Filter):
     def __init__(self, sensitive_patterns: Set[str]):
         super().__init__()
-        self.patterns = [
-            re.compile(r"\b" + re.escape(s) + r"\b", re.IGNORECASE)
-            for s in sensitive_patterns
-            if s
-        ]
-        self.patterns.extend(
-            [
-                re.compile(
-                    r'(api_key|token|password|secret)=[\'"]?([^\s\'"]+)[\'"]?',
-                    re.IGNORECASE,
-                ),
-                re.compile(r"authorization: bearer\s+([^\s]+)", re.IGNORECASE),
-                re.compile(r"authorization: basic\s+([^\s]+)", re.IGNORECASE),
-            ]
-        )
+        self.sensitive_patterns = sensitive_patterns
 
     def filter(self, record):
-        # Ensure the message is formatted before filtering, so args are consumed
-        # This prevents TypeError if the original message had %s and we remove them.
-        if record.args:
-            record.msg = record.getMessage()  # Formats message using record.args
-            record.args = ()  # Clear args after formatting
-
-        if hasattr(record, "msg"):  # Use record.msg which is now the formatted message
-            for pattern in self.patterns:
-                record.msg = pattern.sub("[REDACTED]", record.msg)
-            record.message = record.msg  # Update record.message for consistency
-
+        msg = record.getMessage()
+        for pattern in self.sensitive_patterns:
+            if pattern in msg:
+                msg = msg.replace(pattern, "[REDACTED]")
+        record.msg = msg
         return True
 
 
@@ -86,48 +64,60 @@ def setup_logging(
 
     root_logger.setLevel(effective_log_level)  # Set the root logger level
 
-    # Use the helper functions from dir_helpers to get the log file path
-    log_filename = generate_timestamped_filename(
-        log_file_prefix, suffix=".log", user=user
-    )
-    log_file_path = get_log_path(
-        endpoint_name, log_filename
-    )  # <--- Using get_log_path from dir_helpers
+    try:
+        # Use the helper functions from dir_helpers to get the log file path
+        log_filename = generate_timestamped_filename(
+            log_file_prefix, suffix=".log", user=user
+        )
+        log_file_path = get_log_path(
+            endpoint_name, log_filename
+        )  # <--- Using get_log_path from dir_helpers
 
-    # Store the log file path in the custom logger instance
-    if isinstance(root_logger, CustomLogger):
-        root_logger.log_file_path = log_file_path
+        # File handler
+        file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
+        file_handler.setLevel(effective_log_level)  # Use effective_log_level here
+        formatter = logging.Formatter(
+            "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+        )
+        file_handler.setFormatter(formatter)
+        root_logger.addHandler(file_handler)
+
+        # Store the log file path in the custom logger instance
+        if isinstance(root_logger, CustomLogger):
+            root_logger.log_file_path = log_file_path
+    except (OSError, PermissionError) as e:
+        logging.error(f"Failed to create log file: {e}", exc_info=True)
+        # Fallback: only console logging
 
     # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(effective_log_level)  # Use effective_log_level here
-    formatter = logging.Formatter(
-        "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
-    )
-    console_handler.setFormatter(formatter)
-    root_logger.addHandler(console_handler)
-
-    # File handler
-    file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
-    file_handler.setLevel(effective_log_level)  # Use effective_log_level here
-    file_handler.setFormatter(formatter)
-    root_logger.addHandler(file_handler)
+    try:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(effective_log_level)  # Use effective_log_level here
+        formatter = logging.Formatter(
+            "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+        )
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
+    except Exception as e:
+        logging.critical(f"Failed to set up console logging: {e}", exc_info=True)
 
     # Define sensitive strings to redact
-    sensitive_data = {
-        config.JIRA_API_TOKEN,
-        config.CONFLUENCE_API_TOKEN,
-        config.API_SECRET_KEY,
-    }
-    sensitive_data = {s for s in sensitive_data if s}  # Filter out None values
-
-    redacting_filter = SecretRedactingFilter(sensitive_data)
-    for handler in root_logger.handlers:  # Apply filter to root_logger's handlers
-        handler.addFilter(redacting_filter)
+    sensitive_patterns = set(
+        filter(
+            None,
+            [
+                getattr(config, "JIRA_API_TOKEN", None),
+                getattr(config, "CONFLUENCE_API_TOKEN", None),
+                getattr(config, "API_SECRET_KEY", None),
+            ],
+        )
+    )
+    if sensitive_patterns:
+        root_logger.addFilter(SecretRedactingFilter(sensitive_patterns))
 
     # Use root_logger for the final info message to ensure it's logged
     root_logger.info(
-        f"Logging initialized at level {logging.getLevelName(effective_log_level)}. Output will be saved to '{log_file_path}'"
+        f"Logging initialized at level {logging.getLevelName(effective_log_level)}."
     )
 
 
@@ -145,34 +135,27 @@ def setup_logging_local(log_directory: str, script_name: str):
     Returns:
         str: The full path to the newly created log file.
     """
-    # Read the log level directly from the environment variable.
-    # It defaults to "INFO" if LOG_LEVEL is not found.
-    log_level = os.getenv("LOG_LEVEL", "INFO")
+    try:
+        os.makedirs(log_directory, exist_ok=True)
+    except OSError as e:
+        logging.error(
+            f"Failed to create log directory {log_directory}: {e}", exc_info=True
+        )
+        # Fallback: use current directory
+        log_directory = "."
 
-    os.makedirs(log_directory, exist_ok=True)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file_path = os.path.join(log_directory, f"{script_name}_{timestamp}.log")
-
-    root_logger = logging.getLogger()
-    if root_logger.hasHandlers():
-        root_logger.handlers.clear()
-
-    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
-
-    LOG_FORMAT = "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
-
-    logging.basicConfig(
-        level=numeric_level,
-        format=LOG_FORMAT,
-        handlers=[
-            logging.FileHandler(log_file_path, "w", "utf-8"),
-            logging.StreamHandler(sys.stdout),
-        ],
+    log_file_path = os.path.join(
+        log_directory, f"{script_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     )
-
-    logging.info(
-        f"Logging initialized at level {log_level}. "
-        f"Output will be saved to '{log_file_path}'"
-    )
+    try:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(message)s",
+            handlers=[
+                logging.FileHandler(log_file_path, encoding="utf-8"),
+                logging.StreamHandler(),
+            ],
+        )
+    except Exception as e:
+        logging.error(f"Failed to set up local logging: {e}", exc_info=True)
     return log_file_path
