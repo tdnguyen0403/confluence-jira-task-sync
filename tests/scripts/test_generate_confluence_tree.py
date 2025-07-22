@@ -226,6 +226,147 @@ async def test_generate_page_hierarchy_zero_tasks_per_page(
     page_body = create_call_kwargs["body"]
 
     assert '<ac:parameter ac:name="key">WP-ALPHA</ac:parameter>' in page_body
+    assert "<ac:task-list>" not in page_body  # No tasks should be present in the body
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_max_depth_zero(
+    generator: ConfluenceTreeGenerator,
+):
+    """No pages should be generated if max_depth is 0."""
+    generator.max_depth = 0
+    generator.assignee_account_id = "testAccountId123"
+    parent_page_id = "root_parent"
+    results = await generator.generate_page_hierarchy(parent_page_id)
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_negative_depth(
+    generator: ConfluenceTreeGenerator,
+):
+    """Negative depth should behave like zero (no pages)."""
+    generator.max_depth = -1
+    generator.assignee_account_id = "testAccountId123"
+    parent_page_id = "root_parent"
+    results = await generator.generate_page_hierarchy(parent_page_id)
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_empty_work_package_keys(
+    generator: ConfluenceTreeGenerator,
+):
+    """Should raise ZeroDivisionError if work package keys is empty."""
+    generator.max_depth = 1
+    generator.test_work_package_keys = []
+    generator.assignee_account_id = "testAccountId123"
+    parent_page_id = "root_parent"
+    with pytest.raises(ZeroDivisionError):
+        await generator.generate_page_hierarchy(parent_page_id)
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_missing_assignee_username(
+    generator: ConfluenceTreeGenerator,
+):
+    """Should log warning and not assign tasks if username is missing."""
+    generator.assignee_username = ""
+    generator.assignee_account_id = None
+    generator.max_depth = 1
+    parent_page_id = "root_parent"
+    results = await generator.generate_page_hierarchy(parent_page_id)
+    assert len(results) == 1
+    create_call_kwargs = generator.confluence.create_page.await_args.kwargs
+    page_body = create_call_kwargs["body"]
+    # Should not contain ac:task-assignee
+    assert "<ac:task-assignee" not in page_body
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_no_assignee_account_id(
+    generator: ConfluenceTreeGenerator,
+):
+    """Tasks should not be assigned if assignee_account_id is None."""
+    generator.max_depth = 1
+    generator.assignee_account_id = None
+    parent_page_id = "root_parent"
+    results = await generator.generate_page_hierarchy(parent_page_id)
+    assert len(results) == 1
+    create_call_kwargs = generator.confluence.create_page.await_args.kwargs
+    page_body = create_call_kwargs["body"]
+    assert "<ac:task-assignee" not in page_body
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_macro_parameters(
+    generator: ConfluenceTreeGenerator,
+):
+    """Page body should contain correct Jira macro parameters."""
+    generator.max_depth = 1
+    generator.assignee_account_id = "testAccountId123"
+    parent_page_id = "root_parent"
+    await generator.generate_page_hierarchy(parent_page_id)
+    create_call_kwargs = generator.confluence.create_page.await_args.kwargs
+    page_body = create_call_kwargs["body"]
     assert (
-        "<ac:task-list>" not in page_body
-    )  # No tasks should be present in the bodyimport pytest
+        f'<ac:parameter ac:name="server">{config.JIRA_MACRO_SERVER_NAME}</ac:parameter>'
+        in page_body
+    )
+    assert (
+        f'<ac:parameter ac:name="serverId">{config.JIRA_MACRO_SERVER_ID}</ac:parameter>'
+        in page_body
+    )
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_recursive_respects_max_depth(
+    generator: ConfluenceTreeGenerator,
+):
+    """Recursive calls should not exceed max_depth."""
+    generator.max_depth = 3
+    generator.assignee_account_id = "testAccountId123"
+    # Patch create_page to always return a new page with unique id
+    ids = [str(1000 + i) for i in range(3)]
+    generator.confluence.create_page.side_effect = [
+        {
+            "id": ids[0],
+            "title": "Page0",
+            "space": {"key": "TESTSPACE"},
+            "_links": {"webui": "http://link.0"},
+        },
+        {
+            "id": ids[1],
+            "title": "Page1",
+            "space": {"key": "TESTSPACE"},
+            "_links": {"webui": "http://link.1"},
+        },
+        {
+            "id": ids[2],
+            "title": "Page2",
+            "space": {"key": "TESTSPACE"},
+            "_links": {"webui": "http://link.2"},
+        },
+    ]
+    parent_page_id = "root_parent"
+    results = await generator.generate_page_hierarchy(parent_page_id)
+    # Should create 3 pages (depth 0, 1, 2)
+    assert len(results) == 3
+    assert generator.confluence.create_page.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_create_page_raises_exception(
+    generator: ConfluenceTreeGenerator, caplog
+):
+    """Should raise exception if create_page raises exception."""
+    generator.max_depth = 2
+    generator.assignee_account_id = "testAccountId123"
+
+    def raise_exc(**kwargs):
+        raise RuntimeError("Simulated failure")
+
+    generator.confluence.create_page.side_effect = raise_exc
+    parent_page_id = "root_parent"
+    with pytest.raises(RuntimeError, match="Simulated failure"):
+        await generator.generate_page_hierarchy(parent_page_id)
