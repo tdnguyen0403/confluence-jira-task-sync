@@ -1,6 +1,6 @@
 import pytest
 import httpx
-from unittest.mock import AsyncMock, patch, Mock  # Import Mock
+from unittest.mock import AsyncMock, patch, Mock
 import logging
 
 from src.api.https_helper import HTTPSHelper
@@ -13,42 +13,49 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def https_helper_instance():
     """Provides an HTTPSHelper instance for testing."""
+    # Ensure that each test starts with a fresh HTTPSHelper instance
+    # that has its _client attribute truly uninitialized (None) initially.
+    # We will manage its _client via patching in specific tests or fixtures.
     return HTTPSHelper(verify_ssl=True)
 
 
-# Use a fixture to patch the httpx.AsyncClient.send (AsyncMock) and build_request (Mock) methods.
-# build_request is synchronous, so it should be a regular Mock.
+# Modified fixture to provide a mock client object directly,
+# making it easier to control its state and methods.
 @pytest.fixture(autouse=True)
-def mock_httpx_client_methods(https_helper_instance):
-    # Patch the 'send' method as AsyncMock (it's an async method)
-    with patch.object(
-        https_helper_instance.client, "send", new_callable=AsyncMock
-    ) as mock_send, patch.object(
-        https_helper_instance.client, "build_request", new_callable=Mock
-    ) as mock_build_request:
-        yield mock_send, mock_build_request
+def mock_httpx_client(https_helper_instance):
+    """
+    Patches the httpx.AsyncClient instance within HTTPSHelper for testing.
+    Provides a mock client with mock send, build_request, and aclose methods.
+    """
+    mock_client = AsyncMock(spec=httpx.AsyncClient)
+    mock_client.send = AsyncMock(spec=httpx.AsyncClient().send)
+    mock_client.build_request = Mock(spec=httpx.AsyncClient().build_request)
+    mock_client.aclose = AsyncMock(spec=httpx.AsyncClient().aclose)
+
+    # Patch the _client attribute of the HTTPSHelper instance directly.
+    # This prevents the @property client from creating a new AsyncClient.
+    with patch.object(https_helper_instance, "_client", new=mock_client):
+        yield mock_client
 
 
 @pytest.mark.asyncio
-async def test_make_request_success(https_helper_instance, mock_httpx_client_methods):
+async def test_make_request_success(https_helper_instance, mock_httpx_client):
     """Tests successful _make_request call."""
-    mock_send, mock_build_request = mock_httpx_client_methods
+    # Access the mocked methods from the mock_httpx_client fixture
+    mock_send = mock_httpx_client.send
+    mock_build_request = mock_httpx_client.build_request
 
     mock_response = AsyncMock(spec=httpx.Response)
     mock_response.status_code = 200
     mock_response.raise_for_status.return_value = None
     mock_send.return_value = mock_response
 
-    # Ensure build_request returns a httpx.Request object (it's a synchronous method)
     mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
 
-    # Explicitly pass follow_redirects=False to _make_request to match assertion
-    # Use timeout=5 to match the default in HTTPSHelper._make_request
     response = await https_helper_instance._make_request(
         "GET", "http://test.com", timeout=5
     )
 
-    # Assert build_request was called correctly
     mock_build_request.assert_called_once_with(
         method="GET",
         url="http://test.com",
@@ -57,19 +64,15 @@ async def test_make_request_success(https_helper_instance, mock_httpx_client_met
         params=None,
         timeout=5,
     )
-    # Assert send was awaited once
-    mock_send.assert_awaited_once_with(
-        mock_build_request.return_value
-    )  # <--- ADDED AWAIT
+    mock_send.assert_awaited_once_with(mock_build_request.return_value)
     assert response.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_make_request_http_error(
-    https_helper_instance, mock_httpx_client_methods
-):
+async def test_make_request_http_error(https_helper_instance, mock_httpx_client):
     """Tests _make_request handling of HTTPStatusError."""
-    mock_send, mock_build_request = mock_httpx_client_methods
+    mock_send = mock_httpx_client.send
+    mock_build_request = mock_httpx_client.build_request
 
     mock_response = AsyncMock(spec=httpx.Response)
     mock_response.status_code = 404
@@ -82,7 +85,6 @@ async def test_make_request_http_error(
     mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
 
     with pytest.raises(httpx.HTTPStatusError):
-        # Explicitly pass follow_redirects=False and timeout=5 to _make_request
         await https_helper_instance._make_request("GET", "http://test.com", timeout=5)
 
     mock_build_request.assert_called_once_with(
@@ -93,17 +95,14 @@ async def test_make_request_http_error(
         params=None,
         timeout=5,
     )
-    mock_send.assert_awaited_once_with(
-        mock_build_request.return_value
-    )  # <--- ADDED AWAIT
+    mock_send.assert_awaited_once_with(mock_build_request.return_value)
 
 
 @pytest.mark.asyncio
-async def test_make_request_request_error(
-    https_helper_instance, mock_httpx_client_methods
-):
+async def test_make_request_request_error(https_helper_instance, mock_httpx_client):
     """Tests _make_request handling of RequestError."""
-    mock_send, mock_build_request = mock_httpx_client_methods
+    mock_send = mock_httpx_client.send
+    mock_build_request = mock_httpx_client.build_request
 
     mock_send.side_effect = httpx.RequestError(
         "Connection refused", request=httpx.Request("GET", "http://test.com")
@@ -111,7 +110,6 @@ async def test_make_request_request_error(
     mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
 
     with pytest.raises(httpx.RequestError):
-        # Explicitly pass follow_redirects=False and timeout=5 to _make_request
         await https_helper_instance._make_request("GET", "http://test.com", timeout=5)
 
     mock_build_request.assert_called_once_with(
@@ -122,9 +120,7 @@ async def test_make_request_request_error(
         params=None,
         timeout=5,
     )
-    mock_send.assert_awaited_once_with(
-        mock_build_request.return_value
-    )  # <--- ADDED AWAIT
+    mock_send.assert_awaited_once_with(mock_build_request.return_value)
 
 
 @pytest.mark.asyncio
@@ -138,10 +134,8 @@ async def test_get_method(https_helper_instance):
         mock_response.json.return_value = {"data": "test"}
         mock_make_request.return_value = mock_response
 
-        # The get method's default timeout is 5, and follow_redirects is False
         result = await https_helper_instance.get("http://test.com")
 
-        # Assert _make_request was called correctly, including the default timeout=5 and follow_redirects=False
         mock_make_request.assert_awaited_once_with(
             "GET", "http://test.com", headers=None, params=None, timeout=5
         )
@@ -159,12 +153,10 @@ async def test_post_method(https_helper_instance):
         mock_response.json.return_value = {"id": "123"}
         mock_make_request.return_value = mock_response
 
-        # The post method's default timeout is 5, and follow_redirects is False
         result = await https_helper_instance.post(
             "http://test.com", json_data={"key": "value"}
         )
 
-        # Assert _make_request was called correctly, including the default timeout=5 and follow_redirects=False
         mock_make_request.assert_awaited_once_with(
             "POST",
             "http://test.com",
@@ -187,12 +179,10 @@ async def test_post_method_204_no_content(https_helper_instance):
         mock_response.json.side_effect = httpx.DecodingError("No content to decode")
         mock_make_request.return_value = mock_response
 
-        # The post method's default timeout is 5, and follow_redirects is False
         result = await https_helper_instance.post(
             "http://test.com", json_data={"key": "value"}
         )
 
-        # Assert _make_request was called correctly, including the default timeout=5 and follow_redirects=False
         mock_make_request.assert_awaited_once_with(
             "POST",
             "http://test.com",
@@ -215,12 +205,10 @@ async def test_put_method_204_no_content(https_helper_instance):
         mock_response.json.side_effect = httpx.DecodingError("No content to decode")
         mock_make_request.return_value = mock_response
 
-        # The put method's default timeout is 5, and follow_redirects is False
         result = await https_helper_instance.put(
             "http://test.com", json_data={"key": "value"}
         )
 
-        # Assert _make_request was called correctly, including the default timeout=5 and follow_redirects=False
         mock_make_request.assert_awaited_once_with(
             "PUT",
             "http://test.com",
@@ -230,3 +218,201 @@ async def test_put_method_204_no_content(https_helper_instance):
             timeout=5,
         )
         assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_delete_method_success(https_helper_instance):
+    """Tests the delete method for a successful response."""
+    with patch.object(
+        https_helper_instance, "_make_request", new_callable=AsyncMock
+    ) as mock_make_request:
+        mock_response = AsyncMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_make_request.return_value = mock_response
+
+        response = await https_helper_instance.delete("http://test.com/123")
+
+        mock_make_request.assert_awaited_once_with(
+            "DELETE", "http://test.com/123", headers=None, params=None, timeout=5
+        )
+        assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_make_request_with_redirects(https_helper_instance, mock_httpx_client):
+    """Tests _make_request with follow_redirects=True."""
+    mock_send = mock_httpx_client.send
+    mock_build_request = mock_httpx_client.build_request
+
+    mock_response = AsyncMock(spec=httpx.Response)
+    mock_response.status_code = 200
+    mock_response.raise_for_status.return_value = None
+    mock_send.return_value = mock_response
+
+    mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
+
+    response = await https_helper_instance._make_request(
+        "GET", "http://test.com", timeout=5, follow_redirects=True
+    )
+
+    mock_build_request.assert_called_once_with(
+        method="GET",
+        url="http://test.com",
+        headers=None,
+        json=None,
+        params=None,
+        timeout=5,
+    )
+    mock_send.assert_awaited_once_with(mock_build_request.return_value)
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_make_request_with_headers_and_params(
+    https_helper_instance, mock_httpx_client
+):
+    """Tests _make_request with headers and params."""
+    mock_send = mock_httpx_client.send
+    mock_build_request = mock_httpx_client.build_request
+
+    mock_response = AsyncMock(spec=httpx.Response)
+    mock_response.status_code = 200
+    mock_response.raise_for_status.return_value = None
+    mock_send.return_value = mock_response
+
+    headers = {"Authorization": "Bearer token"}
+    params = {"key": "value"}
+    mock_build_request.return_value = httpx.Request(
+        method="GET", url="http://test.com", headers=headers, params=params
+    )
+
+    response = await https_helper_instance._make_request(
+        "GET", "http://test.com", headers=headers, params=params
+    )
+
+    mock_build_request.assert_called_once_with(
+        method="GET",
+        url="http://test.com",
+        headers=headers,
+        json=None,
+        params=params,
+        timeout=5,
+    )
+    mock_send.assert_awaited_once_with(mock_build_request.return_value)
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_get_method_with_headers_and_params(https_helper_instance):
+    """Tests the get method with headers and params."""
+    with patch.object(
+        https_helper_instance, "_make_request", new_callable=AsyncMock
+    ) as mock_make_request:
+        mock_response = AsyncMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": "more_test"}
+        mock_make_request.return_value = mock_response
+
+        headers = {"X-Custom-Header": "abc"}
+        params = {"query": "xyz"}
+        result = await https_helper_instance.get(
+            "http://test.com/api", headers=headers, params=params
+        )
+
+        mock_make_request.assert_awaited_once_with(
+            "GET", "http://test.com/api", headers=headers, params=params, timeout=5
+        )
+        assert result == {"data": "more_test"}
+
+
+@pytest.mark.asyncio
+async def test_post_method_with_headers_and_params(https_helper_instance):
+    """Tests the post method with headers and params."""
+    with patch.object(
+        https_helper_instance, "_make_request", new_callable=AsyncMock
+    ) as mock_make_request:
+        mock_response = AsyncMock(spec=httpx.Response)
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"status": "created"}
+        mock_make_request.return_value = mock_response
+
+        headers = {"Content-Type": "application/json"}
+        params = {"action": "create"}
+        json_data = {"name": "new_item"}
+        result = await https_helper_instance.post(
+            "http://test.com/items",
+            headers=headers,
+            params=params,
+            json_data=json_data,
+        )
+
+        mock_make_request.assert_awaited_once_with(
+            "POST",
+            "http://test.com/items",
+            headers=headers,
+            json_data=json_data,
+            params=params,
+            timeout=5,
+        )
+        assert result == {"status": "created"}
+
+
+@pytest.mark.asyncio
+async def test_set_client_property(https_helper_instance):
+    """Tests setting the httpx.AsyncClient instance via the setter."""
+    new_client = httpx.AsyncClient(verify=False)
+    https_helper_instance.client = new_client
+    assert https_helper_instance.client is new_client
+
+
+@pytest.mark.asyncio
+async def test_close_method(https_helper_instance, mock_httpx_client):
+    """Tests the close method and that it calls aclose on the client."""
+    # The mock_httpx_client fixture ensures https_helper_instance._client is mocked.
+    with patch("logging.Logger.info") as mock_log_info:
+        await https_helper_instance.close()
+        mock_httpx_client.aclose.assert_awaited_once()
+        mock_log_info.assert_any_call("Closing httpx.AsyncClient.")
+        mock_log_info.assert_any_call("httpx.AsyncClient closed successfully.")
+        assert https_helper_instance._client is None
+
+
+@pytest.mark.asyncio
+async def test_close_method_no_client(https_helper_instance):
+    """Tests the close method when client is not initialized."""
+    # We must ensure _client is None for the instance and that the
+    # client property's auto-initialization is bypassed.
+    # The simplest way is to create a new instance and ensure its _client is None.
+    # Or, for existing instance, manually set _client to None and ensure
+    # that the client property is not triggered.
+
+    # This test needs to be completely isolated from the mock_httpx_client fixture
+    # which automatically sets a mock client.
+    # We will create a fresh instance of HTTPSHelper for this specific test.
+    fresh_https_helper_instance = HTTPSHelper(verify_ssl=True)
+    fresh_https_helper_instance._client = None  # Explicitly ensure it's None
+
+    with patch("src.api.https_helper.logger") as mock_logger:
+        await fresh_https_helper_instance.close()
+        # Assert that info and warning were not called, as no client was closed/initialized
+        mock_logger.info.assert_not_called()
+        mock_logger.warning.assert_not_called()
+        assert fresh_https_helper_instance._client is None
+
+
+@pytest.mark.asyncio
+async def test_make_request_unhandled_exception(
+    https_helper_instance, mock_httpx_client
+):
+    """Tests _make_request handling of an unhandled exception."""
+    mock_send = mock_httpx_client.send
+    mock_build_request = mock_httpx_client.build_request
+
+    mock_send.side_effect = Exception("An unexpected error occurred")
+    mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
+
+    with pytest.raises(Exception, match="An unexpected error occurred"):
+        await https_helper_instance._make_request("GET", "http://test.com")
+
+    mock_build_request.assert_called_once()
+    mock_send.assert_awaited_once()
