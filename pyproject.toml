@@ -35,8 +35,8 @@ requests-mock = "^1.12.1"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.pytest.ini_options]
-addopts = "--cov=. --cov-report=term-missing --cov-report=html:htmlcov/"
+#[tool.pytest.ini_options]
+#addopts = "--cov=../src --cov-report=term-missing --cov-report=html:htmlcov/"
 
 [tool.coverage.run]
 omit = [

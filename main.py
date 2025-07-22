@@ -45,17 +45,20 @@ logger = logging.getLogger(__name__)
 # Lifespan context manager for managing resources like httpx client
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Application starting up...")
-    # Initialize the httpx client here to ensure connection pooling and proper shutdown
-    http_helper: HTTPSHelper = get_https_helper()
-    http_helper.client = httpx.AsyncClient(
-        verify=http_helper._verify_ssl, cookies=httpx.Cookies()
-    )  # Initialize client with verify_ssl setting
-    yield
-    # Shutdown event
-    logger.info("Application shutting down...")
-    await http_helper.client.aclose()  # Close the httpx client gracefully
-    logger.info("Application shutdown complete.")
+    try:
+        logger.info("Application starting up...")
+        # Initialize the httpx client here to ensure connection pooling and proper shutdown
+        http_helper: HTTPSHelper = get_https_helper()
+        http_helper.client = httpx.AsyncClient(
+            verify=http_helper._verify_ssl, cookies=httpx.Cookies()
+        )
+        yield
+        # Shutdown event
+        logger.info("Application shutting down...")
+        await http_helper.client.aclose()  # Close the httpx client gracefully
+        logger.info("Application shutdown complete.")
+    except Exception:
+        logger.exception("Error during app startup/shutdown.")
 
 
 app = FastAPI(

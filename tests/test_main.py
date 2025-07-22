@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, patch, mock_open
+
 from main import app
 from src.dependencies import (
     get_api_key,
@@ -22,12 +23,10 @@ from src.exceptions import (
     UndoError,
     MissingRequiredDataError,
 )
-import logging
 import httpx
 
 # Disable actual logging for tests
-logging.disable(logging.CRITICAL)
-
+# logging.disable(logging.CRITICAL)
 client = TestClient(app)
 
 
@@ -605,3 +604,191 @@ async def test_readiness_check_confluence_api_failure(
     assert "Confluence Timeout" in response.json()["detail"]
     mock_jira_api.get_current_user.assert_awaited_once()
     mock_confluence_api.get_all_spaces.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_read_root():
+    """
+    Verify that the root endpoint returns a welcome message.
+    """
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "Welcome to the Jira-Confluence Automation API. Visit /docs for API documentation."
+    }
+
+
+@pytest.mark.asyncio
+async def test_sync_task_invalid_request_body():
+    """
+    Verify that /sync_task returns a 422 error for an invalid request body.
+    """
+    # Request body is missing the required 'confluence_page_urls' field
+    request_body = {
+        "context": {"request_user": "test_user", "days_to_due_date": 7},
+    }
+    response = client.post(
+        "/sync_task", json=request_body, headers={"X-API-Key": "valid_key"}
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_undo_sync_task_invalid_request_body():
+    """
+    Verify that /undo_sync_task returns a 422 error for an invalid request body.
+    """
+    # Request body is a dictionary instead of a list of items
+    request_body = {
+        "status_text": "Success",
+        "confluence_page_id": "p1",
+        "original_page_version": 1,
+        "new_jira_task_key": "JIRA-001",
+        "request_user": "test_user",
+    }
+    response = client.post(
+        "/undo_sync_task", json=request_body, headers={"X-API-Key": "valid_key"}
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_sync_project_invalid_request_body():
+    """
+    Verify that /sync_project returns a 422 error for an invalid request body.
+    """
+    # Request body is missing the required 'root_confluence_page_url' field
+    request_body = {
+        "root_project_issue_key": "PROJ-123",
+        "project_issue_type_id": "10001",
+        "phase_issue_type_id": "10002",
+        "request_user": "test_user",
+    }
+    response = client.post(
+        "/sync_project", json=request_body, headers={"X-API-Key": "valid_key"}
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_undo_sync_task_empty_list(mock_undo_orchestrator):
+    """
+    Verify /undo_sync_task handles an empty list in the request.
+    """
+    mock_undo_orchestrator.run.side_effect = InvalidInputError(
+        "Undo data cannot be empty."
+    )
+    request_body = []  # Empty list
+    response = client.post(
+        "/undo_sync_task", json=request_body, headers={"X-API-Key": "valid_key"}
+    )
+
+    assert response.status_code == 400
+    assert "Invalid Request: Undo data cannot be empty." in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_undo_sync_task_missing_request_user(mock_undo_orchestrator):
+    """
+    Verify /undo_sync_task handles missing 'request_user' in the payload.
+    """
+    mock_undo_orchestrator.run.side_effect = MissingRequiredDataError(
+        "Missing 'request_user' in undo data."
+    )
+    # The item in the list is missing the 'request_user' field.
+    request_body = [
+        {
+            "status_text": "Success",
+            "confluence_page_id": "p1",
+            "original_page_version": 1,
+            "new_jira_task_key": "JIRA-001",
+        }
+    ]
+    response = client.post(
+        "/undo_sync_task", json=request_body, headers={"X-API-Key": "valid_key"}
+    )
+
+    # A 422 error is expected because the Pydantic model validation will fail.
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_readiness_check_confluence_failure_after_jira_success(
+    mock_jira_api, mock_confluence_api
+):
+    """
+    Verify /ready returns 503 if Jira is ready but Confluence is not.
+    """
+    # Jira API is fine
+    mock_jira_api.get_current_user.return_value = {"accountId": "test_jira_user"}
+    # Confluence API fails
+    mock_confluence_api.get_all_spaces.side_effect = httpx.RequestError(
+        "Confluence is down", request=httpx.Request("GET", "http://confluence.com")
+    )
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert "Confluence is down" in response.json()["detail"]
+    mock_jira_api.get_current_user.assert_awaited_once()
+    mock_confluence_api.get_all_spaces.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_readiness_check_unhandled_exception(mock_jira_api):
+    """
+    Verify /ready returns 503 on an unexpected exception.
+    """
+    # Simulate a generic, unexpected error during the readiness check
+    mock_jira_api.get_current_user.side_effect = Exception(
+        "A rare, unexpected error occurred"
+    )
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert "A rare, unexpected error occurred" in response.json()["detail"]
+    mock_jira_api.get_current_user.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_sync_task_continues_on_input_file_error(mock_sync_orchestrator):
+    """
+    Verify /sync_task continues and succeeds even if writing the input file fails.
+    The logic should log the file-write error but not crash the operation.
+    """
+    request_body = {
+        "confluence_page_urls": ["http://example.com/page1"],
+        "context": {"request_user": "test_user", "days_to_due_date": 7},
+    }
+
+    # The known path of the input file from the common_dependencies_override fixture
+    target_input_file_path = "/mock/input/mock_file.json"
+
+    # We need a reference to the real open to use for non-matching files
+    original_open = open
+
+    def selective_mock_open(filename, *args, **kwargs):
+        """This function will act as our mock for the 'open' call."""
+        if filename == target_input_file_path:
+            # If the filename matches our target, raise the error.
+            raise IOError("Disk full")
+        else:
+            # For any other filename (like logs), use the real 'open'.
+            return original_open(filename, *args, **kwargs)
+
+    # Use a context manager to patch 'builtins.open' with our selective mock
+    with patch("builtins.open", side_effect=selective_mock_open):
+        response = client.post(
+            "/sync_task", json=request_body, headers={"X-API-Key": "valid_key"}
+        )
+
+    # The operation should still be successful because the file-write error is caught
+    assert response.status_code == 200
+    # The main logic should still run and return the mocked orchestrator's results
+    assert len(response.json()) == 1
+    assert response.json()[0]["new_jira_task_key"] == "JIRA-001"
+    mock_sync_orchestrator.run.assert_awaited_once()
