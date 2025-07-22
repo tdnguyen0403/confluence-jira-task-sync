@@ -1,11 +1,12 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 import logging
-import httpx  # Import httpx for specific error types
+import httpx
+from bs4 import BeautifulSoup  # Added import
 
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.api.https_helper import HTTPSHelper
-from src.config import config  # Assuming config is used for CONFLUENCE_API_TOKEN
+from src.config import config
 
 # Configure logging to capture messages during tests
 logging.basicConfig(level=logging.INFO)
@@ -21,14 +22,18 @@ def mock_https_helper():
 @pytest.fixture
 def safe_confluence_api(mock_https_helper):
     """Provides a SafeConfluenceApi instance with a mocked HTTPSHelper."""
-    # Patch config.CONFLUENCE_API_TOKEN and config.CONFLUENCE_URL for testing purposes
+    # Ensure all relevant config values are patched for isolated testing
     with patch.object(config, "CONFLUENCE_API_TOKEN", "test_token"), patch.object(
         config, "CONFLUENCE_URL", "http://confluence.example.com"
-    ):  # <--- PATCH config.CONFLUENCE_URL here
+    ), patch.object(config, "JIRA_MACRO_SERVER_NAME", "TestJiraServer"), patch.object(
+        config, "JIRA_MACRO_SERVER_ID", "server-123"
+    ), patch.object(
+        config, "AGGREGATION_CONFLUENCE_MACRO", ["jira", "info"]
+    ):  # This line is crucial
         return SafeConfluenceApi(
             base_url="http://confluence.example.com",
             https_helper=mock_https_helper,
-            jira_macro_server_name="TestJira",
+            jira_macro_server_name="TestJira",  # These are passed to init, but internal uses config directly
             jira_macro_server_id="12345",
         )
 
@@ -54,47 +59,28 @@ async def test_get_page_id_from_url_short_format_resolves(
         "http://confluence.example.com/spaces/SPACE/pages/67890/Final+Page"
     )
 
-    # Mock _make_request to simulate multi-step redirect
     mock_response_step1 = AsyncMock(spec=httpx.Response)
     mock_response_step1.status_code = 302
     mock_response_step1.headers = {"Location": redirect_url_step1}
-    mock_response_step1.url = httpx.URL(short_url)  # Initial URL
+    mock_response_step1.url = httpx.URL(short_url)
 
     mock_response_step2 = AsyncMock(spec=httpx.Response)
-    mock_response_step2.status_code = 302
-    mock_response_step2.headers = {"Location": final_resolved_url}
-    mock_response_step2.url = httpx.URL(redirect_url_step1)  # Intermediate URL
+    mock_response_step2.status_code = 200
+    mock_response_step2.url = httpx.URL(final_resolved_url)
 
-    mock_response_final = AsyncMock(spec=httpx.Response)
-    mock_response_final.status_code = 200
-    mock_response_final.url = httpx.URL(final_resolved_url)  # Final URL
+    mock_https_helper._make_request.side_effect = [mock_response_step2]
 
-    # Patch the _make_request method of the HTTPSHelper instance directly
-    with patch.object(
-        mock_https_helper,
-        "_make_request",
-        side_effect=[mock_response_step1, mock_response_step2, mock_response_final],
-    ) as mock_internal_make_request:
-        page_id = await safe_confluence_api.get_page_id_from_url(short_url)
-        assert page_id == "67890"
+    page_id = await safe_confluence_api.get_page_id_from_url(short_url)
+    assert page_id == "67890"
 
-        # Verify calls to the patched _make_request
-
-        mock_internal_make_request.assert_any_await(
-            "HEAD",
-            short_url,
-            headers=safe_confluence_api.headers,
-            timeout=5,
-            follow_redirects=True,
-        )
-        mock_internal_make_request.assert_any_await(
-            "HEAD",
-            redirect_url_step1,
-            headers=safe_confluence_api.headers,
-            timeout=5,
-            follow_redirects=True,
-        )
-        assert mock_internal_make_request.call_count == 2
+    mock_https_helper._make_request.assert_awaited_once_with(
+        "HEAD",
+        short_url,
+        headers=safe_confluence_api.headers,
+        timeout=5,
+        follow_redirects=True,
+    )
+    assert mock_https_helper._make_request.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -107,7 +93,7 @@ async def test_get_page_by_id_success(safe_confluence_api, mock_https_helper):
 
     assert page["id"] == "123"
     mock_https_helper.get.assert_awaited_once_with(
-        "http://confluence.example.com/rest/api/content/123",  # URL matches fixture's base_url
+        "http://confluence.example.com/rest/api/content/123",
         headers=safe_confluence_api.headers,
         params={"expand": "body.storage"},
     )
@@ -127,7 +113,7 @@ async def test_get_page_by_id_with_version_success(
 
     assert page["version"]["number"] == 5
     mock_https_helper.get.assert_awaited_once_with(
-        "http://confluence.example.com/rest/api/content/123",  # URL matches fixture's base_url
+        "http://confluence.example.com/rest/api/content/123",
         headers=safe_confluence_api.headers,
         params={"version": 5, "expand": "body.storage"},
     )
@@ -151,13 +137,11 @@ async def test_get_page_child_by_type_success(safe_confluence_api, mock_https_he
 @pytest.mark.asyncio
 async def test_update_page_success(safe_confluence_api, mock_https_helper):
     """Tests successful page update."""
-    # Mock for get_page_by_id call within update_page
     mock_https_helper.get.return_value = {
         "id": "123",
         "title": "Old Title",
         "version": {"number": 1},
     }
-    # Mock for put call
     mock_https_helper.put.return_value = {"id": "123", "version": {"number": 2}}
 
     success = await safe_confluence_api.update_page(
@@ -194,7 +178,7 @@ async def test_get_user_details_by_username_success(
 
     assert user_details == mock_user_details
     mock_https_helper.get.assert_awaited_once_with(
-        "http://confluence.example.com/rest/api/user?username=testuser",  # URL matches fixture's base_url
+        "http://confluence.example.com/rest/api/user?username=testuser",
         headers=safe_confluence_api.headers,
     )
 
@@ -211,7 +195,7 @@ async def test_get_user_details_by_userkey_success(
 
     assert user_details == mock_user_details
     mock_https_helper.get.assert_awaited_once_with(
-        "http://confluence.example.com/rest/api/user?key=user123",  # URL matches fixture's base_url
+        "http://confluence.example.com/rest/api/user?key=user123",
         headers=safe_confluence_api.headers,
     )
 
@@ -219,8 +203,6 @@ async def test_get_user_details_by_userkey_success(
 @pytest.mark.asyncio
 async def test_get_all_descendants_success(safe_confluence_api, mock_https_helper):
     """Tests successful retrieval of all descendants."""
-    # Mocking get_page_child_by_type which is called by get_all_descendants_concurrently
-    # This mock simulates a hierarchy: page1 -> child1, child2; child1 -> subchild1
     mock_https_helper.get.side_effect = [
         # First call for page_id "1" (root)
         {
@@ -241,9 +223,7 @@ async def test_get_all_descendants_success(safe_confluence_api, mock_https_helpe
     descendant_ids = await safe_confluence_api.get_all_descendants("1")
 
     assert sorted(descendant_ids) == sorted(["2", "3", "4"])
-    assert (
-        mock_https_helper.get.call_count == 4
-    )  # One for root, one for each child, one for subchild
+    assert mock_https_helper.get.call_count == 4
 
 
 @pytest.mark.asyncio
@@ -264,7 +244,6 @@ async def test_get_tasks_from_page_success(safe_confluence_api, mock_https_helpe
         "version": {"number": 1},
     }
 
-    # Mock for get_user_details_by_userkey call within _parse_single_task
     mock_https_helper.get.return_value = {"username": "user1_name"}
 
     tasks = await safe_confluence_api.get_tasks_from_page(page_details)
@@ -274,7 +253,7 @@ async def test_get_tasks_from_page_success(safe_confluence_api, mock_https_helpe
     assert tasks[0].task_summary == "Task 1 Summary"
     assert tasks[0].assignee_name == "user1_name"
     assert tasks[0].due_date == "2024-07-20"
-    assert mock_https_helper.get.call_count == 1  # For user details
+    assert mock_https_helper.get.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -285,7 +264,6 @@ async def test_update_page_with_jira_links_success(
     page_id = "123"
     mappings = [{"confluence_task_id": "task1", "jira_key": "PROJ-1"}]
 
-    # Mock for get_page_by_id
     mock_https_helper.get.return_value = {
         "id": page_id,
         "title": "Test Page",
@@ -297,16 +275,16 @@ async def test_update_page_with_jira_links_success(
         },
         "version": {"number": 1},
     }
-    # Mock for update_page call (which uses https_helper.put)
     mock_https_helper.put.return_value = {"id": page_id, "version": {"number": 2}}
 
     await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
 
-    # Verify that update_page was called with the modified content
-    assert mock_https_helper.put.called  # Check if put was called
-    # You might want to inspect the arguments of the put call more closely
-    # e.g., mock_https_helper.put.assert_awaited_with(..., json_data=ContainsHtml("<ac:structured-macro ac:name="jira" ..."))
-    # For simplicity, just checking if it was called.
+    assert mock_https_helper.put.called
+    put_args, put_kwargs = mock_https_helper.put.call_args
+    assert "json_data" in put_kwargs
+    updated_body_soup = put_kwargs["json_data"]["body"]["storage"]["value"]
+    assert '<ac:parameter ac:name="key">PROJ-1</ac:parameter>' in updated_body_soup
+    assert "<ac:task-list>" not in updated_body_soup
 
 
 @pytest.mark.asyncio
@@ -322,3 +300,577 @@ async def test_get_all_spaces_success(safe_confluence_api, mock_https_helper):
         "http://confluence.example.com/rest/api/space",
         headers=safe_confluence_api.headers,
     )
+
+
+# --- New Test Cases for Increased Coverage ---
+
+
+@pytest.mark.asyncio
+async def test_get_page_id_from_url_clean_path_format(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests get_page_id_from_url with a clean /pages/<id> format."""
+    url = "http://confluence.example.com/pages/123456"
+    mock_https_helper._make_request.assert_not_called()
+    page_id = await safe_confluence_api.get_page_id_from_url(url)
+    assert page_id == "123456"
+
+
+@pytest.mark.asyncio
+async def test_get_page_id_from_url_short_url_unresolvable_no_id(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests get_page_id_from_url when short URL resolves but no ID is found."""
+    short_url = "http://confluence.example.com/x/invalid"
+    resolved_url = "http://confluence.example.com/some/random/path"
+
+    mock_response = AsyncMock(spec=httpx.Response)
+    mock_response.status_code = 200
+    mock_response.url = httpx.URL(resolved_url)
+    mock_https_helper._make_request.return_value = mock_response
+
+    page_id = await safe_confluence_api.get_page_id_from_url(short_url)
+    assert page_id is None
+    mock_https_helper._make_request.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_page_id_from_url_short_url_http_error(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests get_page_id_from_url when _make_request raises an HTTP error."""
+    short_url = "http://confluence.example.com/x/error"
+    mock_https_helper._make_request.side_effect = httpx.HTTPStatusError(
+        "Not Found",
+        request=httpx.Request("HEAD", short_url),
+        response=httpx.Response(404),
+    )
+
+    page_id = await safe_confluence_api.get_page_id_from_url(short_url)
+    assert page_id is None
+    mock_https_helper._make_request.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_page_id_from_url_short_url_unexpected_status(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests get_page_id_from_url when _make_request returns an unexpected status code."""
+    short_url = "http://confluence.example.com/x/badstatus"
+    mock_response = AsyncMock(spec=httpx.Response)
+    mock_response.status_code = 500
+    mock_response.url = httpx.URL(short_url)
+    mock_https_helper._make_request.return_value = mock_response
+
+    page_id = await safe_confluence_api.get_page_id_from_url(short_url)
+    assert page_id is None
+    mock_https_helper._make_request.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_page_by_id_http_error(safe_confluence_api, mock_https_helper):
+    """Tests get_page_by_id when https_helper.get raises an HTTP error."""
+    page_id = "999"
+    mock_https_helper.get.side_effect = httpx.HTTPStatusError(
+        "Not Found", request=httpx.Request("GET", "url"), response=httpx.Response(404)
+    )
+
+    page = await safe_confluence_api.get_page_by_id(page_id)
+    assert page is None
+    mock_https_helper.get.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_page_child_by_type_pagination(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests get_page_child_by_type with multiple pages of results."""
+    mock_https_helper.get.side_effect = [
+        {"results": [{"id": f"c{i}"} for i in range(50)], "size": 100},
+        {"results": [{"id": f"c{i}"} for i in range(50, 100)], "size": 100},
+        {"results": [], "size": 100},
+    ]
+
+    children = await safe_confluence_api.get_page_child_by_type("parent123")
+
+    assert len(children) == 100
+    assert mock_https_helper.get.call_count == 3
+    mock_https_helper.get.assert_any_await(
+        "http://confluence.example.com/rest/api/content/parent123/child/page?start=0&limit=50",
+        headers=safe_confluence_api.headers,
+    )
+    mock_https_helper.get.assert_any_await(
+        "http://confluence.example.com/rest/api/content/parent123/child/page?start=50&limit=50",
+        headers=safe_confluence_api.headers,
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_page_child_by_type_http_error(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests get_page_child_by_type when https_helper.get raises an error."""
+    mock_https_helper.get.side_effect = httpx.RequestError(
+        "Connection error", request=httpx.Request("GET", "url")
+    )
+
+    children = await safe_confluence_api.get_page_child_by_type("parent123")
+    assert children == []
+    mock_https_helper.get.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_page_child_by_type_no_results_key(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests get_page_child_by_type when response data is missing 'results' key."""
+    mock_https_helper.get.return_value = {"not_results": []}
+
+    children = await safe_confluence_api.get_page_child_by_type("parent123")
+    assert children == []
+    mock_https_helper.get.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_page_page_not_found(safe_confluence_api, mock_https_helper):
+    """Tests update_page when get_page_by_id returns None."""
+    mock_https_helper.get.return_value = None
+
+    success = await safe_confluence_api.update_page(
+        "nonexistent_id", "New Title", "New Body"
+    )
+    assert success is False
+    mock_https_helper.get.assert_awaited_once()
+    mock_https_helper.put.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_page_http_error(safe_confluence_api, mock_https_helper):
+    """Tests update_page when https_helper.put raises an error."""
+    mock_https_helper.get.return_value = {
+        "id": "123",
+        "title": "Old Title",
+        "version": {"number": 1},
+    }
+    mock_https_helper.put.side_effect = httpx.RequestError(
+        "Connection error", request=httpx.Request("PUT", "url")
+    )
+
+    success = await safe_confluence_api.update_page("123", "New Title", "New Body")
+    assert success is False
+    mock_https_helper.get.assert_awaited_once()
+    mock_https_helper.put.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_create_page_with_parent_id_success(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests successful page creation with a parent ID."""
+    mock_https_helper.post.return_value = {"id": "child_page_id", "title": "Child Page"}
+
+    new_page = await safe_confluence_api.create_page(
+        space_key="SPACE",
+        title="Child Page",
+        body="Child Content",
+        parent_id="parent123",
+    )
+
+    assert new_page["id"] == "child_page_id"
+    mock_https_helper.post.assert_awaited_once()
+    post_args, post_kwargs = mock_https_helper.post.call_args
+    assert "json_data" in post_kwargs
+    assert post_kwargs["json_data"]["ancestors"] == [{"id": "parent123"}]
+
+
+@pytest.mark.asyncio
+async def test_create_page_http_error(safe_confluence_api, mock_https_helper):
+    """Tests create_page when https_helper.post raises an error."""
+    mock_https_helper.post.side_effect = httpx.RequestError(
+        "Connection error", request=httpx.Request("POST", "url")
+    )
+
+    new_page = await safe_confluence_api.create_page(
+        space_key="SPACE", title="Failing Page", body="Content"
+    )
+    assert new_page is None
+    mock_https_helper.post.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_user_details_by_username_http_error(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests get_user_details_by_username when https_helper.get raises an error."""
+    mock_https_helper.get.side_effect = httpx.RequestError(
+        "Connection error", request=httpx.Request("GET", "url")
+    )
+
+    user_details = await safe_confluence_api.get_user_details_by_username(
+        "nonexistent_user"
+    )
+    assert user_details is None
+    mock_https_helper.get.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_user_details_by_userkey_http_error(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests get_user_details_by_userkey when https_helper.get raises an error."""
+    mock_https_helper.get.side_effect = httpx.RequestError(
+        "Connection error", request=httpx.Request("GET", "url")
+    )
+
+    user_details = await safe_confluence_api.get_user_details_by_userkey(
+        "nonexistent_key"
+    )
+    assert user_details is None
+    mock_https_helper.get.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_all_descendants_concurrently_error_handling(
+    safe_confluence_api, mock_https_helper
+):
+    """
+    Tests get_all_descendants_concurrently when one of the child fetches fails.
+    The list of all_pages returned should only include pages successfully retrieved.
+    """
+    mock_https_helper.get.side_effect = [
+        # Call 1: for page_id "1" (root). This call is successful and returns children "2" and "3".
+        {
+            "results": [
+                {"id": "2", "title": "Child 2"},
+                {"id": "3", "title": "Child 3"},
+            ],
+            "size": 2,
+        },
+        # Call 2: for page_id "2". This simulates an error. get_page_child_by_type will return [].
+        httpx.RequestError(
+            "Simulated connection error for page 2",
+            request=httpx.Request("GET", "url_page_2"),
+        ),
+        # Call 3: for page_id "3". This is successful but returns no children.
+        {"results": [], "size": 0},
+    ]
+
+    descendant_pages = await safe_confluence_api.get_all_descendants_concurrently("1")
+
+    assert len(descendant_pages) == 2
+    assert {"id": "2", "title": "Child 2"} in descendant_pages
+    assert {"id": "3", "title": "Child 3"} in descendant_pages
+    assert mock_https_helper.get.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_get_tasks_from_page_empty_html(safe_confluence_api):
+    """Tests get_tasks_from_page with empty HTML content."""
+    page_details = {
+        "id": "123",
+        "title": "Empty Page",
+        "body": {"storage": {"value": "", "representation": "storage"}},
+        "version": {"number": 1},
+    }
+    tasks = await safe_confluence_api.get_tasks_from_page(page_details)
+    assert len(tasks) == 0
+
+
+@pytest.mark.asyncio
+async def test_get_tasks_from_page_no_body_key(safe_confluence_api):
+    """Tests get_tasks_from_page with page_details missing 'body' key."""
+    page_details = {
+        "id": "123",
+        "title": "No Body Page",
+        "version": {"number": 1},
+    }
+    tasks = await safe_confluence_api.get_tasks_from_page(page_details)
+    assert len(tasks) == 0
+
+
+@pytest.mark.asyncio
+async def test_get_tasks_from_page_with_aggregation_macro(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests get_tasks_from_page skips tasks within aggregation macros.
+    The fix is to properly patch config.AGGREGATION_CONFLUENCE_MACRO
+    for the SafeConfluenceApi instance being tested.
+    """
+    page_details = {
+        "id": "123",
+        "title": "Test Page",
+        "body": {
+            "storage": {
+                "value": """
+                <ac:task-list>
+                    <ac:task><ac:task-id>task1</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Standalone Task</ac:task-body></ac:task>
+                </ac:task-list>
+                <ac:structured-macro ac:name="jira">
+                    <ac:task-list><ac:task><ac:task-id>task_in_jira</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Task in Jira macro</ac:task-body></ac:task></ac:task-list>
+                </ac:structured-macro>
+                <ac:structured-macro ac:name="info">
+                    <ac:task-list><ac:task><ac:task-id>task_in_info</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Task in Info macro</ac:task-body></ac:task></ac:task-list>
+                </ac:structured-macro>
+                """,
+                "representation": "storage",
+            }
+        },
+        "version": {"number": 1},
+    }
+    mock_https_helper.get.return_value = {"username": "user1_name"}
+
+    # Re-patch config.AGGREGATION_CONFLUENCE_MACRO specifically for this test,
+    # to ensure it's active when the method is called.
+    with patch.object(config, "AGGREGATION_CONFLUENCE_MACRO", ["jira", "info"]):
+        tasks = await safe_confluence_api.get_tasks_from_page(page_details)
+        assert len(tasks) == 1
+        assert tasks[0].confluence_task_id == "task1"
+        assert "Task in Jira macro" not in tasks[0].task_summary
+        assert "Task in Info macro" not in tasks[0].task_summary
+        mock_https_helper.get.assert_not_called()  # No user in task1, so get_user_details_by_userkey should not be called.
+
+
+@pytest.mark.asyncio
+async def test_get_tasks_from_page_with_nested_tasks(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests get_tasks_from_page skips nested tasks."""
+    page_details = {
+        "id": "123",
+        "title": "Test Page",
+        "body": {
+            "storage": {
+                "value": """
+                <ac:task-list>
+                    <ac:task><ac:task-id>parent_task</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Parent Task
+                        <ac:task-list>
+                            <ac:task><ac:task-id>nested_task</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Nested Task</ac:task-body></ac:task>
+                        </ac:task-list>
+                    </ac:task-body></ac:task>
+                </ac:task-list>
+                """,
+                "representation": "storage",
+            }
+        },
+        "version": {"number": 1},
+    }
+    mock_https_helper.get.return_value = {"username": "user1_name"}
+
+    tasks = await safe_confluence_api.get_tasks_from_page(page_details)
+    assert len(tasks) == 1
+    assert tasks[0].confluence_task_id == "parent_task"
+    assert "Nested Task" not in tasks[0].task_summary
+    mock_https_helper.get.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_parse_single_task_malformed_elements(safe_confluence_api):
+    """Tests _parse_single_task with malformed task elements."""
+    page_details = {"id": "123", "title": "Test Page", "version": {"number": 1}}
+
+    malformed_task1 = BeautifulSoup(
+        "<ac:task><ac:task-id>t1</ac:task-id><ac:task-status>inc</ac:task-status></ac:task>",
+        "html.parser",
+    ).find("ac:task")
+    assert (
+        await safe_confluence_api._parse_single_task(malformed_task1, page_details)
+        is None
+    )
+
+    malformed_task2 = BeautifulSoup(
+        "<ac:task><ac:task-body>Body</ac:task-body><ac:task-status>inc</ac:task-status></ac:task>",
+        "html.parser",
+    ).find("ac:task")
+    assert (
+        await safe_confluence_api._parse_single_task(malformed_task2, page_details)
+        is None
+    )
+
+    malformed_task3 = BeautifulSoup(
+        "<ac:task><ac:task-id>t3</ac:task-id><ac:task-body>Body</ac:task-body></ac:task>",
+        "html.parser",
+    ).find("ac:task")
+    assert (
+        await safe_confluence_api._parse_single_task(malformed_task3, page_details)
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_parse_single_task_no_assignee_or_due_date(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests _parse_single_task when assignee and due date are missing."""
+    page_details = {"id": "123", "title": "Test Page", "version": {"number": 1}}
+    task_html = """
+    <ac:task-list><ac:task><ac:task-id>task_no_assignee_date</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Simple Task</ac:task-body></ac:task></ac:task-list>
+    """
+    task_element = BeautifulSoup(task_html, "html.parser").find("ac:task")
+
+    mock_https_helper.get.assert_not_awaited()
+
+    task = await safe_confluence_api._parse_single_task(task_element, page_details)
+    assert task is not None
+    assert task.assignee_name is None
+    assert task.due_date is None
+    mock_https_helper.get.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_parse_single_task_assignee_userkey_no_details(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests _parse_single_task when assignee userkey is present but no user details found."""
+    page_details = {"id": "123", "title": "Test Page", "version": {"number": 1}}
+    task_html = """
+    <ac:task-list><ac:task><ac:task-id>task_no_user_details</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Task <ri:user ri:userkey="unknown"></ri:user></ac:task-body></ac:task></ac:task-list>
+    """
+    task_element = BeautifulSoup(task_html, "html.parser").find("ac:task")
+
+    mock_https_helper.get.return_value = None
+
+    task = await safe_confluence_api._parse_single_task(task_element, page_details)
+    assert task is not None
+    assert task.assignee_name is None
+    mock_https_helper.get.assert_awaited_once_with(
+        "http://confluence.example.com/rest/api/user?key=unknown",
+        headers=safe_confluence_api.headers,
+    )
+
+
+@pytest.mark.asyncio
+async def test_parse_single_task_assignee_userkey_no_username(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests _parse_single_task when assignee userkey is present, user details found but no username."""
+    page_details = {"id": "123", "title": "Test Page", "version": {"number": 1}}
+    task_html = """
+    <ac:task-list><ac:task><ac:task-id>task_no_username</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Task <ri:user ri:userkey="somekey"></ri:user></ac:task-body></ac:task></ac:task-list>
+    """
+    task_element = BeautifulSoup(task_html, "html.parser").find("ac:task")
+
+    mock_https_helper.get.return_value = {"displayName": "User Name Only"}
+
+    task = await safe_confluence_api._parse_single_task(task_element, page_details)
+    assert task is not None
+    assert task.assignee_name is None
+    mock_https_helper.get.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_page_with_jira_links_page_not_found(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests update_page_with_jira_links when get_page_by_id returns None."""
+    mock_https_helper.get.return_value = None
+
+    await safe_confluence_api.update_page_with_jira_links("nonexistent_id", [])
+    mock_https_helper.get.assert_awaited_once()
+    mock_https_helper.put.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_page_with_jira_links_no_tasks_to_replace(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests update_page_with_jira_links when no tasks match mappings."""
+    page_id = "123"
+    mappings = [{"confluence_task_id": "non_existent_task", "jira_key": "PROJ-2"}]
+
+    mock_https_helper.get.return_value = {
+        "id": page_id,
+        "title": "Test Page",
+        "body": {
+            "storage": {
+                "value": """<ac:task-list><ac:task><ac:task-id>task1</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Task 1 Summary</ac:task-body></ac:task></ac:task-list>""",
+                "representation": "storage",
+            }
+        },
+        "version": {"number": 1},
+    }
+    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+
+    mock_https_helper.get.assert_awaited_once()
+    mock_https_helper.put.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_page_with_jira_links_multiple_tasks_and_lists(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests update_page_with_jira_links with multiple tasks and task lists."""
+    page_id = "123"
+    mappings = [
+        {"confluence_task_id": "task1", "jira_key": "PROJ-1"},
+        {"confluence_task_id": "task3", "jira_key": "PROJ-3"},
+    ]
+    initial_body = """
+    <ac:task-list><ac:task><ac:task-id>task1</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Task 1 Summary</ac:task-body></ac:task></ac:task-list>
+    <p>Some content</p>
+    <ac:task-list><ac:task><ac:task-id>task2</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Task 2 Summary</ac:task-body></ac:task>
+    <ac:task><ac:task-id>task3</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Task 3 Summary</ac:task-body></ac:task></ac:task-list>
+    """
+    mock_https_helper.get.return_value = {
+        "id": page_id,
+        "title": "Test Page",
+        "body": {"storage": {"value": initial_body, "representation": "storage"}},
+        "version": {"number": 1},
+    }
+    mock_https_helper.put.return_value = {"id": page_id, "version": {"number": 2}}
+
+    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+
+    mock_https_helper.put.assert_awaited_once()
+    put_args, put_kwargs = mock_https_helper.put.call_args
+    updated_body = put_kwargs["json_data"]["body"]["storage"]["value"]
+
+    assert "<ac:task-id>task1</ac:task-id>" not in updated_body
+    assert "<ac:task-id>task3</ac:task-id>" not in updated_body
+    assert "<ac:task-id>task2</ac:task-id>" in updated_body
+
+    assert '<ac:parameter ac:name="key">PROJ-1</ac:parameter>' in updated_body
+    assert '<ac:parameter ac:name="key">PROJ-3</ac:parameter>' in updated_body
+
+
+@pytest.mark.asyncio
+async def test_update_page_with_jira_links_empty_task_list_cleanup(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests that empty task lists are cleaned up after replacement."""
+    page_id = "123"
+    mappings = [{"confluence_task_id": "task1", "jira_key": "PROJ-1"}]
+    initial_body = """
+    <ac:task-list><ac:task><ac:task-id>task1</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Task 1 Summary</ac:task-body></ac:task></ac:task-list>
+    <p>Another paragraph</p>
+    <ac:task-list><ac:task><ac:task-id>task2</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Task 2 Summary</ac:task-body></ac:task></ac:task-list>
+    """
+    mock_https_helper.get.return_value = {
+        "id": page_id,
+        "title": "Test Page",
+        "body": {"storage": {"value": initial_body, "representation": "storage"}},
+        "version": {"number": 1},
+    }
+    mock_https_helper.put.return_value = {"id": page_id, "version": {"number": 2}}
+
+    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+
+    put_args, put_kwargs = mock_https_helper.put.call_args
+    updated_body = put_kwargs["json_data"]["body"]["storage"]["value"]
+
+    soup_result = BeautifulSoup(updated_body, "html.parser")
+    assert soup_result.find_all("ac:task-list")
+    assert len(soup_result.find_all("ac:task-list")) == 1
+    assert soup_result.find("ac:task-id", string="task2") is not None
+    assert soup_result.find("ac:task-id", string="task1") is None
+
+
+@pytest.mark.asyncio
+async def test_get_all_spaces_http_error(safe_confluence_api, mock_https_helper):
+    """Tests get_all_spaces when https_helper.get raises an error."""
+    mock_https_helper.get.side_effect = httpx.RequestError(
+        "Connection error", request=httpx.Request("GET", "url")
+    )
+
+    with pytest.raises(httpx.RequestError):
+        await safe_confluence_api.get_all_spaces()
+    mock_https_helper.get.assert_awaited_once()
