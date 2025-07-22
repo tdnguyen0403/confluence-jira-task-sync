@@ -2,8 +2,11 @@ import pytest
 import httpx
 from unittest.mock import AsyncMock, patch, Mock
 import logging
-
-from src.api.https_helper import HTTPSHelper
+from src.api.https_helper import (
+    HTTPSHelper,
+    HTTPXClientError,
+    HTTPXCustomError,
+)
 
 # Configure logging to capture messages during tests
 logging.basicConfig(level=logging.INFO)
@@ -84,7 +87,7 @@ async def test_make_request_http_error(https_helper_instance, mock_httpx_client)
     mock_send.return_value = mock_response
     mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
 
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(HTTPXClientError):
         await https_helper_instance._make_request("GET", "http://test.com", timeout=5)
 
     mock_build_request.assert_called_once_with(
@@ -411,7 +414,10 @@ async def test_make_request_unhandled_exception(
     mock_send.side_effect = Exception("An unexpected error occurred")
     mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
 
-    with pytest.raises(Exception, match="An unexpected error occurred"):
+    with pytest.raises(
+        HTTPXCustomError,
+        match=r"A critical unexpected error occurred for http://test\.com",
+    ):
         await https_helper_instance._make_request("GET", "http://test.com")
 
     mock_build_request.assert_called_once()
