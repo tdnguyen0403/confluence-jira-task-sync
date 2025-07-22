@@ -35,7 +35,7 @@ def get_log_path(endpoint_name: str, filename: str) -> str:
     Constructs the full path for a log file.
     Args:
         endpoint_name: The name of the endpoint (e.g., "api", "sync").
-        filename: The base name of the log file (e.g., "api_run_20250706_112455.log").
+        filename: The base name of the log file (e.g., "api_run_20250706_112455.json").
     Returns:
         The full path to the log file.
     """
@@ -48,8 +48,6 @@ def get_log_path(endpoint_name: str, filename: str) -> str:
         logger.error(
             f"Failed to create log directory {folder_path}: {e}", exc_info=True
         )
-        # Fallback: use the root logs directory
-        folder_path = LOGS_ROOT_DIR
     return os.path.join(folder_path, filename)
 
 
@@ -73,8 +71,6 @@ def get_input_path(endpoint_name: str, filename: str) -> str:
         logger.error(
             f"Failed to create input directory {folder_path}: {e}", exc_info=True
         )
-        # Fallback: use the root input directory
-        folder_path = INPUT_ROOT_DIR
     return os.path.join(folder_path, filename)
 
 
@@ -95,16 +91,14 @@ def get_output_path(endpoint_name: str, filename: str) -> str:
     try:
         os.makedirs(folder_path, exist_ok=True)
     except OSError as e:
-        logger.error(
+        logging.error(
             f"Failed to create output directory {folder_path}: {e}", exc_info=True
         )
-        # Fallback: use the root output directory
-        folder_path = OUTPUT_ROOT_DIR
     return os.path.join(folder_path, filename)
 
 
 def generate_timestamped_filename(
-    prefix: str, suffix: str = ".log", user: Optional[str] = None
+    prefix: str, suffix: str = ".json", user: Optional[str] = None
 ) -> str:
     """
     Generates a timestamped filename.

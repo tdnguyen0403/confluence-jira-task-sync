@@ -1,5 +1,6 @@
 import logging
 import os
+import json
 from datetime import datetime
 from typing import Optional, Set  # Ensure Set is imported
 
@@ -8,6 +9,55 @@ from src.utils.dir_helpers import (
     generate_timestamped_filename,
     get_log_path,
 )  # Import helper functions
+
+logging.getLogger("httpx").setLevel(os.getenv("HTTPX_LOG_LEVEL", "WARNING").upper())
+logging.getLogger("asyncio").setLevel(os.getenv("ASYNCIO_LOG_LEVEL", "WARNING").upper())
+
+
+# --- Structured JSON Formatter ---
+class JsonFormatter(logging.Formatter):
+    """
+    A custom formatter to output log records in JSON format.
+    It includes standard log record attributes and custom context
+    passed via the 'extra' dictionary.
+    """
+
+    def format(self, record):
+        # Base log record fields
+        log_record = {
+            "timestamp": datetime.fromtimestamp(record.created).isoformat(),
+            "level": record.levelname,
+            "logger_name": record.name,
+            "process_id": record.process,
+            "thread_id": record.thread,
+            "file": f"{record.filename}:{record.lineno}",
+            "function": record.funcName,
+            "message": record.getMessage(),  # The actual log message
+        }
+
+        # Add any custom attributes passed via `extra={'my_custom_field': 'value'}`
+        # We iterate over the record's dict to find non-standard attributes
+        for key, value in record.__dict__.items():
+            if (
+                not key.startswith("_")
+                and key not in log_record
+                and not isinstance(value, logging.Logger)
+            ):
+                # Exclude standard attributes already handled or internal attributes
+                log_record[key] = value
+
+        # Add exception information
+        if record.exc_info:
+            # formatException returns string of traceback
+            log_record["exception"] = self.formatException(record.exc_info)
+        if record.stack_info:
+            # formatStack returns string of stack info
+            log_record["stack_trace"] = self.formatStack(record.stack_info)
+
+        # Convert the dictionary to a JSON string
+        return json.dumps(
+            log_record, default=str
+        )  # Use default=str for non-serializable objects
 
 
 # Define a custom logger class to store the log file path
@@ -67,7 +117,7 @@ def setup_logging(
     try:
         # Use the helper functions from dir_helpers to get the log file path
         log_filename = generate_timestamped_filename(
-            log_file_prefix, suffix=".log", user=user
+            log_file_prefix, suffix=".json", user=user
         )
         log_file_path = get_log_path(
             endpoint_name, log_filename
@@ -76,10 +126,7 @@ def setup_logging(
         # File handler
         file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
         file_handler.setLevel(effective_log_level)  # Use effective_log_level here
-        formatter = logging.Formatter(
-            "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
-        )
-        file_handler.setFormatter(formatter)
+        file_handler.setFormatter(JsonFormatter())
         root_logger.addHandler(file_handler)
 
         # Store the log file path in the custom logger instance
@@ -87,16 +134,12 @@ def setup_logging(
             root_logger.log_file_path = log_file_path
     except (OSError, PermissionError) as e:
         logging.error(f"Failed to create log file: {e}", exc_info=True)
-        # Fallback: only console logging
 
     # Console handler
     try:
         console_handler = logging.StreamHandler()
         console_handler.setLevel(effective_log_level)  # Use effective_log_level here
-        formatter = logging.Formatter(
-            "%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
-        )
-        console_handler.setFormatter(formatter)
+        console_handler.setFormatter(JsonFormatter())
         root_logger.addHandler(console_handler)
     except Exception as e:
         logging.critical(f"Failed to set up console logging: {e}", exc_info=True)

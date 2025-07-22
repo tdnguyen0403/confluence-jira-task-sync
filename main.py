@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 import logging
 import httpx  # Import httpx for lifespan management
 import json  # Import json for file operations
+import uuid
 # import urllib3 # Remove or comment out this line once SSL is properly handled
 
 from src.dependencies import (
@@ -149,10 +150,11 @@ async def sync_task(
         endpoint_name="sync_task",
         user=request.context.request_user,
     )
+    request_id = uuid.uuid4().hex
     # Get a logger instance for this request context
     current_request_logger = logging.getLogger("")
     current_request_logger.info(
-        f"Received /sync_task request for user: {request.context.request_user} with {len(request.confluence_page_urls)} URLs."
+        f"Received /sync_task request for user: {request.context.request_user} with {len(request.confluence_page_urls)} URLs for request id {request_id}"
     )
 
     sync_input = request.model_dump()  # Use model_dump for Pydantic model to dict
@@ -166,7 +168,8 @@ async def sync_task(
         current_request_logger.info(f"Input request saved to '{input_filename}'")
     except Exception as e:
         current_request_logger.error(
-            f"Failed to save input request to file: {e}", exc_info=True
+            f"Failed to save input request to file: {e} for request id {request_id}",
+            exc_info=True,
         )
 
     try:
@@ -187,42 +190,49 @@ async def sync_task(
                 json.dump(response_results, f, indent=4)
             current_request_logger.info(f"Results have been saved to '{output_path}'")
             current_request_logger.info(
-                f"Sync run completed. Processed {len(response_results)} tasks."
+                f"Sync run completed. Processed {len(response_results)} tasks for request id {request_id}"
             )
             return response_results
         else:
             current_request_logger.info(
-                "Sync run completed, but no actionable tasks were processed."
+                f"Sync run completed, but no actionable tasks were processed for request id {request_id}"
             )
             return []
 
     except InvalidInputError as e:
         current_request_logger.error(
-            f"Invalid input for sync operation: {e}", exc_info=True
+            f"Invalid input for sync operation: {e} for request id {request_id}",
+            exc_info=True,
         )
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid Request: {e}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid Request: {e} for request id {request_id}",
         )
     except MissingRequiredDataError as e:
         current_request_logger.error(
-            f"Missing required data for sync operation: {e}", exc_info=True
+            f"Missing required data for sync operation: {e} for request id {request_id}",
+            exc_info=True,
         )
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing Data: {e}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Missing Data: {e} for request id {request_id}",
         )
     except SyncError as e:
-        current_request_logger.error(f"Sync operation failed: {e}", exc_info=True)
+        current_request_logger.error(
+            f"Sync operation failed: {e} for request id {request_id}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Synchronization failed due to an internal error: {e}",
+            detail=f"Synchronization failed due to an internal error: {e} for request id {request_id}",
         )
     except Exception as e:
         current_request_logger.error(
-            f"An unexpected error occurred during sync operation: {e}", exc_info=True
+            f"An unexpected error occurred during sync operation: {e} for request id {request_id}",
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected server error occurred: {e}",
+            detail=f"An unexpected server error occurred: {e} for request id {request_id}",
         )
 
 
@@ -248,9 +258,10 @@ async def undo_sync_task(  # Original function name: undo_sync_run (renamed to u
         if undo_data and undo_data[0].request_user
         else "unknown",  # Use request_user from first item
     )
+    request_id = uuid.uuid4().hex
     current_request_logger = logging.getLogger("")
     current_request_logger.info(
-        f"Received /undo_sync_task request for {len(undo_data)} entries."
+        f"Received /undo_sync_task request for {len(undo_data)} entries for request id {request_id}"
     )
 
     try:
@@ -266,42 +277,52 @@ async def undo_sync_task(  # Original function name: undo_sync_run (renamed to u
             json.dump(
                 [item.model_dump(by_alias=True) for item in undo_data], f, indent=4
             )
-        current_request_logger.info(f"Input request saved to '{input_path}'")
+        current_request_logger.info(
+            f"Input request saved to '{input_path}' for request id {request_id}"
+        )
 
         await undo_orchestrator.run(
             [item.model_dump(by_alias=True) for item in undo_data]
         )  # Await orchestrator run
 
         current_request_logger.info("Undo run completed.")
-        return {"message": "Undo operation completed successfully."}
+        return {
+            "message": f"Undo operation completed successfully for request id {request_id}"
+        }
     except InvalidInputError as e:
         current_request_logger.error(
-            f"Invalid input for undo operation: {e}", exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid Request: {e}"
-        )
-    except MissingRequiredDataError as e:
-        current_request_logger.error(
-            f"Missing required data in results for undo operation: {e}", exc_info=True
+            f"Invalid input for undo operation: {e} for request id {request_id}",
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Malformed Results Data: {e}",
+            detail=f"Invalid Request: {e} for request id {request_id}",
+        )
+    except MissingRequiredDataError as e:
+        current_request_logger.error(
+            f"Missing required data in results for undo operation: {e} for request id {request_id}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Malformed Results Data: {e} for request id {request_id}",
         )
     except UndoError as e:
-        current_request_logger.error(f"Undo operation failed: {e}", exc_info=True)
+        current_request_logger.error(
+            f"Undo operation failed: {e} for request id {request_id}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Undo operation failed due to an internal error: {e}",
+            detail=f"Undo operation failed due to an internal error: {e} for request id {request_id}",
         )
     except Exception as e:
         current_request_logger.error(
-            f"An unexpected error occurred during undo operation: {e}", exc_info=True
+            f"An unexpected error occurred during undo operation: {e} for request id {request_id}",
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected server error occurred: {e}",
+            detail=f"An unexpected server error occurred: {e} for request id {request_id}",
         )
 
 
@@ -326,9 +347,10 @@ async def update_confluence_project(
         endpoint_name="sync_project",
         user=request.request_user,
     )
+    request_id = uuid.uuid4().hex
     current_request_logger = logging.getLogger("")
     current_request_logger.info(
-        f"Received /sync_project request for root URL: {request.root_confluence_page_url} to find issues under root project: {request.root_project_issue_key}"
+        f"Received /sync_project request for root URL: {request.root_confluence_page_url} to find issues under root project: {request.root_project_issue_key} for request id {request_id}"
     )
 
     try:
@@ -338,7 +360,9 @@ async def update_confluence_project(
         input_path = get_input_path("sync_project", input_filename)
         with open(input_path, "w", encoding="utf-8") as f:
             json.dump(request.model_dump(), f, indent=4)
-        current_request_logger.info(f"Input request saved to '{input_path}'")
+        current_request_logger.info(
+            f"Input request saved to '{input_path}' for request id {request_id}"
+        )
 
         # Await the asynchronous service call
         updated_pages_summary = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
@@ -357,36 +381,40 @@ async def update_confluence_project(
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(serializable_summary, f, indent=4)
             current_request_logger.info(
-                f"Update process completed. Modified {len(updated_pages_summary)} pages."
+                f"Update process completed. Modified {len(updated_pages_summary)} pages for request id {request_id}."
             )
             return updated_pages_summary
         else:
             current_request_logger.info(
-                "Update process completed, but no pages were modified."
+                f"Update process completed, but no pages were modified for request id {request_id}."
             )
             return []
 
     except InvalidInputError as e:
         current_request_logger.error(
-            f"Invalid input for update operation: {e}", exc_info=True
+            f"Invalid input for update operation: {e} for request id {request_id}",
+            exc_info=True,
         )
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid Request: {e}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid Request: {e} for request id {request_id}",
         )
     except SyncError as e:
-        current_request_logger.error(f"Confluence update failed: {e}", exc_info=True)
+        current_request_logger.error(
+            f"Confluence update failed: {e} for request id {request_id}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Confluence update failed due to an internal error: {e}",
+            detail=f"Confluence update failed due to an internal error: {e} for request id {request_id}",
         )
     except Exception as e:
         current_request_logger.error(
-            f"An unexpected error occurred during Confluence update operation: {e}",
+            f"An unexpected error occurred during Confluence update operation: {e} for request id {request_id}",
             exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected server error occurred: {e}",
+            detail=f"An unexpected server error occurred: {e} for request id {request_id}",
         )
 
 
