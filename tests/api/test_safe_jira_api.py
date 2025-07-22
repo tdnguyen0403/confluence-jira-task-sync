@@ -202,3 +202,109 @@ async def test_update_issue_description_success(safe_jira_api, mock_https_helper
         headers=safe_jira_api.headers,
         json_data={"fields": {"description": new_description}},
     )
+
+
+@pytest.mark.asyncio
+async def test_get_issue_error_handling(safe_jira_api, mock_https_helper):
+    """Tests get_issue when https_helper.get raises an exception."""
+    mock_https_helper.get.side_effect = Exception("Simulated network error")
+    with pytest.raises(Exception, match="Simulated network error"):
+        await safe_jira_api.get_issue("PROJ-FAIL")
+    mock_https_helper.get.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_create_issue_error_handling(safe_jira_api, mock_https_helper):
+    """Tests create_issue when https_helper.post raises an exception."""
+    mock_https_helper.post.side_effect = Exception("Failed to connect")
+    fields = {"project": {"key": "PROJ"}, "summary": "Error Issue"}
+    with pytest.raises(Exception, match="Failed to connect"):
+        await safe_jira_api.create_issue(fields)
+    mock_https_helper.post.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_available_transitions_error_handling(
+    safe_jira_api, mock_https_helper
+):
+    """Tests get_available_transitions when https_helper.get raises an exception."""
+    mock_https_helper.get.side_effect = Exception("API unavailable")
+    with pytest.raises(Exception, match="API unavailable"):
+        await safe_jira_api.get_available_transitions("PROJ-ERR")
+    mock_https_helper.get.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_transition_issue_error_handling(safe_jira_api, mock_https_helper):
+    """Tests transition_issue when https_helper.post raises an exception."""
+    # First, find_transition_id_by_name will call get, which should succeed
+    mock_https_helper.get.return_value = {"transitions": [{"id": "1", "name": "Done"}]}
+    # Then, the post call for transition_issue should fail
+    mock_https_helper.post.side_effect = Exception("Transition failed on server")
+
+    with pytest.raises(Exception, match="Transition failed on server"):
+        await safe_jira_api.transition_issue("PROJ-TRANSITION-FAIL", "Done")
+    mock_https_helper.get.assert_awaited_once()
+    mock_https_helper.post.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_error_handling(safe_jira_api, mock_https_helper):
+    """Tests get_current_user when https_helper.get raises an exception."""
+    mock_https_helper.get.side_effect = Exception("Authentication error")
+    with pytest.raises(Exception, match="Authentication error"):
+        await safe_jira_api.get_current_user()
+    mock_https_helper.get.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_search_issues_no_fields(safe_jira_api, mock_https_helper):
+    """Tests search_issues without providing fields parameter."""
+    mock_search_results = {
+        "issues": [{"key": "PROJ-2", "fields": {"summary": "Issue 2"}}]
+    }
+    mock_https_helper.get.return_value = mock_search_results
+
+    results = await safe_jira_api.search_issues("project = PROJ AND status = Done")
+
+    assert results == mock_search_results
+    mock_https_helper.get.assert_awaited_once_with(
+        "http://jira.example.com/rest/api/2/search",
+        headers=safe_jira_api.headers,
+        params={
+            "jql": "project = PROJ AND status = Done"
+        },  # No 'fields' parameter should be here
+    )
+
+
+@pytest.mark.asyncio
+async def test_search_issues_error_handling(safe_jira_api, mock_https_helper):
+    """Tests search_issues when https_helper.get raises an exception."""
+    mock_https_helper.get.side_effect = Exception("JQL query invalid")
+    with pytest.raises(Exception, match="JQL query invalid"):
+        await safe_jira_api.search_issues("invalid JQL")
+    mock_https_helper.get.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_issue_type_details_by_id_error_handling(
+    safe_jira_api, mock_https_helper
+):
+    """Tests get_issue_type_details_by_id when https_helper.get raises an exception."""
+    mock_https_helper.get.side_effect = Exception("Issue type not found")
+    details = await safe_jira_api.get_issue_type_details_by_id("nonexistent_id")
+    assert details is None
+    mock_https_helper.get.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_issue_description_error_handling(
+    safe_jira_api, mock_https_helper
+):
+    """Tests update_issue_description when https_helper.put raises an exception."""
+    mock_https_helper.put.side_effect = Exception("Update failed")
+    with pytest.raises(Exception, match="Update failed"):
+        await safe_jira_api.update_issue_description(
+            "PROJ-UPDATE-FAIL", "New description"
+        )
+    mock_https_helper.put.assert_awaited_once()
