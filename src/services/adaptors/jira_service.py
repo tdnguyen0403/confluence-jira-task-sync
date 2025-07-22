@@ -249,10 +249,10 @@ class JiraService(JiraApiServiceInterface):
         Asynchronously retrieves the status of a Jira issue.
         """
         try:
-            issue_data = await self.jira_api.get_issue(issue_key, fields=["status"])
+            issue_data = await self._api.get_issue(issue_key, fields=["status"])
             status_info = issue_data.get("fields", {}).get("status", {})
             if status_info:
-                return JiraIssueStatus(  # <--- Used here
+                return JiraIssueStatus(
                     name=status_info.get("name"),
                     category=status_info.get("statusCategory", {}).get("key"),
                 )
@@ -265,7 +265,7 @@ class JiraService(JiraApiServiceInterface):
         Asynchronously retrieves a full Jira issue.
         """
         try:
-            issue_data = await self.jira_api.get_issue(
+            issue_data = await self._api.get_issue(
                 issue_key, fields=["summary", "status", "issuetype"]
             )
             if issue_data:
@@ -275,8 +275,8 @@ class JiraService(JiraApiServiceInterface):
                 ]
                 issue_status = JiraIssueStatus(
                     name=status_name, category=status_category
-                )  # <--- Used here
-                return JiraIssue(  # <--- Used here
+                )
+                return JiraIssue(
                     key=issue_data["key"],
                     summary=issue_data["fields"]["summary"],
                     status=issue_status,

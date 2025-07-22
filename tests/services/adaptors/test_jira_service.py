@@ -254,3 +254,123 @@ async def test_prepare_jira_task_fields_trims_long_description(jira_service, moc
     assert result is not None
     assert len(result["description"]) == config.JIRA_DESCRIPTION_MAX_CHARS
     assert result["description"].endswith("...")
+
+
+@pytest.mark.asyncio
+async def test_transition_issue_success(jira_service):
+    service, api_stub = jira_service
+    result = await service.transition_issue("TEST-1", "Done")
+    assert result is True
+    api_stub.mock.transition_issue.assert_called_once_with("TEST-1", "Done")
+
+
+@pytest.mark.asyncio
+async def test_transition_issue_failure(jira_service, mocker):
+    service, api_stub = jira_service
+    mocker.patch.object(api_stub, "transition_issue", side_effect=Exception("fail"))
+    result = await service.transition_issue("TEST-1", "Done")
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_prepare_jira_task_fields_context_issue_summary_fallback(
+    jira_service, mock_task, mock_context
+):
+    service, api_stub = jira_service
+    mock_task.context = "JIRA_KEY_CONTEXT::PARENT-2"
+    api_stub.add_issue("PARENT-2", {"fields": {"summary": "Parent summary only"}})
+    result = await service.prepare_jira_task_fields(mock_task, "WP-123", mock_context)
+    assert "Parent summary only" in result["description"]
+
+
+@pytest.mark.asyncio
+async def test_prepare_jira_task_fields_context_issue_not_found(
+    jira_service, mock_task, mock_context
+):
+    service, api_stub = jira_service
+    mock_task.context = "JIRA_KEY_CONTEXT::NOTFOUND"
+    result = await service.prepare_jira_task_fields(mock_task, "WP-123", mock_context)
+    assert "Could not retrieve details" in result["description"]
+
+
+@pytest.mark.asyncio
+async def test_prepare_jira_task_fields_no_context(
+    jira_service, mock_task, mock_context
+):
+    service, _ = jira_service
+    mock_task.context = None
+    result = await service.prepare_jira_task_fields(mock_task, "WP-123", mock_context)
+    assert "Created by AutomationBot" in result["description"]
+
+
+@pytest.mark.asyncio
+async def test_get_issue_status_success(jira_service, mocker):
+    service, api_stub = jira_service
+    mock_issue_data = {
+        "fields": {
+            "status": {"name": "In Progress", "statusCategory": {"key": "in-progress"}}
+        }
+    }
+    api_stub.add_issue("ISSUE-1", mock_issue_data)
+    mocker.patch.object(api_stub, "get_issue", return_value=mock_issue_data)
+    status = await service.get_issue_status("ISSUE-1")
+    assert status is not None
+    assert status.name == "In Progress"
+    assert status.category == "in-progress"
+
+
+@pytest.mark.asyncio
+async def test_get_issue_status_failure(jira_service, mocker):
+    service, api_stub = jira_service
+    mocker.patch.object(api_stub, "get_issue", side_effect=Exception("fail"))
+    status = await service.get_issue_status("ISSUE-1")
+    assert status is None
+
+
+@pytest.mark.asyncio
+async def test_get_jira_issue_success(jira_service, mocker):
+    service, api_stub = jira_service
+    mock_issue_data = {
+        "key": "ISSUE-2",
+        "fields": {
+            "summary": "Test Summary",
+            "status": {"name": "Done", "statusCategory": {"key": "done"}},
+            "issuetype": {"name": "Task"},
+        },
+    }
+    mocker.patch.object(api_stub, "get_issue", return_value=mock_issue_data)
+    issue = await service.get_jira_issue("ISSUE-2")
+    assert issue is not None
+    assert issue.key == "ISSUE-2"
+    assert issue.summary == "Test Summary"
+    assert issue.status.name == "Done"
+    assert issue.status.category == "done"
+    assert issue.issue_type == "Task"
+
+
+@pytest.mark.asyncio
+async def test_get_jira_issue_failure(jira_service, mocker):
+    service, api_stub = jira_service
+    mocker.patch.object(api_stub, "get_issue", side_effect=Exception("fail"))
+    issue = await service.get_jira_issue("ISSUE-2")
+    assert issue is None
+
+
+@pytest.mark.asyncio
+async def test_prepare_jira_task_fields_no_summary(
+    jira_service, mock_task, mock_context
+):
+    service, _ = jira_service
+    mock_task.task_summary = None
+    result = await service.prepare_jira_task_fields(mock_task, "PROJ-123", mock_context)
+    assert result["summary"] == "No Summary Provided"
+
+
+@pytest.mark.asyncio
+async def test_prepare_jira_task_fields_no_description(
+    jira_service, mock_task, mock_context
+):
+    service, _ = jira_service
+    mock_task.context = None
+    result = await service.prepare_jira_task_fields(mock_task, "PROJ-123", mock_context)
+    assert result["description"] is not None
