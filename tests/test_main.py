@@ -27,7 +27,6 @@ import httpx
 
 # Disable actual logging for tests
 # logging.disable(logging.CRITICAL)
-client = TestClient(app)
 
 
 # --- Fixtures for common mocks ---
@@ -163,7 +162,7 @@ def test_client_fixture(common_dependencies_override):
 
 # --- Test Cases for /sync_task ---
 @pytest.mark.asyncio
-async def test_sync_task_success_response(mock_sync_orchestrator):
+async def test_sync_task_success_response(mock_sync_orchestrator, client):
     """
     Verify that /sync_task successfully synchronizes and returns expected results.
     """
@@ -188,7 +187,7 @@ async def test_sync_task_success_response(mock_sync_orchestrator):
 
 
 @pytest.mark.asyncio
-async def test_sync_task_no_actionable_tasks(mock_sync_orchestrator):
+async def test_sync_task_no_actionable_tasks(mock_sync_orchestrator, client):
     """
     Verify that /sync_task returns an empty list if no actionable tasks are processed.
     """
@@ -207,7 +206,7 @@ async def test_sync_task_no_actionable_tasks(mock_sync_orchestrator):
 
 
 @pytest.mark.asyncio
-async def test_sync_task_invalid_input_error(mock_sync_orchestrator):
+async def test_sync_task_invalid_input_error(mock_sync_orchestrator, client):
     """
     Verify /sync_task handles InvalidInputError from the orchestrator.
     """
@@ -226,7 +225,7 @@ async def test_sync_task_invalid_input_error(mock_sync_orchestrator):
 
 
 @pytest.mark.asyncio
-async def test_sync_task_missing_required_data_error(mock_sync_orchestrator):
+async def test_sync_task_missing_required_data_error(mock_sync_orchestrator, client):
     """
     Verify /sync_task handles MissingRequiredDataError from the orchestrator.
     """
@@ -245,7 +244,7 @@ async def test_sync_task_missing_required_data_error(mock_sync_orchestrator):
 
 
 @pytest.mark.asyncio
-async def test_sync_task_sync_error(mock_sync_orchestrator):
+async def test_sync_task_sync_error(mock_sync_orchestrator, client):
     """
     Verify /sync_task handles SyncError from the orchestrator.
     """
@@ -265,7 +264,7 @@ async def test_sync_task_sync_error(mock_sync_orchestrator):
 
 
 @pytest.mark.asyncio
-async def test_sync_task_unhandled_exception(mock_sync_orchestrator):
+async def test_sync_task_unhandled_exception(mock_sync_orchestrator, client):
     """
     Verify /sync_task handles generic Exception from the orchestrator.
     """
@@ -286,7 +285,7 @@ async def test_sync_task_unhandled_exception(mock_sync_orchestrator):
 
 # --- Test Cases for /undo_sync_task ---
 @pytest.mark.asyncio
-async def test_undo_sync_task_success(mock_undo_orchestrator):
+async def test_undo_sync_task_success(mock_undo_orchestrator, client):
     """
     Verify that /undo_sync_task successfully processes an undo request.
     """
@@ -308,7 +307,7 @@ async def test_undo_sync_task_success(mock_undo_orchestrator):
 
 
 @pytest.mark.asyncio
-async def test_undo_sync_task_invalid_input_error(mock_undo_orchestrator):
+async def test_undo_sync_task_invalid_input_error(mock_undo_orchestrator, client):
     """
     Verify /undo_sync_task handles InvalidInputError from the orchestrator.
     """
@@ -342,7 +341,9 @@ async def test_undo_sync_task_invalid_input_error(mock_undo_orchestrator):
 
 
 @pytest.mark.asyncio
-async def test_undo_sync_task_missing_required_data_error(mock_undo_orchestrator):
+async def test_undo_sync_task_missing_required_data_error(
+    mock_undo_orchestrator, client
+):
     """
     Verify /undo_sync_task handles MissingRequiredDataError from the orchestrator.
     """
@@ -376,7 +377,7 @@ async def test_undo_sync_task_missing_required_data_error(mock_undo_orchestrator
 
 
 @pytest.mark.asyncio
-async def test_undo_sync_task_undo_error(mock_undo_orchestrator):
+async def test_undo_sync_task_undo_error(mock_undo_orchestrator, client):
     """
     Verify /undo_sync_task handles UndoError from the orchestrator.
     """
@@ -401,7 +402,7 @@ async def test_undo_sync_task_undo_error(mock_undo_orchestrator):
 
 
 @pytest.mark.asyncio
-async def test_undo_sync_task_unhandled_exception(mock_undo_orchestrator):
+async def test_undo_sync_task_unhandled_exception(mock_undo_orchestrator, client):
     """
     Verify /undo_sync_task handles generic Exception from the orchestrator.
     """
@@ -427,7 +428,7 @@ async def test_undo_sync_task_unhandled_exception(mock_undo_orchestrator):
 
 # --- Test Cases for /sync_project ---
 @pytest.mark.asyncio
-async def test_sync_project_success(mock_confluence_issue_updater_service):
+async def test_sync_project_success(mock_confluence_issue_updater_service, client):
     """
     Verify that /sync_project successfully updates Confluence pages.
     """
@@ -452,7 +453,9 @@ async def test_sync_project_success(mock_confluence_issue_updater_service):
 
 
 @pytest.mark.asyncio
-async def test_sync_project_no_pages_modified(mock_confluence_issue_updater_service):
+async def test_sync_project_no_pages_modified(
+    mock_confluence_issue_updater_service, client
+):
     """
     Verify that /sync_project returns an empty list if no pages are modified.
     """
@@ -474,7 +477,9 @@ async def test_sync_project_no_pages_modified(mock_confluence_issue_updater_serv
 
 
 @pytest.mark.asyncio
-async def test_sync_project_invalid_input_error(mock_confluence_issue_updater_service):
+async def test_sync_project_invalid_input_error(
+    mock_confluence_issue_updater_service, client
+):
     """
     Verify /sync_project handles InvalidInputError from the service.
     """
@@ -498,7 +503,7 @@ async def test_sync_project_invalid_input_error(mock_confluence_issue_updater_se
 
 
 @pytest.mark.asyncio
-async def test_sync_project_sync_error(mock_confluence_issue_updater_service):
+async def test_sync_project_sync_error(mock_confluence_issue_updater_service, client):
     """
     Verify /sync_project handles SyncError from the service.
     """
@@ -524,7 +529,7 @@ async def test_sync_project_sync_error(mock_confluence_issue_updater_service):
 
 @pytest.mark.asyncio
 async def test_sync_project_unhandled_exception(
-    mock_confluence_issue_updater_service,
+    mock_confluence_issue_updater_service, client
 ):
     """
     Verify /sync_project handles generic Exception from the service.
@@ -551,7 +556,7 @@ async def test_sync_project_unhandled_exception(
 
 # --- Test Cases for Health and Readiness ---
 @pytest.mark.asyncio
-async def test_health_check_returns_ok():
+async def test_health_check_returns_ok(client):
     """
     Verify that the /health endpoint always returns 200 OK.
     """
@@ -561,7 +566,7 @@ async def test_health_check_returns_ok():
 
 
 @pytest.mark.asyncio
-async def test_readiness_check_success(mock_jira_api, mock_confluence_api):
+async def test_readiness_check_success(mock_jira_api, mock_confluence_api, client):
     """
     Verify that the /ready endpoint returns 200 OK when all dependencies are healthy.
     """
@@ -574,7 +579,9 @@ async def test_readiness_check_success(mock_jira_api, mock_confluence_api):
 
 
 @pytest.mark.asyncio
-async def test_readiness_check_jira_api_failure(mock_jira_api, mock_confluence_api):
+async def test_readiness_check_jira_api_failure(
+    mock_jira_api, mock_confluence_api, client
+):
     """
     Verify that /ready returns 503 when Jira API is unreachable.
     """
@@ -591,7 +598,7 @@ async def test_readiness_check_jira_api_failure(mock_jira_api, mock_confluence_a
 
 @pytest.mark.asyncio
 async def test_readiness_check_confluence_api_failure(
-    mock_jira_api, mock_confluence_api
+    mock_jira_api, mock_confluence_api, client
 ):
     """
     Verify that /ready returns 503 when Confluence API is unreachable.
@@ -607,7 +614,7 @@ async def test_readiness_check_confluence_api_failure(
 
 
 @pytest.mark.asyncio
-async def test_read_root():
+async def test_read_root(client):
     """
     Verify that the root endpoint returns a welcome message.
     """
@@ -619,7 +626,7 @@ async def test_read_root():
 
 
 @pytest.mark.asyncio
-async def test_sync_task_invalid_request_body():
+async def test_sync_task_invalid_request_body(client):
     """
     Verify that /sync_task returns a 422 error for an invalid request body.
     """
@@ -635,7 +642,7 @@ async def test_sync_task_invalid_request_body():
 
 
 @pytest.mark.asyncio
-async def test_undo_sync_task_invalid_request_body():
+async def test_undo_sync_task_invalid_request_body(client):
     """
     Verify that /undo_sync_task returns a 422 error for an invalid request body.
     """
@@ -655,7 +662,7 @@ async def test_undo_sync_task_invalid_request_body():
 
 
 @pytest.mark.asyncio
-async def test_sync_project_invalid_request_body():
+async def test_sync_project_invalid_request_body(client):
     """
     Verify that /sync_project returns a 422 error for an invalid request body.
     """
@@ -674,7 +681,7 @@ async def test_sync_project_invalid_request_body():
 
 
 @pytest.mark.asyncio
-async def test_undo_sync_task_empty_list(mock_undo_orchestrator):
+async def test_undo_sync_task_empty_list(mock_undo_orchestrator, client):
     """
     Verify /undo_sync_task handles an empty list in the request.
     """
@@ -691,7 +698,7 @@ async def test_undo_sync_task_empty_list(mock_undo_orchestrator):
 
 
 @pytest.mark.asyncio
-async def test_undo_sync_task_missing_request_user(mock_undo_orchestrator):
+async def test_undo_sync_task_missing_request_user(mock_undo_orchestrator, client):
     """
     Verify /undo_sync_task handles missing 'request_user' in the payload.
     """
@@ -717,7 +724,7 @@ async def test_undo_sync_task_missing_request_user(mock_undo_orchestrator):
 
 @pytest.mark.asyncio
 async def test_readiness_check_confluence_failure_after_jira_success(
-    mock_jira_api, mock_confluence_api
+    mock_jira_api, mock_confluence_api, client
 ):
     """
     Verify /ready returns 503 if Jira is ready but Confluence is not.
@@ -738,7 +745,7 @@ async def test_readiness_check_confluence_failure_after_jira_success(
 
 
 @pytest.mark.asyncio
-async def test_readiness_check_unhandled_exception(mock_jira_api):
+async def test_readiness_check_unhandled_exception(mock_jira_api, client):
     """
     Verify /ready returns 503 on an unexpected exception.
     """
@@ -755,7 +762,7 @@ async def test_readiness_check_unhandled_exception(mock_jira_api):
 
 
 @pytest.mark.asyncio
-async def test_sync_task_continues_on_input_file_error(mock_sync_orchestrator):
+async def test_sync_task_continues_on_input_file_error(mock_sync_orchestrator, client):
     """
     Verify /sync_task continues and succeeds even if writing the input file fails.
     The logic should log the file-write error but not crash the operation.
@@ -792,3 +799,49 @@ async def test_sync_task_continues_on_input_file_error(mock_sync_orchestrator):
     assert len(response.json()) == 1
     assert response.json()[0]["new_jira_task_key"] == "JIRA-001"
     mock_sync_orchestrator.run.assert_awaited_once()
+
+
+def test_api_key_missing():
+    """Test that endpoints return 403 if X-API-Key is missing."""
+    request_body = {
+        "confluence_page_urls": ["http://example.com/page1"],
+        "context": {"request_user": "test_user", "days_to_due_date": 7},
+    }
+    app.dependency_overrides = {}
+    with TestClient(app) as local_client:
+        response = local_client.post("/sync_task", json=request_body)
+        assert response.status_code == 403  # FastAPI returns 403 for missing dependency
+
+
+def test_ready_missing_dependencies():
+    """Test /ready endpoint when dependencies are missing."""
+
+    # Dummy classes whose methods raise exceptions when called
+    class DummyJiraApi:
+        async def get_current_user(self):
+            raise Exception("Jira dependency missing")
+
+    class DummyConfluenceApi:
+        async def get_all_spaces(self):
+            raise Exception("Confluence dependency missing")
+
+    app.dependency_overrides = {
+        get_safe_jira_api: lambda: DummyJiraApi(),
+        get_safe_confluence_api: lambda: DummyConfluenceApi(),
+    }
+    with TestClient(app) as local_client:
+        response = local_client.get("/ready")
+        assert response.status_code == 503
+        assert "Jira dependency missing" in response.json()["detail"]
+
+
+def test_invalid_endpoint(client):
+    """Test that an invalid endpoint returns 404."""
+    response = client.get("/nonexistent_endpoint")
+    assert response.status_code == 404
+
+
+def test_health_wrong_method(client):
+    """Test /health endpoint with POST (should return 405)."""
+    response = client.post("/health")
+    assert response.status_code == 405

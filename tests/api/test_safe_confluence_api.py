@@ -894,3 +894,97 @@ async def test_get_page_id_from_url_short_url_unresolvable_no_id(
     page_id = await safe_confluence_api.get_page_id_from_url(short_url)
     assert page_id is None
     mock_https_helper._make_request.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_page_with_jira_links_aggregation_macro(
+    safe_confluence_api, mock_https_helper
+):
+    """Test replacing tasks inside aggregation macros (should skip)."""
+    page_id = "123"
+    mappings = [{"confluence_task_id": "task_in_jira", "jira_key": "PROJ-2"}]
+    initial_body = """
+    <ac:structured-macro ac:name="jira">
+        <ac:task-list>
+            <ac:task><ac:task-id>task_in_jira</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Task in Jira macro</ac:task-body></ac:task>
+        </ac:task-list>
+    </ac:structured-macro>
+    """
+    mock_https_helper.get.return_value = {
+        "id": page_id,
+        "title": "Test Page",
+        "body": {"storage": {"value": initial_body, "representation": "storage"}},
+        "version": {"number": 1},
+    }
+    mock_https_helper.put.return_value = {"id": page_id, "version": {"number": 2}}
+    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+    put_args, put_kwargs = mock_https_helper.put.call_args
+    updated_body = put_kwargs["json_data"]["body"]["storage"]["value"]
+    # The original task should be replaced by a Jira macro
+    assert '<ac:parameter ac:name="key">PROJ-2</ac:parameter>' in updated_body
+    assert "<ac:task-id>task_in_jira</ac:task-id>" not in updated_body
+
+
+@pytest.mark.asyncio
+async def test_update_page_with_jira_links_empty_mappings(
+    safe_confluence_api, mock_https_helper
+):
+    """Test update_page_with_jira_links with empty mappings."""
+    page_id = "123"
+    mock_https_helper.get.return_value = {
+        "id": page_id,
+        "title": "Test Page",
+        "body": {
+            "storage": {
+                "value": "<ac:task-list></ac:task-list>",
+                "representation": "storage",
+            }
+        },
+        "version": {"number": 1},
+    }
+    await safe_confluence_api.update_page_with_jira_links(page_id, [])
+    mock_https_helper.put.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_parse_single_task_multiple_assignees_and_due_dates(
+    safe_confluence_api, mock_https_helper
+):
+    """Test _parse_single_task with multiple assignees and due dates."""
+    page_details = {"id": "123", "title": "Test Page", "version": {"number": 1}}
+    task_html = """
+    <ac:task-list>
+        <ac:task>
+            <ac:task-id>task_multi</ac:task-id>
+            <ac:task-status>incomplete</ac:task-status>
+            <ac:task-body>
+                Multi Task
+                <ri:user ri:userkey="user1"></ri:user>
+                <ri:user ri:userkey="user2"></ri:user>
+                <time datetime="2024-07-20"></time>
+                <time datetime="2024-08-01"></time>
+            </ac:task-body>
+        </ac:task>
+    </ac:task-list>
+    """
+    task_element = BeautifulSoup(task_html, "html.parser").find("ac:task")
+    mock_https_helper.get.return_value = {"username": "user1_name"}
+    task = await safe_confluence_api._parse_single_task(task_element, page_details)
+    assert task is not None
+    assert task.assignee_name == "user1_name"
+    assert task.due_date == "2024-07-20"
+
+
+@pytest.mark.asyncio
+async def test_get_tasks_from_page_with_no_task_lists(safe_confluence_api):
+    """Test get_tasks_from_page with no <ac:task-list> present."""
+    page_details = {
+        "id": "123",
+        "title": "No Task List Page",
+        "body": {
+            "storage": {"value": "<p>No tasks here.</p>", "representation": "storage"}
+        },
+        "version": {"number": 1},
+    }
+    tasks = await safe_confluence_api.get_tasks_from_page(page_details)
+    assert tasks == []

@@ -28,7 +28,6 @@ from src.exceptions import (
     UndoError,
     MissingRequiredDataError,
 )
-from src.api.https_helper import HTTPSHelper  # For type hinting in lifespan
 from src.utils.logging_config import setup_logging  # For logging setup in endpoints
 from src.utils.dir_helpers import (  # For file operations
     generate_timestamped_filename,
@@ -45,20 +44,27 @@ logger = logging.getLogger(__name__)
 # Lifespan context manager for managing resources like httpx client
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    http_helper = None
     try:
         logger.info("Application starting up...")
-        # Initialize the httpx client here to ensure connection pooling and proper shutdown
-        http_helper: HTTPSHelper = get_https_helper()
+        http_helper = get_https_helper()
         http_helper.client = httpx.AsyncClient(
-            verify=http_helper._verify_ssl, cookies=httpx.Cookies()
+            verify=getattr(http_helper, "_verify_ssl", True), cookies=httpx.Cookies()
         )
-        yield
-        # Shutdown event
+    except Exception:
+        logger.exception("Error during app startup.")
+    yield  # Always yield, even if startup fails
+    try:
         logger.info("Application shutting down...")
-        await http_helper.client.aclose()  # Close the httpx client gracefully
+        if (
+            http_helper
+            and hasattr(http_helper, "client")
+            and hasattr(http_helper.client, "aclose")
+        ):
+            await http_helper.client.aclose()
         logger.info("Application shutdown complete.")
     except Exception:
-        logger.exception("Error during app startup/shutdown.")
+        logger.exception("Error during app shutdown.")
 
 
 app = FastAPI(

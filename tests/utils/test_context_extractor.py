@@ -163,3 +163,40 @@ def test_handles_none_input():
     """Ensure the function handles None input gracefully."""
     # The function expects a BeautifulSoup object, but we test the edge case of None.
     assert get_task_context(None) == ""
+
+
+def test_task_with_no_preceding_context(soup):
+    """Test a task with no preceding context (should return empty string)."""
+    # Create a minimal soup with a task and no context
+    html = (
+        "<ac:task><ac:task-id>999</ac:task-id><ac:task-body></ac:task-body></ac:task>"
+    )
+    bs = BeautifulSoup(html, "html.parser")
+    task_element = bs.find("ac:task")
+    context = get_task_context(task_element)
+    assert context == ""
+
+
+def test_task_with_multiple_parents():
+    """Test a task with multiple parent elements."""
+    html = """
+    <li>
+        <ac:task>
+            <ac:task-id>multi</ac:task-id>
+            <ac:task-body>Multi Parent Task</ac:task-body>
+        </ac:task>
+    </li>
+    """
+    bs = BeautifulSoup(html, "html.parser")
+    task_element = bs.find("ac:task")
+    context = get_task_context(task_element)
+    assert context == "Multi Parent Task"
+
+
+def test_get_task_context_malformed_html():
+    """Test get_task_context with malformed HTML input."""
+    html = "<ac:task><ac:task-id></ac:task>"
+    bs = BeautifulSoup(html, "html.parser")
+    task_element = bs.find("ac:task")
+    context = get_task_context(task_element)
+    assert isinstance(context, str)
