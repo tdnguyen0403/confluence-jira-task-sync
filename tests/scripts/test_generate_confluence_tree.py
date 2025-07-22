@@ -370,3 +370,191 @@ async def test_generate_page_hierarchy_create_page_raises_exception(
     parent_page_id = "root_parent"
     with pytest.raises(RuntimeError, match="Simulated failure"):
         await generator.generate_page_hierarchy(parent_page_id)
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_tasks_html_format(
+    generator: ConfluenceTreeGenerator,
+):
+    """Tasks HTML should be formatted correctly for multiple tasks."""
+    generator.max_depth = 1
+    generator.tasks_per_page = 3
+    generator.assignee_account_id = "testAccountId123"
+    parent_page_id = "root_parent"
+    await generator.generate_page_hierarchy(parent_page_id)
+    create_call_kwargs = generator.confluence.create_page.await_args.kwargs
+    page_body = create_call_kwargs["body"]
+    # Should contain three <ac:task-list> blocks
+    assert page_body.count("<ac:task-list>") == 3
+    # Each task should have a unique <ac:task-id>
+    import re
+
+    ids = re.findall(r"<ac:task-id>(\w+)</ac:task-id>", page_body)
+    assert len(ids) == 3
+    assert len(set(ids)) == 3
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_jira_macro_html(
+    generator: ConfluenceTreeGenerator,
+):
+    """Jira macro HTML should be present and correct."""
+    generator.max_depth = 1
+    generator.tasks_per_page = 1
+    generator.assignee_account_id = "testAccountId123"
+    parent_page_id = "root_parent"
+    await generator.generate_page_hierarchy(parent_page_id)
+    create_call_kwargs = generator.confluence.create_page.await_args.kwargs
+    page_body = create_call_kwargs["body"]
+    assert page_body.startswith(
+        '<p><ac:structured-macro ac:name="jira" ac:schema-version="1">'
+    )
+    assert '<ac:parameter ac:name="key">WP-ALPHA</ac:parameter>' in page_body
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_parent_page_id_none(
+    generator: ConfluenceTreeGenerator,
+):
+    """Should handle None parent_page_id gracefully."""
+    generator.max_depth = 1
+    generator.assignee_account_id = "testAccountId123"
+    parent_page_id = None
+    results = await generator.generate_page_hierarchy(parent_page_id)
+    assert len(results) == 1
+    create_call_kwargs = generator.confluence.create_page.await_args.kwargs
+    assert create_call_kwargs["parent_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_large_depth(generator: ConfluenceTreeGenerator):
+    """Should handle large max_depth without error (but only one child per depth)."""
+    generator.max_depth = 5
+    generator.assignee_account_id = "testAccountId123"
+    ids = [str(2000 + i) for i in range(5)]
+    generator.confluence.create_page.side_effect = [
+        {
+            "id": ids[i],
+            "title": f"Page{i}",
+            "space": {"key": "TESTSPACE"},
+            "_links": {"webui": f"http://link.{i}"},
+        }
+        for i in range(5)
+    ]
+    parent_page_id = "root_parent"
+    results = await generator.generate_page_hierarchy(parent_page_id)
+    assert len(results) == 5
+    assert generator.confluence.create_page.call_count == 5
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_assignee_account_id_empty_string(
+    generator: ConfluenceTreeGenerator,
+):
+    """Should not assign tasks if assignee_account_id is empty string."""
+    generator.max_depth = 1
+    generator.assignee_account_id = ""
+    parent_page_id = "root_parent"
+    await generator.generate_page_hierarchy(parent_page_id)
+    create_call_kwargs = generator.confluence.create_page.await_args.kwargs
+    page_body = create_call_kwargs["body"]
+    assert "<ac:task-assignee" not in page_body
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_wp_key_wraparound(
+    generator: ConfluenceTreeGenerator,
+):
+    """Should wrap around work package keys if more pages than keys."""
+    generator.max_depth = 2
+    generator.tasks_per_page = 1
+    generator.assignee_account_id = "testAccountId123"
+    generator.test_work_package_keys = ["WP-ONE"]
+    ids = ["id0", "id1"]
+    generator.confluence.create_page.side_effect = [
+        {
+            "id": ids[0],
+            "title": "Page0",
+            "space": {"key": "TESTSPACE"},
+            "_links": {"webui": "http://link.0"},
+        },
+        {
+            "id": ids[1],
+            "title": "Page1",
+            "space": {"key": "TESTSPACE"},
+            "_links": {"webui": "http://link.1"},
+        },
+    ]
+    parent_page_id = "root_parent"
+    results = await generator.generate_page_hierarchy(parent_page_id)
+    assert len(results) == 2
+    for r in results:
+        assert r["linked_work_package"] == "WP-ONE"
+
+
+@pytest.mark.asyncio
+async def test_initialize_assignee_called_multiple_times(
+    generator: ConfluenceTreeGenerator,
+):
+    """Should update assignee_account_id each time _initialize_assignee is called."""
+    generator.confluence.get_user_details_by_username.return_value = {
+        "username": "testuser",
+        "accountId": "firstId",
+    }
+    await generator._initialize_assignee()
+    assert generator.assignee_account_id == "firstId"
+    generator.confluence.get_user_details_by_username.return_value = {
+        "username": "testuser",
+        "accountId": "secondId",
+    }
+    await generator._initialize_assignee()
+    assert generator.assignee_account_id == "secondId"
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_body_contains_due_date(
+    generator: ConfluenceTreeGenerator,
+):
+    """Page body should contain the correct due date format."""
+    generator.max_depth = 1
+    generator.tasks_per_page = 1
+    generator.assignee_account_id = "testAccountId123"
+    parent_page_id = "root_parent"
+    await generator.generate_page_hierarchy(parent_page_id)
+    create_call_kwargs = generator.confluence.create_page.await_args.kwargs
+    page_body = create_call_kwargs["body"]
+    from src.config import config
+
+    assert config.DEFAULT_DUE_DATE_FOR_TREE_GENERATION.strftime("%Y-%m-%d") in page_body
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_task_status_incomplete(
+    generator: ConfluenceTreeGenerator,
+):
+    """All generated tasks should have status 'incomplete'."""
+    generator.max_depth = 1
+    generator.tasks_per_page = 2
+    generator.assignee_account_id = "testAccountId123"
+    parent_page_id = "root_parent"
+    await generator.generate_page_hierarchy(parent_page_id)
+    create_call_kwargs = generator.confluence.create_page.await_args.kwargs
+    page_body = create_call_kwargs["body"]
+    assert page_body.count("<ac:task-status>incomplete</ac:task-status>") == 2
+
+
+@pytest.mark.asyncio
+async def test_generate_page_hierarchy_handles_exception_in_create_page(
+    generator: ConfluenceTreeGenerator, caplog
+):
+    """Should propagate exception if create_page raises."""
+    generator.max_depth = 1
+    generator.assignee_account_id = "testAccountId123"
+
+    def raise_exc(**kwargs):
+        raise ValueError("Create page error")
+
+    generator.confluence.create_page.side_effect = raise_exc
+    parent_page_id = "root_parent"
+    with pytest.raises(ValueError, match="Create page error"):
+        await generator.generate_page_hierarchy(parent_page_id)
