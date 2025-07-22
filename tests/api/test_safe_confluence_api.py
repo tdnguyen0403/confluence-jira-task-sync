@@ -317,24 +317,6 @@ async def test_get_page_id_from_url_clean_path_format(
 
 
 @pytest.mark.asyncio
-async def test_get_page_id_from_url_short_url_unresolvable_no_id(
-    safe_confluence_api, mock_https_helper
-):
-    """Tests get_page_id_from_url when short URL resolves but no ID is found."""
-    short_url = "http://confluence.example.com/x/invalid"
-    resolved_url = "http://confluence.example.com/some/random/path"
-
-    mock_response = AsyncMock(spec=httpx.Response)
-    mock_response.status_code = 200
-    mock_response.url = httpx.URL(resolved_url)
-    mock_https_helper._make_request.return_value = mock_response
-
-    page_id = await safe_confluence_api.get_page_id_from_url(short_url)
-    assert page_id is None
-    mock_https_helper._make_request.assert_awaited_once()
-
-
-@pytest.mark.asyncio
 async def test_get_page_id_from_url_short_url_http_error(
     safe_confluence_api, mock_https_helper
 ):
@@ -874,3 +856,41 @@ async def test_get_all_spaces_http_error(safe_confluence_api, mock_https_helper)
     with pytest.raises(httpx.RequestError):
         await safe_confluence_api.get_all_spaces()
     mock_https_helper.get.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_page_by_id_expand_only(safe_confluence_api, mock_https_helper):
+    """Tests get_page_by_id with only expand parameter (no version)."""
+    mock_page_data = {
+        "id": "123",
+        "title": "Test Page",
+        "body": {"storage": {"value": "content"}},
+    }
+    mock_https_helper.get.return_value = mock_page_data
+
+    page = await safe_confluence_api.get_page_by_id("123", expand="body.storage")
+
+    assert page["id"] == "123"
+    mock_https_helper.get.assert_awaited_once_with(
+        "http://confluence.example.com/rest/api/content/123",
+        headers=safe_confluence_api.headers,
+        params={"expand": "body.storage"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_page_id_from_url_short_url_unresolvable_no_id(
+    safe_confluence_api, mock_https_helper
+):
+    """Tests get_page_id_from_url when short URL resolves but no ID is found."""
+    short_url = "http://confluence.example.com/x/invalid"
+    resolved_url = "http://confluence.example.com/some/random/path"
+
+    mock_response = AsyncMock(spec=httpx.Response)
+    mock_response.status_code = 200
+    mock_response.url = httpx.URL(resolved_url)
+    mock_https_helper._make_request.return_value = mock_response
+
+    page_id = await safe_confluence_api.get_page_id_from_url(short_url)
+    assert page_id is None
+    mock_https_helper._make_request.assert_awaited_once()
