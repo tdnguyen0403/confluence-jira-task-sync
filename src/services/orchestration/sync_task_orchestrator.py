@@ -53,7 +53,6 @@ class SyncTaskOrchestrator:
         self.confluence_issue_updater_service = (
             confluence_issue_updater_service  # Added this
         )
-        self.results: List[AutomationResult] = []  # Initialize results
         self.request_user: Optional[str] = None  # Initialize request_user
 
     async def run(self, json_input: Dict[str, Any], context: SyncContext) -> None:
@@ -84,10 +83,15 @@ class SyncTaskOrchestrator:
                 "No 'confluence_page_urls' found in the input for sync operation."
             )
 
+        current_run_results: List[
+            AutomationResult
+        ] = []  # Initialize a local list for results for THIS run
+
         # Iterate and process each page hierarchy asynchronously
         for url in page_urls:
-            await self.process_page_hierarchy(url, context)  # Await this call
+            current_run_results = await self.process_page_hierarchy(url, context)
 
+        return current_run_results  # Return the results for this run
         logging.info("\n--- Script Finished ---")
 
     async def process_page_hierarchy(
@@ -122,12 +126,12 @@ class SyncTaskOrchestrator:
         all_tasks = await self._collect_tasks(all_page_ids)  # Await this call
         if not all_tasks:
             logging.info("No incomplete tasks found across all pages.")
-            return
+            return []
 
         logging.info(
             f"\nDiscovered {len(all_tasks)} incomplete tasks. Now processing..."
         )
-        await self._process_tasks(all_tasks, context)  # Await this call
+        return await self._process_tasks(all_tasks, context)  # Await this call
 
     async def _collect_tasks(self, page_ids: List[str]) -> List[ConfluenceTask]:
         """Collects all tasks from a list of Confluence page IDs asynchronously."""
@@ -154,7 +158,7 @@ class SyncTaskOrchestrator:
             SyncError: If Jira task creation fails.
         """
         tasks_to_update_on_pages: Dict[str, List] = {}
-        self.request_user = context.request_user  # Set request_user from context
+        results_for_this_process_call: List[AutomationResult] = []
 
         for task in tasks:
             logging.info(
@@ -182,7 +186,7 @@ class SyncTaskOrchestrator:
                     f"on page ID: {task.confluence_page_id} - No Work Package found."
                 )
                 logger.error(f"ERROR: {error_msg}")
-                self.results.append(
+                results_for_this_process_call.append(
                     AutomationResult(
                         task_data=task,
                         status_text="Skipped - No Work Package found",
@@ -222,7 +226,7 @@ class SyncTaskOrchestrator:
                     await self.jira_service.transition_issue(
                         new_key, target_status
                     )  # Await service call
-                    self.results.append(
+                    results_for_this_process_call.append(
                         AutomationResult(
                             task_data=task,
                             status_text="Success - Completed Task Created",
@@ -239,7 +243,7 @@ class SyncTaskOrchestrator:
                             new_key, target_status
                         )  # Await service call
                     # If not in development, create the task in the default status.
-                    self.results.append(
+                    results_for_this_process_call.append(
                         AutomationResult(
                             task_data=task,
                             status_text="Success",
@@ -261,7 +265,7 @@ class SyncTaskOrchestrator:
                     f"Skipping further processing for this task."
                 )
                 logger.error(f"ERROR: {error_msg}")
-                self.results.append(
+                results_for_this_process_call.append(
                     AutomationResult(
                         task_data=task,
                         status_text="Failed - Jira task creation",
@@ -279,3 +283,5 @@ class SyncTaskOrchestrator:
                 await self.confluence_service.update_page_with_jira_links(
                     page_id, mappings
                 )  # Await service call
+
+        return results_for_this_process_call  # Return the results for this process call

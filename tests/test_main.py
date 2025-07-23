@@ -35,7 +35,7 @@ import httpx
 def mock_sync_orchestrator():
     """Mocks the SyncTaskOrchestrator and its results attribute."""
     mock_orch = AsyncMock()
-    mock_orch.results = [
+    mock_orch.run.return_value = [
         AutomationResult(
             task_data=ConfluenceTask(
                 confluence_page_id="p1",
@@ -192,7 +192,7 @@ async def test_sync_task_no_actionable_tasks(mock_sync_orchestrator, client):
     """
     Verify that /sync_task returns an empty list if no actionable tasks are processed.
     """
-    mock_sync_orchestrator.results = []  # Simulate no tasks processed
+    mock_sync_orchestrator.run.return_value = []  # Simulate no tasks processed
     request_body = {
         "confluence_page_urls": ["http://example.com/page1"],
         "context": {"request_user": "test_user", "days_to_due_date": 7},

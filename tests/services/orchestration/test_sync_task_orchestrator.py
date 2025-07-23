@@ -275,13 +275,13 @@ async def test_run_success(sync_orchestrator, confluence_stub, jira_stub, sync_c
     }
 
     # Act
-    await sync_orchestrator.run(input_data, sync_context)
+    results = await sync_orchestrator.run(input_data, sync_context)
 
     # Assert
-    assert len(sync_orchestrator.results) == 1
-    result = sync_orchestrator.results[0]
+    assert len(results) == 1
+    result = results[0]
     assert result.status_text == "Success"
-    # assert result.new_jira_task_key == "JIRA-100"
+    assert result.new_jira_task_key == "JIRA-100"
     assert confluence_stub.updated_with_links is True
 
 
@@ -321,11 +321,11 @@ async def test_no_work_package_found(
     }
 
     # Act
-    await sync_orchestrator.run(input_data, sync_context)
+    results = await sync_orchestrator.run(input_data, sync_context)
 
     # Assert
-    assert len(sync_orchestrator.results) == 1
-    result = sync_orchestrator.results[0]
+    assert len(results) == 1
+    result = results[0]
     assert result.status_text == "Skipped - No Work Package found"
     assert result.task_data.task_summary == sample_task.task_summary
 
@@ -341,11 +341,12 @@ async def test_jira_creation_failure(sync_orchestrator, jira_stub, sync_context)
     }
 
     # Act
-    await sync_orchestrator.run(input_data, sync_context)
+    results = await sync_orchestrator.run(input_data, sync_context)
 
     # Assert
-    assert len(sync_orchestrator.results) == 1
-    assert sync_orchestrator.results[0].status_text == "Failed - Jira task creation"
+    assert len(results) == 1
+    result = results[0]
+    assert result.status_text == "Failed - Jira task creation"
 
 
 @pytest.mark.asyncio
@@ -363,13 +364,12 @@ async def test_completed_task_transition(
     }
 
     # Act
-    await sync_orchestrator.run(input_data, sync_context)
+    results = await sync_orchestrator.run(input_data, sync_context)
 
     # Assert
-    assert len(sync_orchestrator.results) == 1
-    assert (
-        sync_orchestrator.results[0].status_text == "Success - Completed Task Created"
-    )
+    assert len(results) == 1
+    result = results[0]
+    assert result.status_text == "Success - Completed Task Created"
     assert jira_stub.transitioned_issue_key == "JIRA-200"
     assert (
         jira_stub.transitioned_to_status
@@ -394,11 +394,12 @@ async def test_dev_mode_new_task_transition(
     }
 
     # Act
-    await sync_orchestrator.run(input_data, sync_context)
+    results = await sync_orchestrator.run(input_data, sync_context)
 
     # Assert
-    assert len(sync_orchestrator.results) == 1
-    assert sync_orchestrator.results[0].status_text == "Success"
+    assert len(results) == 1
+    result = results[0]
+    assert result.status_text == "Success"
     assert jira_stub.transitioned_issue_key == "JIRA-300"
     assert (
         jira_stub.transitioned_to_status == config.JIRA_TARGET_STATUSES["new_task_dev"]
@@ -422,10 +423,11 @@ async def test_prod_mode_new_task_no_transition(
     }
 
     # Act
-    await sync_orchestrator.run(input_data, sync_context)
+    results = await sync_orchestrator.run(input_data, sync_context)
 
     # Assert
-    assert len(sync_orchestrator.results) == 1
-    assert sync_orchestrator.results[0].status_text == "Success"
+    assert len(results) == 1
+    result = results[0]
+    assert result.status_text == "Success"
     assert jira_stub.transitioned_issue_key is None
     assert jira_stub.transitioned_to_status is None

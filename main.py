@@ -174,11 +174,11 @@ async def sync_task(
 
     try:
         # The orchestrator's run method populates its internal self.results
-        await sync_orchestrator.run(
+        response_results_objects = await sync_orchestrator.run(
             sync_input, request.context
         )  # Await the orchestrator run
         response_results = [
-            res.to_dict() for res in sync_orchestrator.results
+            res.to_dict() for res in response_results_objects
         ]  # Convert AutomationResult to dict
 
         if response_results:
