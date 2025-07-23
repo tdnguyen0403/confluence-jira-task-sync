@@ -70,6 +70,7 @@ class SyncTaskOrchestrator:
         """
         logging.info("--- Starting Jira/Confluence Automation Script ---")
 
+        self.results = []  # FIX: Reset results for each run
         if not json_input:
             logger.error("ERROR: No input JSON provided. Aborting.")
             raise InvalidInputError("No input JSON provided for sync operation.")
