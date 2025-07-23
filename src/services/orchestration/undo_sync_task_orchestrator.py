@@ -155,7 +155,7 @@ class UndoSyncTaskOrchestrator:
                 # Use Pydantic's UndoRequestItem to validate and parse each item
                 item = UndoRequestItem(**item_data)  #
 
-                # Now check item.status_text for "Success"
+                # Now check item.status_text start wtih "Success" (for both incomplete & complete tasks)
                 if item.status_text and item.status_text.startswith("Success"):  #
                     if item.new_jira_task_key:  #
                         jira_keys.add(item.new_jira_task_key)  #

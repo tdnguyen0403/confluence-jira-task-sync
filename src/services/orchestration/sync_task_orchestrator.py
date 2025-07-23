@@ -225,7 +225,7 @@ class SyncTaskOrchestrator:
                         AutomationResult(
                             task_data=task,
                             status_text="Success - Completed Task Created",
-                            new_jira_key=new_key,
+                            new_jira_task_key=new_key,
                             linked_work_package=closest_wp_key,
                             request_user=context.request_user,
                         )
@@ -242,7 +242,7 @@ class SyncTaskOrchestrator:
                         AutomationResult(
                             task_data=task,
                             status_text="Success",
-                            new_jira_key=new_key,
+                            new_jira_task_key=new_key,
                             linked_work_package=closest_wp_key,
                             request_user=context.request_user,
                         )
