@@ -239,7 +239,14 @@ class SafeConfluenceApi:
             logger.error(f"Could not retrieve page '{page_id}' for update.")
             return False
 
-        new_version = current_page["version"]["number"] + 1
+        try:
+            new_version = current_page["version"]["number"] + 1
+        except KeyError:
+            logger.error(
+                f"Could not determine next version for page '{page_id}'. 'version' key missing."
+            )
+            return False
+
         payload = {
             "version": {"number": new_version},
             "type": "page",
