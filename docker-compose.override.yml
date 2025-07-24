@@ -1,15 +1,13 @@
-# docker-compose.yml (for Production)
+# docker-compose.override.yml (for Development)
 
 version: '3.9'
 
 services:
   jira-to-teamspace-automator:
     build:
-      context: .
-      target: production
-    restart: unless-stopped
+      target: development
     ports:
-      - "8080:8080"
+      - "8000:8000"
     environment:
       # Secrets
       - JIRA_API_TOKEN
