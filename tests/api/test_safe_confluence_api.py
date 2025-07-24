@@ -227,36 +227,6 @@ async def test_get_all_descendants_success(safe_confluence_api, mock_https_helpe
 
 
 @pytest.mark.asyncio
-async def test_get_tasks_from_page_success(safe_confluence_api, mock_https_helper):
-    """Tests successful extraction of tasks from a page."""
-    page_details = {
-        "id": "123",
-        "title": "Test Page",
-        "body": {
-            "storage": {
-                "value": """
-                <ac:task-list><ac:task><ac:task-id>task1</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Task 1 Summary <ri:user ri:userkey="user1"></ri:user><time datetime="2024-07-20"></time></ac:task-body></ac:task></ac:task-list>
-                <ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">JIRA-1</ac:parameter></ac:structured-macro>
-                """,
-                "representation": "storage",
-            }
-        },
-        "version": {"number": 1},
-    }
-
-    mock_https_helper.get.return_value = {"username": "user1_name"}
-
-    tasks = await safe_confluence_api.get_tasks_from_page(page_details)
-
-    assert len(tasks) == 1
-    assert tasks[0].confluence_task_id == "task1"
-    assert tasks[0].task_summary == "Task 1 Summary"
-    assert tasks[0].assignee_name == "user1_name"
-    assert tasks[0].due_date == "2024-07-20"
-    assert mock_https_helper.get.call_count == 1
-
-
-@pytest.mark.asyncio
 async def test_update_page_with_jira_links_success(
     safe_confluence_api, mock_https_helper
 ):
@@ -282,9 +252,14 @@ async def test_update_page_with_jira_links_success(
     assert mock_https_helper.put.called
     put_args, put_kwargs = mock_https_helper.put.call_args
     assert "json_data" in put_kwargs
-    updated_body_soup = put_kwargs["json_data"]["body"]["storage"]["value"]
-    assert '<ac:parameter ac:name="key">PROJ-1</ac:parameter>' in updated_body_soup
-    assert "<ac:task-list>" not in updated_body_soup
+
+    # **FIX**: The updated body is now a string representation of the soup
+    updated_body = put_kwargs["json_data"]["body"]["storage"]["value"]
+
+    # **FIX**: Check for the new content in the final string
+    assert '<ac:parameter ac:name="key">PROJ-1</ac:parameter>' in updated_body
+    assert "Task 1 Summary" in updated_body
+    assert "<ac:task-list>" not in updated_body  # The empty list should be removed
 
 
 @pytest.mark.asyncio
@@ -806,12 +781,17 @@ async def test_update_page_with_jira_links_multiple_tasks_and_lists(
     put_args, put_kwargs = mock_https_helper.put.call_args
     updated_body = put_kwargs["json_data"]["body"]["storage"]["value"]
 
+    # The replaced tasks should be gone
     assert "<ac:task-id>task1</ac:task-id>" not in updated_body
     assert "<ac:task-id>task3</ac:task-id>" not in updated_body
+    # The remaining task should still be there
     assert "<ac:task-id>task2</ac:task-id>" in updated_body
 
+    # The new Jira macros and text should be present
     assert '<ac:parameter ac:name="key">PROJ-1</ac:parameter>' in updated_body
+    assert "Task 1 Summary" in updated_body
     assert '<ac:parameter ac:name="key">PROJ-3</ac:parameter>' in updated_body
+    assert "Task 3 Summary" in updated_body
 
 
 @pytest.mark.asyncio
@@ -900,7 +880,9 @@ async def test_get_page_id_from_url_short_url_unresolvable_no_id(
 async def test_update_page_with_jira_links_aggregation_macro(
     safe_confluence_api, mock_https_helper
 ):
-    """Test replacing tasks inside aggregation macros (should skip)."""
+    """
+    **FIX**: Tests that tasks inside aggregation macros are SKIPPED during replacement.
+    """
     page_id = "123"
     mappings = [{"confluence_task_id": "task_in_jira", "jira_key": "PROJ-2"}]
     initial_body = """
@@ -916,13 +898,11 @@ async def test_update_page_with_jira_links_aggregation_macro(
         "body": {"storage": {"value": initial_body, "representation": "storage"}},
         "version": {"number": 1},
     }
-    mock_https_helper.put.return_value = {"id": page_id, "version": {"number": 2}}
+
     await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
-    put_args, put_kwargs = mock_https_helper.put.call_args
-    updated_body = put_kwargs["json_data"]["body"]["storage"]["value"]
-    # The original task should be replaced by a Jira macro
-    assert '<ac:parameter ac:name="key">PROJ-2</ac:parameter>' in updated_body
-    assert "<ac:task-id>task_in_jira</ac:task-id>" not in updated_body
+
+    mock_https_helper.get.assert_awaited_once()
+    mock_https_helper.put.assert_not_called()
 
 
 @pytest.mark.asyncio

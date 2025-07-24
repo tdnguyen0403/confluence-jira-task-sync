@@ -504,64 +504,74 @@ class SafeConfluenceApi:
         self, page_id: str, mappings: List[Dict[str, str]]
     ) -> None:
         """
-        Replaces completed Confluence tasks with Jira issue macros asynchronously.
+        Replaces completed Confluence tasks with their plain text and a Jira issue macro.
 
-        This method retrieves a page, finds tasks based on the provided
-        mappings, removes the original task element, and inserts a Jira
-        macro in its place.
+        This method retrieves a page, finds tasks based on the provided mappings,
+        converts the task element into plain text, and appends a Jira macro
+        in its place. It skips tasks found within aggregation macros.
 
         Args:
             page_id (str): The ID of the Confluence page to update.
             mappings (List[Dict[str, str]]): A list of dictionaries, each
-                                             mapping a `confluence_task_id` to a `jira_key`.
+                                            mapping a `confluence_task_id` to a `jira_key`.
         """
-        page = await self.get_page_by_id(
-            page_id, expand="body.storage,version"
-        )  # Await this call
+        page = await self.get_page_by_id(page_id, expand="body.storage,version")
         if not page:
             logger.error(f"Could not retrieve page {page_id} to update.")
             return
 
         soup = BeautifulSoup(page["body"]["storage"]["value"], "html.parser")
         modified = False
-
         mapping_dict = {m["confluence_task_id"]: m["jira_key"] for m in mappings}
 
-        for task_list in soup.find_all("ac:task-list"):
-            macros_to_insert = []
-            tasks_to_remove = []
+        # Iterate over a static list of tasks, as the soup will be modified
+        for task in soup.find_all("ac:task"):
+            task_id_tag = task.find("ac:task-id")
 
-            for task in task_list.find_all("ac:task"):
-                task_id_tag = task.find("ac:task-id")
-                if task_id_tag and task_id_tag.string in mapping_dict:
-                    jira_key = mapping_dict[task_id_tag.string]
-                    jira_macro_html = self._generate_jira_macro_html(jira_key)
-                    macros_to_insert.append(
-                        BeautifulSoup(jira_macro_html, "html.parser")
-                    )
-                    tasks_to_remove.append(task)
-                    modified = True
-                    logger.info(
-                        f"Prepared task '{task_id_tag.string}' for replacement "
-                        f"with Jira macro for '{jira_key}'."
-                    )
+            if task_id_tag and task_id_tag.string in mapping_dict:
+                if task.find_parent(
+                    "ac:structured-macro",
+                    {"ac:name": lambda x: x in config.AGGREGATION_CONFLUENCE_MACRO},
+                ):
+                    continue
 
-            # Perform the DOM modifications after iterating to avoid issues.
-            for task in tasks_to_remove:
+                # Find the parent list before modifying anything
+                parent_task_list = task.find_parent("ac:task-list")
+                if not parent_task_list:
+                    continue
+
+                jira_key = mapping_dict[task_id_tag.string]
+                task_body = task.find("ac:task-body")
+                if not task_body:
+                    continue
+
+                task_body_copy = BeautifulSoup(str(task_body), "html.parser")
+                for nested_list in task_body_copy.find_all("ac:task-list"):
+                    nested_list.decompose()
+                task_summary = " ".join(
+                    task_body_copy.get_text(separator=" ").split()
+                ).strip()
+
+                jira_macro_html = self._generate_jira_macro_html(jira_key)
+                new_content_html = f"<p>{jira_macro_html} {task_summary}</p>"
+                new_content_soup = BeautifulSoup(new_content_html, "html.parser")
+
+                parent_task_list.insert_after(new_content_soup)
+
                 task.decompose()
-
-            if macros_to_insert:
-                # Insert new macros after the task list they came from.
-                for macro_soup in reversed(macros_to_insert):
-                    task_list.insert_after(macro_soup)
+                modified = True
+                logger.info(
+                    f"Prepared task '{task_id_tag.string}' for replacement with text and "
+                    f"Jira macro for '{jira_key}'."
+                )
 
         if modified:
-            # Clean up any task lists that are now empty.
+            # Clean up any task lists that are now empty
             for tl in soup.find_all("ac:task-list"):
                 if not tl.find("ac:task"):
                     tl.decompose()
 
-            await self.update_page(page_id, page["title"], str(soup))  # Await this call
+            await self.update_page(page_id, page["title"], str(soup))
         else:
             logger.warning(
                 f"No tasks were replaced on page {page_id}. Skipping update."
@@ -569,7 +579,8 @@ class SafeConfluenceApi:
 
     def _generate_jira_macro_html(self, jira_key: str) -> str:
         """
-        Generates the Confluence storage format for a Jira issue macro.
+        Generates the Confluence storage format for a Jira issue macro that
+        only displays the issue key.
 
         Args:
             jira_key (str): The key of the Jira issue (e.g., 'PROJ-123').
@@ -579,12 +590,14 @@ class SafeConfluenceApi:
         """
         macro_id = str(uuid.uuid4())
         return (
-            f'<p><ac:structured-macro ac:name="jira" ac:schema-version="1" '
+            f'<ac:structured-macro ac:name="jira" ac:schema-version="1" '
             f'ac:macro-id="{macro_id}">'
+            # This is the key parameter from your HTML to hide the summary
+            f'<ac:parameter ac:name="showSummary">false</ac:parameter>'
             f'<ac:parameter ac:name="server">{self.jira_macro_server_name}</ac:parameter>'
             f'<ac:parameter ac:name="serverId">{self.jira_macro_server_id}</ac:parameter>'
             f'<ac:parameter ac:name="key">{jira_key}</ac:parameter>'
-            f"</ac:structured-macro></p>"
+            f"</ac:structured-macro>"
         )
 
     async def get_all_spaces(self) -> List[Dict[str, Any]]:
