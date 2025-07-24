@@ -1,6 +1,6 @@
 # Jira Confluence Automator
 
-This Python-based tool automates the creation of Jira issues from tasks on a Confluence page and its sub-pages, linking the new Jira issue back to the Confluence page. It also includes a function to sync project structure from Jira to Confluence. It also includes an administrative function to generate a tree of Confluence pages from Jira issues, which is useful for creating test data.
+This Python-based tool automates the creation of Jira issues from tasks on a Confluence page and its sub-pages, linking the new Jira issue back to the Confluence page. It includes a function to sync project structure from Jira to Confluence. It also includes an administrative function to generate a tree of Confluence pages from Jira issues, which is useful for creating test data.
 
 ## Main Features
 
@@ -20,6 +20,7 @@ This Python-based tool automates the creation of Jira issues from tasks on a Con
 -   **Generate Confluence Page Tree from Jira Issues (Admin Function)*:**
     * Generates a hierarchical tree of Confluence pages based on Jira issues.
     * Useful for initial setup or for creating test data.
+    * This runs in the command line interface (CLI)
     * *Note: This is an administrative function and is typically not used by normal users.*
 
 ## How It Works
@@ -28,10 +29,10 @@ The tool is designed with a clear separation of concerns, making it easy to unde
 
 ### Core Components
 
--   **API Wrappers**: The tool uses low-level, resilient API wrappers for Jira and Confluence. These wrappers use the `atlassian-python-api` library but also include fallbacks to raw `requests` calls for increased reliability.
--   **Services**: High-level business logic is implemented in services for Confluence, Jira, and for finding issues on a page.
--   **Data Models**: The application uses `dataclasses` to represent the core entities, such as `ConfluenceTask` and `AutomationResult`.
--   **Utilities**: The tool includes utility functions for common tasks like logging and extracting the context of a task from a Confluence page.
+-   **API Wrappers**: The tool uses low-level, resilient API wrappers for Jira and Confluence around a helper function. The helper function uses asynchronous method from httpx library to directly communicate to Jira & Confluence server to improve scalability.
+-   **Services**: Low-level services include API wrapper & business logic is implemented in services for Confluence, Jira, and for finding issues on a page. There are also high-level orchestration services to coordinate all lower services.
+-   **Data Models**: The application uses `pydantic` to represent the core entities, such as `ConfluenceTask` and `AutomationResult`.
+-   **Utilities**: The tool includes utility functions for common tasks like logging, creating directory and extracting the context of a task from a Confluence page.
 
 ### Execution Flow
 
@@ -61,14 +62,12 @@ The tool is designed with a clear separation of concerns, making it easy to unde
     * `services/`: High-level business logic and orchestration.
     * `utils/`: Utility functions like context extraction and logging.
     * `main.py`: The FastAPI application entry point.
-    * `generate_confluence_tree.py`: Script for generating Confluence test data.
-    * `sync_task.py`: Core logic for syncing Confluence tasks to Jira.
-    * `undo_sync_task.py`: Core logic for undoing previous sync operations.
+    * `generate_confluence_tree.py`: Script for generating Confluence test data, to be run in CLI
 -   `tests/`: Contains unit and integration tests.
--   `.env.example`: Example environment variables file.
 -   `.gitignore`: Git ignore file.
+    `.env.example`: Example environment file
 -   `README.md`: This documentation file.
--   `requirements.txt`: Python dependencies.
+-   `pyproject.toml`: Python dependencies managed by Poetry.
 
 ## Getting Started
 
@@ -84,9 +83,9 @@ The tool is designed with a clear separation of concerns, making it easy to unde
     git clone [https://github.com/confluence-jira-task-sync/confluence-jira-task-sync.git](https://github.com/confluence-jira-task-sync/confluence-jira-task-sync.git)
     cd confluence-jira-task-sync
     ```
-2.  Install the required dependencies:
+2.  Install the required dependencies using Poetry:
     ```bash
-    pip install -r requirements.txt
+    poetry install
     ```
 
 ### API Authentication
@@ -101,12 +100,10 @@ This tool uses environment variables to store sensitive API credentials for Jira
 
     .env example
     ```
-    JIRA_SERVER_URL=[https://your-jira-instance.atlassian.net](https://your-jira-instance.atlassian.net)
-    JIRA_USERNAME=your-jira-email@example.com
+    JIRA_URL=[https://your-jira-instance.atlassian.net](https://your-jira-instance.atlassian.net)
     JIRA_API_TOKEN=YOUR_JIRA_API_TOKEN
 
-    CONFLUENCE_SERVER_URL=[https://your-confluence-instance.atlassian.net](https://your-confluence-instance.atlassian.net)
-    CONFLUENCE_USERNAME=your-confluence-email@example.com
+    CONFLUENCE_URL=[https://your-confluence-instance.atlassian.net](https://your-confluence-instance.atlassian.net)
     CONFLUENCE_API_TOKEN=YOUR_CONFLUENCE_API_TOKEN
     ```
     Jira API Token**: You can generate a Jira API token from your Atlassian account settings. Refer to the [Atlassian documentation](https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/) for detailed instructions.
@@ -115,7 +112,7 @@ This tool uses environment variables to store sensitive API credentials for Jira
 
     For API key authentication for the FastAPI application
     ```
-    API_KEY=your_secure_api_key_for_fastapi
+    API_SECRET_KEY=your_secure_api_key_for_fastapi
     ```
 
 ### Running the FastAPI Application
@@ -132,37 +129,41 @@ You can then interact with the API endpoints (for example, /sync_project) using 
 ## Detailed API Usage Examples
 Once the FastAPI application is running (e.g., on http://localhost:8000), you can test the available endpoints using cURL. Replace YOUR_API_KEY, http://mock.confluence.com/root, and Jira issue type IDs with your actual values.
 
-### Example: POST /sync_project
-This endpoint automates the synchronization of a Jira project's hierarchy into Confluence.
-
+### Example: GET/health
+Purpose: to verify if the server is running
 ```curl
-curl -X POST "http://localhost:8000/sync_project" \
+curl -X GET "http://localhost:8000/health" \
 -H "X-API-Key: YOUR_API_KEY" \
--H "Content-Type: application/json" \
--d '{
-    "root_confluence_page_url": "[http://mock.confluence.com/root](http://mock.confluence.com/root)",
-    "root_project_issue_key": "PROJ-ROOT",
-    "project_issue_type_id": "10200",
-    "phase_issue_type_id": "11001",
-    "request_user": "test_user"
-}'
+```
+
+### Example: GET/ready
+Purpose: to verify if the server can connect to the Jira & Confluence instances.
+```curl
+curl -X GET "http://localhost:8000/ready" \
+-H "X-API-Key: YOUR_API_KEY" \
 ```
 
 ### Example: POST /sync_task
-Note: This endpoint corresponds to the functionality of sync_task.py. The example below assumes main.py exposes this functionality via an API endpoint.
+Note: This endpoint takes in one or multiple URL, an optional request user and days_to_due_date, then scan the pages (including all sub-page), creates tasks in Jira and update the page at the end. The endpoint also returns an response json which can be used for display or use in the /undo_sync_task.
 
 ```curl
 curl -X POST "http://localhost:8000/sync_task" \
 -H "X-API-Key: YOUR_API_KEY" \
 -H "Content-Type: application/json" \
 -d '{
-    "confluence_page_urls": ["[https://your.confluence.com/x/ABCDEFG](https://your.confluence.com/x/ABCDEFG)"],
-    "request_user": "api_user"
+    "confluence_page_urls": [
+        "https://sample-page-1.com",
+        "https://sample-page-2.com"
+    ],
+    "context": {
+        "request_user": "test_user",
+        "days_to_due_date": 10
+    }
 }'
 ```
 
 ### Example: POST /undo_sync_task
-Note: This endpoint corresponds to the functionality of undo_sync_task.py. The example below assumes main.py exposes this functionality via an API endpoint.
+Note: This endpoint reverses all the changes made by the /sync_task endpoint. The json response from /sync_task should be provided for the /undo_sync_task to run
 
 ```curl
 curl -X POST "http://localhost:8000/undo_sync_task" \
@@ -171,39 +172,36 @@ curl -X POST "http://localhost:8000/undo_sync_task" \
 -d '[
     {
         "Status": "Success",
-        "confluence_page_id": "435680347",
-        "original_page_version": 90,
-        "New Jira Task Key": "SFSEA-1733",
-        "Linked Work Package": "SFSEA-1524",
-        "Request User": "tdnguyen",
-        "confluence_page_title": "Gen 20250629_122720 - Main Test Page Root",
-        "confluence_page_url": "/spaces/EUDEMHTM0589/pages/435680347/Gen+20250629_122720+-+Main+Test+Page+Root",
-        "confluence_task_id": "8",
+        "confluence_page_id": "some id",
+        "original_page_version": 10,
+        "New Jira Task Key": "JIRA-100",
+        "Linked Work Package": "PARENT-100",
+        "Request User": "test-user",
+        "confluence_page_title": "test-page-name",
+        "confluence_page_url": "https://test-page.com",
+        "confluence_task_id": "1",
         "task_summary": "Test task",
         "status": "incomplete",
         "assignee_name": null,
-        "due_date": "2025-07-20",
-        "original_page_version_by": "Nguyen Tuan Dat",
-        "original_page_version_when": "2025-07-06T12:44:46.000+02:00",
-        "context": "JIRA_KEY_CONTEXT::SFSEA-1524"
+        "due_date": "2025-01-01",
+        "original_page_version_by": "Jone Doe",
+        "original_page_version_when": "2025-01-01T12:44:46.000+02:00",
+        "context": "Some context"
     }
 ]'
 ```
 
-### Example: POST /generate_confluence_tree
-Note: This endpoint corresponds to the functionality of generate_confluence_tree.py. The example below assumes main.py exposes this functionality via an API endpoint.
+### Example: POST /sync_project
+This endpoint automates the synchronization of a Jira project's hierarchy into Confluence page hierachy.
 
-```Bash
-curl -X POST "http://localhost:8000/generate_confluence_tree" \
+```curl
+curl -X POST "http://localhost:8000/sync_project" \
 -H "X-API-Key: YOUR_API_KEY" \
 -H "Content-Type: application/json" \
--d '{
-    "base_parent_page_id": "422189655",
-    "confluence_space_key": "EUDEMHTM0589",
-    "assignee_username": "tdnguyen",
-    "test_work_package_keys": ["SFSEA-1524", "SFSEA-1483"],
-    "max_depth": 2,
-    "tasks_per_page": 1
+-d {
+    "root_confluence_page_url": "https://project-root-page-in-confluence.com",
+    "root_project_issue_key": "PROJ-100",
+    "request_user": "user"
 }'
 ```
 
@@ -214,8 +212,6 @@ The tool generates detailed logs for each run in the logs/ directory, organized 
 **ResponseValidationError for API calls: This typically means there's a mismatch between the data format your API endpoint is returning and the Pydantic response_model defined for that endpoint.
 
 - Check your src/models/data_models.py against the actual data returned by the underlying service.
-
-    - Common fix: Ensure List[str] is used where a list of strings is expected, and field names in the model match the exact field names in the returned data (e.g., root_project_key vs root_project_linked).
 
 - Authentication Errors (401/403): Double-check your Jira and Confluence API tokens and usernames in the .env file. Ensure they have the necessary permissions for the operations being performed. Also verify the JIRA_SERVER_URL and CONFLUENCE_SERVER_URL are correct.
 
