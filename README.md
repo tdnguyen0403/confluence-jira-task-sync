@@ -83,7 +83,7 @@ The tool is designed with a clear separation of concerns, making it easy to unde
     git clone [https://github.com/confluence-jira-task-sync/confluence-jira-task-sync.git](https://github.com/confluence-jira-task-sync/confluence-jira-task-sync.git)
     cd confluence-jira-task-sync
     ```
-2.  Install the required dependencies using Poetry:
+2.  This application uses modern pyproject.toml for dependencies & virtual environment management. It can be called using poetry, so install poetry in your environment first. Then, install the required dependencies using Poetry:
     ```bash
     poetry install
     ```
