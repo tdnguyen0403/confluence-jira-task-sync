@@ -9,7 +9,7 @@ This Python-based tool automates the creation of Jira issues from tasks on a Con
 -   **Sync Confluence Tasks to Jira:**
     * Scans a Confluence page and all its sub-pages to find and extract tasks.
     * Creates Jira issues from Confluence tasks, embedding Confluence context.
-    * Replaces the original task text in Confluence with a link to the newly created Jira issue for seamless navigation and tracking.
+    * Converts task to plain text in Confluence with a link to the newly created Jira issue for seamless navigation and tracking.
 
 -   **Sync Project:**
     * Automates the synchronization of a Jira project's hierarchy into Confluence, creating or updating Confluence pages based on the project's structure.
