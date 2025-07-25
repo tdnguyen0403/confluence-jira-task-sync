@@ -93,7 +93,7 @@ A key aspect of this architecture is the use of service interfaces, defined in t
 -   **Why they are used**:
     -   **Decoupling**: Higher-level services (like the orchestrators) depend on the abstract interface, not the concrete implementation. This means you can swap out the implementation (e.g., use a different Jira library) without changing the orchestrator code, as long as the new implementation respects the interface's contract.
     -   **Dependency Injection**: Interfaces are crucial for effective dependency injection. They provide a clear contract for the dependencies that are being injected.
-    -   **Testability**: When testing, you can create a simple mock service that implements the interface. This allows you to test services in isolation without needing to connect to external systems like Jira or Confluence.
+    -   **Testability**: When testing, you can create a simple stubs object that implements the interface. This allows you to test services in isolation without needing to connect to external systems like Jira or Confluence.
 
 ---
 
