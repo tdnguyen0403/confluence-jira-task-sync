@@ -40,7 +40,7 @@ The `docker-compose.override.yml` file is configured for local development. It b
 
 ### Steps to Run:
 
-1.  Make sure your `.env` file is correctly filled out.
+1.  Make sure your `.env` file is correctly filled out. Load them into your environment.
 2.  Build and run the containers in detached mode:
     ```bash
     docker-compose up -d --build
