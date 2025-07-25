@@ -100,7 +100,7 @@ class UndoSyncTaskOrchestrator:
             return
 
         logging.info(f"\n--- Phase 2: Rolling back {len(pages)} Confluence Pages ---")
-        logging.warning(
+        logging.info(
             "NOTE: This operation reverts pages to their state *before* the script ran."
         )
         for page_id, version in sorted(pages.items()):

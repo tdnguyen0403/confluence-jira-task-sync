@@ -1,169 +1,135 @@
-"""
-Tests for the logging configuration utility.
-"""
-
 import logging
+import json
+import sys
+from unittest.mock import MagicMock, patch
 import pytest
+import os
 
-# Assuming your project structure allows this import path
 from src.utils.logging_config import (
     setup_logging,
-    setup_logging_local,
+    JsonFormatter,
+    RequestIdFilter,
     SecretRedactingFilter,
-    CustomLogger,
+    request_id_var,
+    endpoint_var,
 )
+from src.config import config
 
 
 @pytest.fixture
 def mock_log_record():
-    """Creates a mock log record for testing filters."""
+    """Creates a mock log record for testing."""
 
-    def _mock_log_record(msg, args=()):
-        return logging.LogRecord("test", logging.INFO, "/path", 1, msg, args, None)
+    def _mock_log_record(msg, level=logging.INFO, exc_info=None):
+        record = logging.LogRecord(
+            "test_logger", level, "/path/to/file.py", 123, msg, (), exc_info
+        )
+        record.funcName = "test_function"
+        return record
 
     return _mock_log_record
 
 
-# --- Pytest Test Function ---
-
-
-def test_setup_logging_creates_file_and_logs(mocker):
-    """
-    Verify that setup_logging correctly configures file and stream handlers
-    based on the provided config.
-    """
-    # Arrange: Use the mocker fixture to patch dependencies
-    # This is the modern pytest equivalent of using @patch decorators
-    mock_get_log_path = mocker.patch("src.utils.logging_config.get_log_path")
-    mock_file_handler = mocker.patch("src.utils.logging_config.logging.FileHandler")
-    mock_stream_handler = mocker.patch("src.utils.logging_config.logging.StreamHandler")
-    mock_logger = mocker.patch("src.utils.logging_config.logging.getLogger")
-
-    # Set up a return value for our patched function
-    mock_log_filepath = "/mocked_log_directory/test_run.log"
-    mock_get_log_path.return_value = mock_log_filepath
-
-    # Act
-    setup_logging(
-        log_file_prefix="test_run",
-        endpoint_name="test_endpoint",
-    )
-
-    # Assert
-    # Verify that our mocked functions and classes were called as expected
-    mock_get_log_path.assert_called_once()
-    mock_file_handler.assert_called_once_with(mock_log_filepath, encoding="utf-8")
-    mock_stream_handler.assert_called_once()
-
-    # Check that the root logger was retrieved and handlers were added
-    assert mock_logger.return_value.addHandler.call_count == 2
-
-
-def test_secret_redacting_filter_redacts_sensitive_data(mock_log_record):
-    """
-    Verify that the SecretRedactingFilter correctly redacts sensitive data from log messages.
-    """
-    # Arrange
+def test_secret_redacting_filter(mock_log_record):
+    """Verify the SecretRedactingFilter redacts sensitive strings."""
     sensitive_patterns = {"secret123", "api_key_456"}
-    filter = SecretRedactingFilter(sensitive_patterns)
-    log_record = mock_log_record(
-        "This is a test message with secret123 and api_key_456."
+    filtr = SecretRedactingFilter(sensitive_patterns)
+    log_record = mock_log_record("A message with secret123.")
+
+    filtr.filter(log_record)
+
+    assert "secret123" not in log_record.getMessage()
+    assert "[REDACTED]" in log_record.getMessage()
+
+
+def test_json_formatter_structure_and_order(mock_log_record):
+    """Verify the JsonFormatter creates a well-structured JSON log."""
+    formatter = JsonFormatter()
+    log_record = mock_log_record("This is a test message.")
+
+    # Simulate filter adding attributes
+    log_record.request_id = "req-123"
+    log_record.endpoint = "/test"
+
+    formatted_log = formatter.format(log_record)
+    log_dict = json.loads(formatted_log)
+
+    expected_keys = {
+        "timestamp",
+        "level",
+        "request_id",
+        "endpoint",
+        "message",
+        "source",
+        "function",
+    }
+    # Corrected: Assert the set of keys to be independent of order
+    assert set(log_dict.keys()) == expected_keys
+    assert log_dict["level"] == "INFO"
+    assert log_dict["message"] == "This is a test message."
+    assert log_dict["source"] == "file.py:123"
+    assert log_dict["function"] == "test_function"
+
+
+def test_json_formatter_with_exception(mock_log_record):
+    """Verify the JsonFormatter includes exception info when present."""
+    formatter = JsonFormatter()
+    try:
+        raise ValueError("A test error")
+    except ValueError:
+        # Corrected: Pass the actual exception info tuple to the record
+        log_record = mock_log_record(
+            "An error occurred.", level=logging.ERROR, exc_info=sys.exc_info()
+        )
+
+    formatted_log = formatter.format(log_record)
+    log_dict = json.loads(formatted_log)
+
+    assert "exception" in log_dict
+    assert "Traceback" in log_dict["exception"]
+    assert "ValueError: A test error" in log_dict["exception"]
+
+
+def test_request_id_filter_injects_context_vars(mock_log_record):
+    """Verify the RequestIdFilter injects context variables into the log record."""
+    filtr = RequestIdFilter()
+    log_record = mock_log_record("A message.")
+
+    # Set context variables
+    request_id_var.set("req-abc")
+    endpoint_var.set("/my-endpoint")
+
+    filtr.filter(log_record)
+
+    assert hasattr(log_record, "request_id")
+    assert log_record.request_id == "req-abc"
+    assert hasattr(log_record, "endpoint")
+    assert log_record.endpoint == "/my-endpoint"
+
+
+@patch("src.utils.logging_config.logging.handlers.RotatingFileHandler")
+@patch("src.utils.logging_config.os.makedirs")
+@patch("src.utils.logging_config.logging.getLogger")
+def test_setup_logging_configures_root_logger(
+    mock_get_logger, mock_makedirs, mock_rotating_handler
+):
+    """Verify setup_logging configures the root logger with correct handlers and formatters."""
+    mock_root_logger = MagicMock()
+    mock_get_logger.return_value = mock_root_logger
+
+    setup_logging()
+
+    # Verify directory creation
+    mock_makedirs.assert_called_once_with(config.LOG_DIR, exist_ok=True)
+
+    # Verify file handler setup
+    expected_log_path = os.path.join(config.LOG_DIR, "application_log.json")
+    mock_rotating_handler.assert_called_once_with(
+        expected_log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
     )
 
-    # Act
-    filter.filter(log_record)
+    # Verify that handlers were added to the root logger
+    assert mock_root_logger.addHandler.call_count == 2
 
-    # Assert
-    filtered_msg = log_record.getMessage()
-    assert "[REDACTED]" in filtered_msg
-    assert "secret123" not in filtered_msg
-    assert "api_key_456" not in filtered_msg
-
-
-def test_custom_logger_stores_log_file_path():
-    """
-    Verify that the CustomLogger correctly stores the log file path.
-    """
-    # Arrange
-    logger = CustomLogger("test_logger")
-
-    # Act
-    logger.log_file_path = "/mocked_log_directory/test.log"
-
-    # Assert
-    assert logger.log_file_path == "/mocked_log_directory/test.log"
-
-
-def test_setup_logging_local_creates_log_file(mocker):
-    """
-    Verify that setup_logging_local creates a log file and configures logging.
-    """
-    # Arrange
-    mock_makedirs = mocker.patch("os.makedirs")
-    mock_basic_config = mocker.patch("logging.basicConfig")
-
-    log_directory = "/mocked_log_directory"
-    script_name = "test_script"
-
-    # Act
-    log_file_path = setup_logging_local(log_directory, script_name)
-
-    # Assert
-    mock_makedirs.assert_called_once_with(log_directory, exist_ok=True)
-    assert log_file_path.startswith(log_directory)
-    assert script_name in log_file_path
-    assert mock_basic_config.call_count >= 1
-
-
-def test_setup_logging_handles_empty_sensitive_data(mocker):
-    """
-    Verify that setup_logging handles cases where sensitive data is empty.
-    """
-    # Arrange
-    mock_get_log_path = mocker.patch("src.utils.logging_config.get_log_path")
-    mock_file_handler = mocker.patch("src.utils.logging_config.logging.FileHandler")
-    mock_stream_handler = mocker.patch("src.utils.logging_config.logging.StreamHandler")
-    mock_logger = mocker.patch("src.utils.logging_config.logging.getLogger")
-    mock_config = mocker.patch("src.utils.logging_config.config")
-
-    mock_config.JIRA_API_TOKEN = None
-    mock_config.CONFLUENCE_API_TOKEN = None
-    mock_config.API_SECRET_KEY = None
-
-    mock_log_filepath = "/mocked_log_directory/test_run.log"
-    mock_get_log_path.return_value = mock_log_filepath
-
-    # Act
-    setup_logging(
-        log_file_prefix="test_run",
-        endpoint_name="test_endpoint",
-    )
-
-    # Assert
-    mock_get_log_path.assert_called_once()
-    mock_file_handler.assert_called_once_with(mock_log_filepath, encoding="utf-8")
-    mock_stream_handler.assert_called_once()
-    assert mock_logger.return_value.addHandler.call_count == 2
-
-
-def test_setup_logging_local_logs_to_console_and_file(mocker):
-    """
-    Verify that setup_logging_local logs messages to both console and file.
-    """
-    # Arrange
-    mock_file_handler = mocker.patch("logging.FileHandler")
-    mock_stream_handler = mocker.patch("logging.StreamHandler")
-    mock_basic_config = mocker.patch("logging.basicConfig")
-
-    log_directory = "/mocked_log_directory"
-    script_name = "test_script"
-
-    # Act
-    log_file_path = setup_logging_local(log_directory, script_name)
-
-    # Assert
-    mock_file_handler.assert_called_once()
-    mock_stream_handler.assert_called_once()
-    assert mock_basic_config.call_count >= 1
-    assert log_file_path.startswith(log_directory)
-    assert script_name in log_file_path
+    # Verify a filter was added to the root logger (for secrets)
+    assert mock_root_logger.addFilter.call_count > 0

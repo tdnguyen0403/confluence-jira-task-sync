@@ -7,7 +7,11 @@ services:
     build:
       target: development
     ports:
-      - "8000:8000"
+      - "8000:80"
+    volumes:
+      - ./:/app
+       - ${LOG_DIR:-./logs}:/app/logs
+    container_name: jira-to-teamspace-automator-dev
     environment:
       # Secrets
       - JIRA_API_TOKEN

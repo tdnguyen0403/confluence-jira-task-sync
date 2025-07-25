@@ -9,7 +9,10 @@ services:
       target: production
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "8080:80"
+    volumes:
+      - jira-automator-logs:/app/logs
+    container_name: jira-to-teamspace-automator-prod
     environment:
       # Secrets
       - JIRA_API_TOKEN
@@ -50,13 +53,6 @@ services:
 
       # Fuzzy Matching Settings
       - FUZZY_MATCH_THRESHOLD
-    volumes:
-      - app-logs:/app/logs
-      - app-input:/app/input
-      - app-output:/app/output
-    container_name: jira-to-teamspace-automator
 
 volumes:
-  jira-to-teamspace-automator-logs:
-  jira-to-teamspace-automator-input:
-  jira-to-teamspace-automator-output:
+  jira-automator-logs:

@@ -17,15 +17,9 @@ load_dotenv()
 # --- Environment & Paths ---
 # Use an environment variable to distinguish environments. Default to true.
 DEV_ENVIRONMENT: bool = os.getenv("DEV_ENVIRONMENT", "false").lower() == "true"
-# DEV_ENVIRONMENT = False
 
-# Base directory of the project (adjust if your project structure is different)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Define root directories for logs, inputs, and outputs
-LOGS_ROOT_DIR = os.path.join(BASE_DIR, "logs")
-INPUT_ROOT_DIR = os.path.join(BASE_DIR, "input")
-OUTPUT_ROOT_DIR = os.path.join(BASE_DIR, "output")
+# Define root directory for logs
+LOG_DIR = os.getenv("LOG_DIR", "./logs")
 
 # Convert string "true" or "false" from env var to boolean
 VERIFY_SSL = os.getenv("VERIFY_SSL", "true").lower() == "true"
@@ -43,7 +37,6 @@ CONFLUENCE_API_TOKEN: str = os.getenv("CONFLUENCE_API_TOKEN")
 API_SECRET_KEY: str = os.getenv("API_SECRET_KEY")
 
 # --- Confluence Jira Macro Settings ---
-# These values are specific to your Confluence instance's Jira integration.
 JIRA_MACRO_SERVER_NAME: str = os.getenv("JIRA_MACRO_SERVER_NAME", "P+F Jira")
 JIRA_MACRO_SERVER_ID: str = os.getenv(
     "JIRA_MACRO_SERVER_ID", "a9986ca6-387c-3b09-9a85-450e12a1cf94"
