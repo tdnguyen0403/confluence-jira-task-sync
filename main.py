@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Callable
+from typing import List, Callable
 from fastapi import FastAPI, Depends, status, Request
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
@@ -20,7 +20,9 @@ from src.models.data_models import (
     SyncRequest,
     UndoRequestItem,
     ConfluenceUpdateProjectRequest,
-    SyncProjectPageDetail,
+    SyncTaskResponse,
+    UndoSyncTaskResponse,
+    SyncProjectResponse,
 )
 from src.exceptions import (
     SyncError,
@@ -145,7 +147,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 @app.post(
     "/sync_task",
     summary="Synchronize Confluence tasks to Jira",
-    response_model=List[Dict[str, Any]],
+    response_model=SyncTaskResponse,
     dependencies=[Depends(get_api_key)],
 )
 async def sync_task(
@@ -170,13 +172,13 @@ async def sync_task(
     else:
         logger.info("Sync run completed, but no actionable tasks were processed.")
 
-    return response_results
+    return SyncTaskResponse(request_id=request_id_var.get(), results=response_results)
 
 
 @app.post(
     "/undo_sync_task",
     summary="Undo a previous synchronization run",
-    response_model=Dict[str, str],
+    response_model=UndoSyncTaskResponse,
     dependencies=[Depends(get_api_key)],
 )
 async def undo_sync_task(
@@ -194,13 +196,16 @@ async def undo_sync_task(
     await undo_orchestrator.run([item.model_dump(by_alias=True) for item in undo_data])
 
     logger.info("Undo run completed successfully.")
-    return {"message": "Undo operation completed successfully."}
+    return UndoSyncTaskResponse(
+        request_id=request_id_var.get(),
+        message="Undo operation completed successfully.",
+    )
 
 
 @app.post(
     "/sync_project",
     summary="Update embedded Jira project issues on Confluence pages",
-    response_model=List[SyncProjectPageDetail],
+    response_model=SyncProjectResponse,
     dependencies=[Depends(get_api_key)],
 )
 async def update_confluence_project(
@@ -229,7 +234,9 @@ async def update_confluence_project(
     else:
         logger.info("Update process completed, but no pages were modified.")
 
-    return updated_pages_summary
+    return SyncProjectResponse(
+        request_id=request_id_var.get(), results=updated_pages_summary
+    )
 
 
 @app.get("/", include_in_schema=False)

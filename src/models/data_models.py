@@ -252,3 +252,26 @@ class JiraIssueMacro(BaseModel):
     macro_html: str = Field(
         ..., description="The full HTML string of the Confluence Jira macro."
     )
+
+
+class SyncTaskResponse(BaseModel):
+    """Response model for the /sync_task endpoint, including a request ID."""
+
+    request_id: str
+    results: List[
+        Dict[str, Any]
+    ]  # List of dictionaries representing AutomationResult items
+
+
+class UndoSyncTaskResponse(BaseModel):
+    """Response model for the /undo_sync_task endpoint, including a request ID."""
+
+    request_id: str
+    message: str
+
+
+class SyncProjectResponse(BaseModel):
+    """Response model for the /sync_project endpoint, including a request ID."""
+
+    request_id: str
+    results: List[SyncProjectPageDetail]

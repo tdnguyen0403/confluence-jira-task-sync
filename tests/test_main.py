@@ -141,8 +141,11 @@ async def test_sync_task_success_response(mock_sync_orchestrator, client):
     )
 
     assert response.status_code == 200
-    assert len(response.json()) == 1
-    assert response.json()[0]["new_jira_task_key"] == "JIRA-001"
+    response_data = response.json()
+    assert "request_id" in response_data
+    assert "results" in response_data
+    assert len(response_data["results"]) == 1
+    assert response_data["results"][0]["new_jira_task_key"] == "JIRA-001"
     mock_sync_orchestrator.run.assert_awaited_once()
 
 
@@ -175,7 +178,9 @@ async def test_undo_sync_task_success(mock_undo_orchestrator, client):
         "/undo_sync_task", json=request_body, headers={"X-API-Key": "valid_key"}
     )
     assert response.status_code == 200
-    assert response.json()["message"] == "Undo operation completed successfully."
+    response_data = response.json()
+    assert "request_id" in response_data
+    assert response_data["message"] == "Undo operation completed successfully."
     mock_undo_orchestrator.run.assert_awaited_once()
 
 
@@ -193,8 +198,11 @@ async def test_sync_project_success(mock_confluence_issue_updater_service, clien
         "/sync_project", json=request_body, headers={"X-API-Key": "valid_key"}
     )
     assert response.status_code == 200
-    assert len(response.json()) == 1
-    assert response.json()[0]["page_id"] == "123"
+    response_data = response.json()
+    assert "request_id" in response_data
+    assert "results" in response_data
+    assert len(response_data["results"]) == 1
+    assert response_data["results"][0]["page_id"] == "123"
     mock_confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project.assert_awaited_once()
 
 
