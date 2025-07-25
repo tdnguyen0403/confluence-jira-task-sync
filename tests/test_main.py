@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, patch
 import httpx
 
-from main import app
+from src.main import app
 from src.dependencies import (
     get_api_key,
     get_https_helper,
@@ -114,7 +114,7 @@ def common_dependencies_override(
         get_https_helper: lambda: mock_http_helper,
     }
     # Patch setup_logging to prevent it from running during tests
-    with patch("main.setup_logging", return_value=None):
+    with patch("src.main.setup_logging", return_value=None):
         yield
     app.dependency_overrides = {}
 

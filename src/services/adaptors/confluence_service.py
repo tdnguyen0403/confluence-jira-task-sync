@@ -11,22 +11,24 @@ to the underlying `SafeConfluenceApi`, providing a clean and simple interface
 for the rest of the application.
 """
 
-import logging  # Added import
+import logging
 from typing import Any, Dict, List, Optional
 
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
-from src.models.data_models import ConfluenceTask  # Added ConfluenceTask
+from src.models.data_models import ConfluenceTask
 
-logger = logging.getLogger(__name__)  # Added logger initialization
+logger = logging.getLogger(__name__)
 
 
 class ConfluenceService(ConfluenceApiServiceInterface):
     """
-    A thin service layer for Confluence operations.
+    A concrete implementation of the Confluence service interface.
 
-    This class implements the `ApiServiceInterface` and serves as a pass-through
-    to the `SafeConfluenceApi`, handling all Confluence-related logic.
+    This class serves as a pass-through layer that delegates all its
+    operations to an instance of `SafeConfluenceApi`. It provides a clean
+    separation between the business logic and the low-level API interaction
+    code.
     """
 
     def __init__(self, safe_confluence_api: SafeConfluenceApi):
@@ -40,41 +42,105 @@ class ConfluenceService(ConfluenceApiServiceInterface):
         self._api = safe_confluence_api
 
     async def get_page_id_from_url(self, url: str) -> Optional[str]:
-        """Delegates extracting a page ID from a URL to the API layer asynchronously."""
-        return await self._api.get_page_id_from_url(url)  # Await API call
+        """
+        Delegates extracting a page ID from a URL to the API layer.
+
+        Args:
+            url (str): The Confluence page URL.
+
+        Returns:
+            Optional[str]: The extracted page ID, or None if not found.
+        """
+        return await self._api.get_page_id_from_url(url)
 
     async def get_all_descendants(self, page_id: str) -> List[str]:
-        """Delegates fetching all descendant page IDs to the API layer asynchronously."""
-        return await self._api.get_all_descendants(page_id)  # Await API call
+        """
+        Delegates fetching all descendant page IDs to the API layer.
+
+        Args:
+            page_id (str): The ID of the parent page.
+
+        Returns:
+            List[str]: A list of descendant page IDs.
+        """
+        return await self._api.get_all_descendants(page_id)
 
     async def get_page_by_id(self, page_id: str, **kwargs) -> Optional[Dict[str, Any]]:
-        """Delegates fetching a page by its ID to the API layer asynchronously."""
-        return await self._api.get_page_by_id(page_id, **kwargs)  # Await API call
+        """
+        Delegates fetching a page by its ID to the API layer.
+
+        Args:
+            page_id (str): The ID of the page.
+            **kwargs: Additional arguments like 'expand'.
+
+        Returns:
+            Optional[Dict[str, Any]]: The page data, or None.
+        """
+        return await self._api.get_page_by_id(page_id, **kwargs)
 
     async def update_page_content(
         self, page_id: str, new_title: str, new_body: str
     ) -> bool:
-        """Delegates updating page content to the API layer asynchronously."""
-        return await self._api.update_page(
-            page_id, new_title, new_body
-        )  # Await API call
+        """
+        Delegates updating page content to the API layer.
+
+        Args:
+            page_id (str): The ID of the page to update.
+            new_title (str): The new title for the page.
+            new_body (str): The new HTML body for the page.
+
+        Returns:
+            bool: True if the update was successful, False otherwise.
+        """
+        return await self._api.update_page(page_id, new_title, new_body)
 
     async def get_tasks_from_page(self, page_details: Dict) -> List[ConfluenceTask]:
-        """Delegates extracting tasks from a page to the API layer asynchronously."""
-        return await self._api.get_tasks_from_page(page_details)  # Await API call
+        """
+        Delegates extracting tasks from a page to the API layer.
+
+        Args:
+            page_details (Dict): The full dictionary of page details.
+
+        Returns:
+            List[ConfluenceTask]: A list of tasks found on the page.
+        """
+        return await self._api.get_tasks_from_page(page_details)
 
     async def update_page_with_jira_links(
         self, page_id: str, mappings: List[Dict]
     ) -> None:
-        """Delegates updating a page with Jira links to the API layer asynchronously."""
-        await self._api.update_page_with_jira_links(page_id, mappings)  # Await API call
+        """
+        Delegates updating a page with Jira links to the API layer.
+
+        Args:
+            page_id (str): The ID of the page to update.
+            mappings (List[Dict]): A list mapping Confluence task IDs to Jira keys.
+        """
+        await self._api.update_page_with_jira_links(page_id, mappings)
 
     async def create_page(self, **kwargs) -> Optional[Dict[str, Any]]:
-        """Delegates creating a page to the API layer asynchronously."""
-        return await self._api.create_page(**kwargs)  # Await API call
+        """
+        Delegates creating a page to the API layer.
+
+        Args:
+            **kwargs: Arguments required for page creation, such as `space_key`,
+                      `title`, `body`, and `parent_id`.
+
+        Returns:
+            Optional[Dict[str, Any]]: The created page data, or None on failure.
+        """
+        return await self._api.create_page(**kwargs)
 
     async def get_user_details_by_username(
         self, username: str
     ) -> Optional[Dict[str, Any]]:
-        """Delegates fetching user details to the API layer asynchronously."""
-        return await self._api.get_user_details_by_username(username)  # Await API call
+        """
+        Delegates fetching user details by username to the API layer.
+
+        Args:
+            username (str): The username to look up.
+
+        Returns:
+            Optional[Dict[str, Any]]: The user's details, or None.
+        """
+        return await self._api.get_user_details_by_username(username)

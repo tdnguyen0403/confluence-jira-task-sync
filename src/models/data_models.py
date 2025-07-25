@@ -1,14 +1,24 @@
+"""
+Defines the Pydantic data models used throughout the application.
+
+This module centralizes all data structures for request and response bodies,
+as well as for internal data representation. Using Pydantic models ensures
+robust data validation, serialization, and clear, self-documenting code.
+The models cover entities from Confluence and Jira, synchronization contexts,
+and API request/response schemas.
+"""
 # jira_confluence_automator_/src/models/data_models.py
 
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
-# models used for the /sync endpoint
 class ConfluenceTask(BaseModel):
     """
     Represents a single, structured task item extracted from a Confluence page.
-    Now a Pydantic BaseModel for enhanced validation and serialization.
+
+    This model is used to standardize the data retrieved from Confluence tasks,
+    providing a consistent structure for processing.
 
     Attributes:
         confluence_page_id (str): The ID of the page where the task was found.
@@ -46,7 +56,6 @@ class ConfluenceTask(BaseModel):
 class PageUpdateMapping(BaseModel):
     """
     Maps a Confluence task to the Jira issue key it was replaced with.
-    Now a Pydantic BaseModel for consistency.
 
     This structure is used to track which tasks have been successfully
     processed and converted into Jira issues, so the Confluence page can be
@@ -64,7 +73,6 @@ class PageUpdateMapping(BaseModel):
 class AutomationResult(BaseModel):
     """
     Represents the final outcome of processing a single Confluence task.
-    Now a Pydantic BaseModel.
 
     This class encapsulates the original task data along with the results of
     the automation, such as the status of the operation and the key of any
@@ -74,7 +82,7 @@ class AutomationResult(BaseModel):
         task_data (ConfluenceTask): The original task data that was processed.
         status_text (str): A summary of the outcome (e.g., 'SUCCESS', 'SKIPPED').
         new_jira_task_key (Optional[str]): The key of the Jira issue created from
-                                      this task, if any.
+                                           this task, if any.
         linked_work_package (Optional[str]): The parent work package the new
                                              Jira issue was linked to.
         request_user (Optional[str]): The name of the user who requested the sync.
@@ -89,13 +97,13 @@ class AutomationResult(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         """
         Converts the automation result into a dictionary for reporting.
-        Leverages Pydantic's model_dump() for the nested task_data,
-        and flattens the structure.
+
+        This method flattens the nested `ConfluenceTask` data into the main
+        dictionary, making it suitable for logging or generating reports.
 
         Returns:
             Dict[str, Any]: A dictionary representing the flattened result.
         """
-        # Start with the fields from the AutomationResult class itself.
         result_dict = {
             "status_text": self.status_text,
             "new_jira_task_key": self.new_jira_task_key,
@@ -103,11 +111,8 @@ class AutomationResult(BaseModel):
             "request_user": self.request_user,
         }
 
-        # Use model_dump() on the nested Pydantic model for task_data
-        # This will convert all fields of ConfluenceTask into a dictionary.
         task_data_dict = self.task_data.model_dump()
 
-        # Merge task_data fields into the result_dict
         result_dict.update(task_data_dict)
 
         return result_dict
@@ -115,8 +120,17 @@ class AutomationResult(BaseModel):
 
 class SyncContext(BaseModel):
     """
-    Holds all context for a single synchronization task request.
-    This can be extended without changing the API endpoint.
+
+    Holds all contextual information for a single synchronization request.
+
+    This model can be extended with additional parameters without requiring
+    changes to the API endpoint signature, providing flexibility for future
+    enhancements.
+
+    Attributes:
+        request_user (Optional[str]): The user who initiated the request.
+        days_to_due_date (Optional[int]): The default number of days to set
+                                          for a task's due date if not specified.
     """
 
     request_user: Optional[str] = "Unknown User"
@@ -126,6 +140,11 @@ class SyncContext(BaseModel):
 class SyncRequest(BaseModel):
     """
     Represents the request body for the /sync endpoint.
+
+    Attributes:
+        confluence_page_urls (List[str]): A list of Confluence page URLs to be
+                                          processed.
+        context (SyncContext): Contextual settings for the synchronization.
     """
 
     confluence_page_urls: List[str] = Field(
@@ -137,12 +156,22 @@ class SyncRequest(BaseModel):
     context: SyncContext = Field(default_factory=SyncContext)
 
 
-# models used for the /undo endpoint
 class UndoRequestItem(BaseModel):
     """
     Represents an item in the request body for the /undo_sync_task endpoint.
+
     This model is used to parse the results from a previous sync operation
-    to identify Jira tasks to undo and Confluence pages to rollback.
+    to identify Jira tasks that need to be deleted and Confluence pages that
+    should be rolled back to a previous version.
+
+    Attributes:
+        status_text (str): The status from the original automation result.
+        confluence_page_id (str): The ID of the Confluence page to roll back.
+        original_page_version (int): The version to which the page should be restored.
+        new_jira_task_key (Optional[str]): The key of the Jira task to be deleted.
+        linked_work_package (Optional[str]): The parent work package (for logging).
+        request_user (Optional[str]): The user who requested the original sync.
+        (and other fields from the flattened AutomationResult)
     """
 
     status_text: str
@@ -181,10 +210,16 @@ class UndoRequestItem(BaseModel):
     )
 
 
-# model used for the /update-confluence-project endpoint
 class ConfluenceUpdateProjectRequest(BaseModel):
     """
     Represents the request body for the /update-confluence-project endpoint.
+
+    Attributes:
+        root_confluence_page_url (str): URL of the root Confluence page for the project.
+        root_project_issue_key (str): The key of the top-level Jira project issue.
+        project_issue_type_id (Optional[str]): The ID for Jira "Project" issue types.
+        phase_issue_type_id (Optional[str]): The ID for Jira "Phase" issue types.
+        request_user (Optional[str]): The user initiating the update.
     """
 
     root_confluence_page_url: str = Field(
@@ -193,9 +228,7 @@ class ConfluenceUpdateProjectRequest(BaseModel):
             "example": "https://your.confluence.com/display/SPACE/RootPage"
         },
     )
-    root_project_issue_key: str = Field(
-        ..., json_schema_extra={"example": "PROJ-1"}
-    )  # CHANGED
+    root_project_issue_key: str = Field(..., json_schema_extra={"example": "PROJ-1"})
     project_issue_type_id: Optional[str] = Field(
         None, json_schema_extra={"example": "10000"}
     )
@@ -208,7 +241,15 @@ class ConfluenceUpdateProjectRequest(BaseModel):
 
 
 class SyncProjectPageDetail(BaseModel):
-    """Represents the result of updating a single Confluence page during a project sync."""
+    """
+    Represents the result of updating a single Confluence page during a project sync.
+
+    Attributes:
+        page_id (str): The ID of the Confluence page.
+        page_title (str): The title of the Confluence page.
+        new_jira_keys (List[str]): The Jira issue keys created/updated on this page.
+        root_project_linked (str): The main project Jira key linked at the root.
+    """
 
     page_id: str = Field(..., description="The ID of the Confluence page.")
     page_title: str = Field(..., description="The title of the Confluence page.")
@@ -221,9 +262,14 @@ class SyncProjectPageDetail(BaseModel):
     )
 
 
-# New models for Jira API responses and internal representation
 class JiraIssueStatus(BaseModel):
-    """Represents the status of a Jira issue."""
+    """
+    Represents the status of a Jira issue.
+
+    Attributes:
+        name (str): The name of the status (e.g., 'To Do', 'In Progress', 'Done').
+        category (str): The category of the status (e.g., 'new', 'indeterminate', 'done').
+    """
 
     name: str = Field(
         ..., description="The name of the status (e.g., 'To Do', 'Done')."
@@ -235,7 +281,15 @@ class JiraIssueStatus(BaseModel):
 
 
 class JiraIssue(BaseModel):
-    """Represents a simplified Jira issue object."""
+    """
+    Represents a simplified Jira issue object for internal use.
+
+    Attributes:
+        key (str): The issue key (e.g., 'PROJ-123').
+        summary (str): The issue summary.
+        status (JiraIssueStatus): The issue's current status.
+        issue_type (str): The name of the issue type (e.g., 'Task', 'Bug').
+    """
 
     key: str = Field(..., description="The issue key (e.g., 'PROJ-123').")
     summary: str = Field(..., description="The issue summary.")
@@ -246,7 +300,13 @@ class JiraIssue(BaseModel):
 
 
 class JiraIssueMacro(BaseModel):
-    """Represents a Jira macro found in Confluence page HTML."""
+    """
+    Represents a Jira macro found in Confluence page HTML.
+
+    Attributes:
+        issue_key (str): The Jira issue key embedded in the macro.
+        macro_html (str): The full HTML string of the Confluence Jira macro.
+    """
 
     issue_key: str = Field(..., description="The Jira issue key embedded in the macro.")
     macro_html: str = Field(
@@ -255,23 +315,41 @@ class JiraIssueMacro(BaseModel):
 
 
 class SyncTaskResponse(BaseModel):
-    """Response model for the /sync_task endpoint, including a request ID."""
+    """
+    Defines the response model for the /sync_task endpoint.
+
+    Attributes:
+        request_id (str): A unique identifier for the synchronization request.
+        results (List[Dict[str, Any]]): A list of dictionaries, each representing
+                                        an `AutomationResult`.
+    """
 
     request_id: str
-    results: List[
-        Dict[str, Any]
-    ]  # List of dictionaries representing AutomationResult items
+    results: List[Dict[str, Any]]
 
 
 class UndoSyncTaskResponse(BaseModel):
-    """Response model for the /undo_sync_task endpoint, including a request ID."""
+    """
+    Defines the response model for the /undo_sync_task endpoint.
+
+    Attributes:
+        request_id (str): A unique identifier for the undo request.
+        message (str): A confirmation message indicating the result of the undo operation.
+    """
 
     request_id: str
     message: str
 
 
 class SyncProjectResponse(BaseModel):
-    """Response model for the /sync_project endpoint, including a request ID."""
+    """
+    Defines the response model for the /sync_project endpoint.
+
+    Attributes:
+        request_id (str): A unique identifier for the project sync request.
+        results (List[SyncProjectPageDetail]): A list of details for each page
+                                               that was updated.
+    """
 
     request_id: str
     results: List[SyncProjectPageDetail]

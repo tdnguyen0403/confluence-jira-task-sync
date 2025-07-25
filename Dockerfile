@@ -47,7 +47,7 @@ EXPOSE 8080
 
 # Command to run the production application.
 # The port can be overridden by the PORT environment variable.
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "${PORT:-8080}"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "${PORT:-8080}"]
 
 
 # ==================================
@@ -65,4 +65,4 @@ RUN poetry install --no-root
 COPY . .
 
 # Command to run the dev server with live-reloading
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

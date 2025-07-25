@@ -2,29 +2,44 @@
 Provides a resilient, low-level API wrapper for Jira operations.
 
 This module contains the SafeJiraApi class, which is responsible for all
-direct communication with the Jira API. It mirrors the resilience pattern
-of the Confluence wrapper by using the `atlassian-python-api` library as its
-primary client and implementing fallbacks to direct `requests` calls for key
-operations. This ensures robustness against library-specific failures.
+direct communication with the Jira REST API. It is designed for robustness and
+high performance by using the asynchronous `HTTPSHelper` for all its network
+interactions. This ensures that calls to the Jira API are fault-tolerant,
+benefiting from connection pooling and automatic retries on transient errors.
 
-The class handles creating and retrieving issues, as well as managing issue
-transitions.
+The class provides a clean, asynchronous interface for common Jira actions,
+including:
+-   Creating and retrieving issues.
+-   Searching for issues using JQL.
+-   Managing issue workflows by finding and executing transitions.
+-   Updating issue details, such as the description.
+-   Fetching user and issue type metadata.
+
+This wrapper simplifies interactions with the Jira API, enforces consistent
+error handling, and improves the overall reliability of Jira-dependent services.
 """
 
 import logging
 from typing import Any, Dict, List, Optional
 
-# Local application imports
 from src.config import config
 from src.api.https_helper import HTTPSHelper
 
-# Configure logging for this module
 logger = logging.getLogger(__name__)
 
 
 class SafeJiraApi:
     """
-    Safe wrapper for Jira API interactions, using the asynchronous HTTPSHelper.
+    Provides a safe and resilient wrapper for Jira API interactions using an
+    asynchronous HTTPS helper. This class abstracts the direct API calls for
+    creating, retrieving, and transitioning Jira issues.
+
+    Attributes:
+        base_url (str): The base URL of the Jira instance.
+        https_helper (HTTPSHelper): An instance of the asynchronous HTTPSHelper for
+                                    making HTTP requests.
+        headers (Dict[str, str]): A dictionary of default headers, including
+                                  authorization, for all API requests.
     """
 
     def __init__(self, base_url: str, https_helper: HTTPSHelper):
@@ -32,12 +47,13 @@ class SafeJiraApi:
         Initializes the SafeJiraApi.
 
         Args:
-            base_url (str): The base URL of the Jira instance.
-            https_helper (HTTPSHelper): An instance of the asynchronous HTTPSHelper.
+            base_url (str): The base URL of the Jira instance (e.g.,
+                            "https://your-domain.atlassian.net").
+            https_helper (HTTPSHelper): An initialized instance of the
+                                        asynchronous HTTPSHelper.
         """
         self.base_url = config.JIRA_URL.rstrip("/")
-        self.https_helper = https_helper  # Correctly initialize https_helper
-        # Construct the Authorization header directly using username and PAT
+        self.https_helper = https_helper
         self.headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
@@ -48,12 +64,23 @@ class SafeJiraApi:
         self, issue_key: str, fields: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
-        Retrieves a single Jira issue asynchronously.
+        Retrieves a single Jira issue by its key asynchronously.
+
+        Args:
+            issue_key (str): The key of the issue to retrieve (e.g., "PROJ-123").
+            fields (Optional[List[str]]): A list of specific fields to return for
+                                          the issue. If None, all fields are
+                                          returned. Defaults to None.
+
+        Returns:
+            Dict[str, Any]: A dictionary representing the Jira issue.
+
+        Raises:
+            Exception: Propagates exceptions from the `HTTPSHelper` if the request fails.
         """
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}"
         params = {"fields": ",".join(fields)} if fields else {}
         try:
-            # Pass headers directly to https_helper
             return await self.https_helper.get(url, headers=self.headers, params=params)
         except Exception as e:
             logger.error(f"Failed to get Jira issue {issue_key}: {e}")
@@ -62,14 +89,27 @@ class SafeJiraApi:
     async def create_issue(self, fields: Dict[str, Any]) -> Dict[str, Any]:
         """
         Creates a new Jira issue asynchronously.
-        'fields' should contain all necessary fields like project, issuetype, summary, etc.
+
+        The `fields` dictionary must contain all required fields for issue
+        creation as defined in the target Jira project's configuration.
+
         Example fields:
         {
-            "project": {"key": "YOUR_PROJECT_KEY"},
+            "project": {"key": "PROJ"},
             "issuetype": {"name": "Task"},
-            "summary": "This is a new task created from Python",
-            "description": "Details about the task."
+            "summary": "A new task created via API",
+            "description": "This is the detailed description of the task."
         }
+
+        Args:
+            fields (Dict[str, Any]): A dictionary of fields for the new issue.
+
+        Returns:
+            Dict[str, Any]: A dictionary representing the newly created Jira issue,
+                            including its key and ID.
+
+        Raises:
+            Exception: Propagates exceptions from the `HTTPSHelper` if the request fails.
         """
         url = f"{self.base_url}/rest/api/2/issue"
         payload = {"fields": fields}
@@ -83,7 +123,20 @@ class SafeJiraApi:
 
     async def get_available_transitions(self, issue_key: str) -> List[Dict[str, Any]]:
         """
-        Retrieves all available transitions for a given Jira issue asynchronously.
+        Retrieves all available workflow transitions for a given Jira issue.
+
+        This method is useful for discovering the possible next steps in an
+        issue's lifecycle, which can then be used with `transition_issue`.
+
+        Args:
+            issue_key (str): The key of the issue (e.g., "PROJ-123").
+
+        Returns:
+            List[Dict[str, Any]]: A list of available transition objects, where
+                                  each object contains details like `id` and `name`.
+
+        Raises:
+            Exception: Propagates exceptions from the `HTTPSHelper` if the request fails.
         """
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
         try:
@@ -99,7 +152,19 @@ class SafeJiraApi:
         self, issue_key: str, transition_name: str
     ) -> Optional[str]:
         """
-        Finds the ID of a transition by its name for a given Jira issue asynchronously.
+        Finds the ID of a transition by its name for a given Jira issue.
+
+        This is a helper method that fetches all available transitions and
+        searches for one with a matching name (case-insensitive).
+
+        Args:
+            issue_key (str): The key of the issue (e.g., "PROJ-123").
+            transition_name (str): The name of the target transition (e.g.,
+                                   "In Progress", "Done").
+
+        Returns:
+            Optional[str]: The ID of the found transition, or None if no
+                           transition with that name is available.
         """
         transitions = await self.get_available_transitions(issue_key)
         for transition in transitions:
@@ -114,16 +179,32 @@ class SafeJiraApi:
         self, issue_key: str, transition_name: str
     ) -> Dict[str, Any]:
         """
-        Transitions a Jira issue to a new status asynchronously.
+        Transitions a Jira issue to a new status by its transition name.
+
+        This method first finds the correct transition ID for the given name
+        and then executes the transition.
+
+        Args:
+            issue_key (str): The key of the issue to transition (e.g., "PROJ-123").
+            transition_name (str): The name of the workflow transition to execute
+                                   (e.g., "Start Progress").
+
+        Returns:
+            Dict[str, Any]: An empty dictionary on success (for a 204 No Content
+                            response), or a dictionary with response data if
+                            the server provides one.
+
+        Raises:
+            ValueError: If a transition with the given name cannot be found for
+                        the issue.
+            Exception: Propagates exceptions from the `HTTPSHelper` if the API
+                       request fails.
         """
-        # Use the helper method to find the transition ID
         transition_id = await self.find_transition_id_by_name(
             issue_key, transition_name
         )
 
         if not transition_id:
-            # The find_transition_id_by_name method already logs a warning,
-            # but we raise a ValueError here to clearly indicate failure to the caller.
             raise ValueError(
                 f"Transition '{transition_name}' not found for issue {issue_key}"
             )
@@ -131,11 +212,10 @@ class SafeJiraApi:
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
         payload = {"transition": {"id": transition_id}}
         try:
-            # Pass headers directly to https_helper
             response = await self.https_helper.post(
                 url, headers=self.headers, json_data=payload
             )
-            return response  # May be empty for 204
+            return response
         except Exception as e:
             logger.error(
                 f"Failed to transition Jira issue {issue_key} to '{transition_name}': {e}"
@@ -144,12 +224,20 @@ class SafeJiraApi:
 
     async def get_current_user(self) -> Dict[str, Any]:
         """
-        Retrieves information about the current authenticated Jira user asynchronously.
-        Used for health checks.
+        Retrieves information about the current authenticated Jira user.
+
+        This is often used for health checks to verify API connectivity and
+        authentication.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing details about the currently
+                            authenticated user.
+
+        Raises:
+            Exception: Propagates exceptions from the `HTTPSHelper` if the request fails.
         """
         url = f"{self.base_url}/rest/api/2/myself"
         try:
-            # Pass headers directly to https_helper
             return await self.https_helper.get(url, headers=self.headers)
         except Exception as e:
             logger.error(f"Error getting current Jira user: {e}")
@@ -160,6 +248,19 @@ class SafeJiraApi:
     ) -> Dict[str, Any]:
         """
         Executes a JQL query and returns matching issues asynchronously.
+
+        Args:
+            jql_query (str): The JQL (Jira Query Language) string to execute.
+            fields (Optional[List[str]]): A list of specific fields to return for
+                                          each matching issue. If None, default
+                                          fields are returned. Defaults to None.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the search results, including
+                            a list of issues.
+
+        Raises:
+            Exception: Propagates exceptions from the `HTTPSHelper` if the request fails.
         """
         url = f"{self.base_url}/rest/api/2/search"
         params = {"jql": jql_query}
@@ -167,7 +268,6 @@ class SafeJiraApi:
             params["fields"] = ",".join(fields)
 
         try:
-            # Pass headers directly to https_helper
             return await self.https_helper.get(url, headers=self.headers, params=params)
         except Exception as e:
             logger.error(f"Error executing JQL search '{jql_query}': {e}")
@@ -177,7 +277,14 @@ class SafeJiraApi:
         self, issue_type_id: str
     ) -> Optional[Dict[str, Any]]:
         """
-        Retrieves details for a specific Jira issue type by its ID asynchronously.
+        Retrieves details for a specific Jira issue type by its ID.
+
+        Args:
+            issue_type_id (str): The ID of the issue type to retrieve.
+
+        Returns:
+            Optional[Dict[str, Any]]: A dictionary containing details of the
+                                      issue type, or None if an error occurs.
         """
         url = f"{self.base_url}/rest/api/2/issuetype/{issue_type_id}"
         try:
@@ -193,6 +300,21 @@ class SafeJiraApi:
     ) -> Dict[str, Any]:
         """
         Updates the description of a Jira issue asynchronously.
+
+        This method performs a `PUT` request to modify only the `description`
+        field of an existing issue.
+
+        Args:
+            issue_key (str): The key of the issue to update (e.g., "PROJ-123").
+            new_description (str): The new description text for the issue.
+
+        Returns:
+            Dict[str, Any]: An empty dictionary on success (for a 204 No Content
+                            response), or a dictionary containing response data.
+
+        Raises:
+            Exception: Propagates exceptions from the `HTTPSHelper` if the API
+                       request fails.
         """
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}"
         payload = {"fields": {"description": new_description}}

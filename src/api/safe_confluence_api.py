@@ -2,30 +2,36 @@
 Provides a resilient, low-level API wrapper for Confluence operations.
 
 This module contains the SafeConfluenceApi class, which is designed to
-interact with the Confluence API in a fault-tolerant way. It uses the
-asynchronous HTTPSHelper for all direct REST API calls, ensuring robustness
-and high performance.
+interact with the Confluence REST API in a fault-tolerant and asynchronous
+manner. It leverages the `HTTPSHelper` for all underlying HTTP communications,
+ensuring that API calls benefit from features like connection pooling and
+automatic retries for transient network issues.
 
-The class handles various operations, including fetching and updating pages,
-resolving page URLs, finding tasks within page content, and updating pages
-with links to Jira issues.
+The class abstracts the complexities of the Confluence API, offering
+simplified methods for common operations such as:
+-   Fetching and updating pages.
+-   Resolving page IDs from various URL formats.
+-   Finding and parsing tasks within page content.
+-   Creating new pages and traversing page hierarchies.
+-   Updating pages with links to Jira issues.
+
+By centralizing Confluence interactions, this class promotes consistency,
+improves reliability, and simplifies maintenance.
 """
 
 import logging
 import re
 import uuid
-import asyncio  # Required for concurrent operations like get_all_descendants_concurrently
+import asyncio
 from typing import Any, Dict, List, Optional
 
 from bs4 import BeautifulSoup
 
-# Local application imports
 from src.config import config
 from src.models.data_models import ConfluenceTask
 from src.utils.context_extractor import get_task_context
-from src.api.https_helper import HTTPSHelper  # Import the asynchronous HTTPSHelper
+from src.api.https_helper import HTTPSHelper
 
-# Configure logging for this module
 logger = logging.getLogger(__name__)
 
 
@@ -34,7 +40,8 @@ class SafeConfluenceApi:
     A resilient, low-level service for all Confluence operations.
 
     This class provides a safe wrapper around the Confluence API, using
-    HTTPSHelper for all network interactions to ensure asynchronous operation.
+    HTTPSHelper for all network interactions to ensure asynchronous operation,
+    connection pooling, and retry logic.
 
     Attributes:
         base_url (str): The base URL for the Confluence instance.
@@ -47,8 +54,8 @@ class SafeConfluenceApi:
 
     def __init__(
         self,
-        base_url: str,  # Pass base_url directly
-        https_helper: HTTPSHelper,  # Inject HTTPSHelper
+        base_url: str,
+        https_helper: HTTPSHelper,
         jira_macro_server_name: str = config.JIRA_MACRO_SERVER_NAME,
         jira_macro_server_id: str = config.JIRA_MACRO_SERVER_ID,
     ):
@@ -60,13 +67,14 @@ class SafeConfluenceApi:
             https_helper (HTTPSHelper): An authenticated instance of the
                                         asynchronous HTTPSHelper client.
             jira_macro_server_name (str): The name of the Jira server for macros.
+                                          Defaults to a value from config.
             jira_macro_server_id (str): The ID of the Jira server for macros.
+                                        Defaults to a value from config.
         """
         self.base_url = config.CONFLUENCE_URL.rstrip("/")
         self.https_helper = https_helper
-        # Construct the Authorization header directly using Bearer Token
         self.headers = {
-            "Authorization": f"Bearer {config.CONFLUENCE_API_TOKEN}",  # Using config.CONFLUENCE_API_TOKEN directly
+            "Authorization": f"Bearer {config.CONFLUENCE_API_TOKEN}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
@@ -78,9 +86,10 @@ class SafeConfluenceApi:
         Extracts the Confluence page ID from a standard or short URL asynchronously.
 
         This utility method first attempts to parse the ID from a standard
-        long-form URL. If that fails, it resolves the URL (assuming it's a
-        short link) by making a HEAD request and then parses the ID from the
-        final resolved URL.
+        long-form URL (e.g., with a `pageId` query parameter or a `/pages/<id>`
+        path). If that fails, it resolves the URL by making a `HEAD` request
+        to handle redirects (common for short links) and then parses the ID
+        from the final resolved URL.
 
         Args:
             url (str): The Confluence page URL (long or short form).
@@ -89,21 +98,16 @@ class SafeConfluenceApi:
             Optional[str]: The extracted page ID, or None if it cannot be
                            resolved or found.
         """
-        # First, check for a standard long URL format with pageId query param
         page_id_query_match = re.search(r"pageId=(\d+)", url)
         if page_id_query_match:
             return page_id_query_match.group(1)
 
-        # Then, check for clean /pages/<id> format
         long_url_path_match = re.search(r"/pages/(\d+)", url)
         if long_url_path_match:
             return long_url_path_match.group(1)
 
-        # If not found, assume it's a short URL and try to resolve it.
         logger.info(f"Attempting to resolve short URL: {url}")
         try:
-            # Use an async HEAD request for efficiency as we only need the final URL.
-            # HTTPSHelper._make_request returns httpx.Response directly.
             response = await self.https_helper._make_request(
                 "HEAD",
                 url,
@@ -118,17 +122,14 @@ class SafeConfluenceApi:
                 )
                 return await self.get_page_id_from_url(redirect_url)
             elif response.status_code == 200:
-                # If it's a 200 OK, then response.url should be the final URL.
                 final_url = str(response.url)
                 logger.info(f"Short URL resolved to: {final_url}")
             else:
-                # For other non-200/3xx statuses, it's an unexpected response.
                 logger.error(
                     f"Unexpected status code {response.status_code} when resolving short URL '{url}'."
                 )
                 return None
 
-            # Apply both regex checks to the final_url explicitly and separately
             resolved_page_id_query_match = re.search(r"pageId=(\d+)", final_url)
             if resolved_page_id_query_match:
                 return resolved_page_id_query_match.group(1)
@@ -141,30 +142,35 @@ class SafeConfluenceApi:
                 "Could not extract page ID from the final resolved URL: " f"{final_url}"
             )
             return None
-        except Exception as e:  # Catch all exceptions from _make_request
+        except Exception as e:
             logger.error(f"Could not resolve the short URL '{url}'. Details: {e}")
             return None
 
     async def get_page_by_id(
         self, page_id: str, expand: Optional[str] = None, version: Optional[int] = None
-    ) -> Optional[Dict[str, Any]]:  # <--- Added version parameter
+    ) -> Optional[Dict[str, Any]]:
         """
         Retrieves a Confluence page by its ID asynchronously.
-        Can optionally retrieve a specific version of the page.
+
+        This method can fetch either the latest version of a page or a specific
+        historical version. It allows for the expansion of page properties
+        (like `version` or `body.storage`) in the response.
 
         Args:
             page_id (str): The ID of the Confluence page to retrieve.
-            expand (Optional[str]): A comma-separated list of properties to expand.
-            version (Optional[int]): The specific version number of the page to retrieve.
+            expand (Optional[str]): A comma-separated list of properties to expand
+                                    (e.g., 'version,body.storage'). Defaults to None.
+            version (Optional[int]): The specific version number of the page to
+                                     retrieve. If None, retrieves the latest version.
+                                     Defaults to None.
 
         Returns:
             Optional[Dict[str, Any]]: A dictionary containing the page data,
                                       or None if retrieval fails.
         """
         if version is not None:
-            # The /rest/api/content/{id} endpoint supports 'version' as a query parameter.
             url = f"{self.base_url}/rest/api/content/{page_id}"
-            params = {"version": version}  # Version is a query parameter
+            params = {"version": version}
             if expand:
                 params["expand"] = expand
         else:
@@ -183,14 +189,20 @@ class SafeConfluenceApi:
         self, page_id: str, page_type: str = "page"
     ) -> List[Dict[str, Any]]:
         """
-        Retrieves child pages of a specific type asynchronously, with pagination.
+        Retrieves child items of a specific type for a given page asynchronously.
+
+        This method handles pagination automatically, fetching all child items
+        (e.g., pages or attachments) of a specified type that belong to a
+        parent page.
 
         Args:
             page_id (str): The ID of the parent page.
-            page_type (str): The type of child to retrieve (e.g., 'page').
+            page_type (str): The type of child to retrieve (e.g., 'page',
+                             'comment', 'attachment'). Defaults to 'page'.
 
         Returns:
-            List[Dict[str, Any]]: A list of child page objects.
+            List[Dict[str, Any]]: A list of child item objects. Returns an empty
+                                  list if no children are found or an error occurs.
         """
         all_results: List[Dict[str, Any]] = []
         start = 0
@@ -208,12 +220,11 @@ class SafeConfluenceApi:
                     f"Failed to retrieve child pages for '{page_id}' "
                     f"at start={start}. Returning partial results. Error: {e}"
                 )
-                break  # Exit loop on API failure
+                break
 
             current_results = response_data.get("results", [])
             all_results.extend(current_results)
 
-            # Check if there are more results based on size and _links.next
             if not current_results or len(current_results) < limit:
                 break
 
@@ -223,12 +234,16 @@ class SafeConfluenceApi:
 
     async def update_page(self, page_id: str, title: str, body: str) -> bool:
         """
-        Updates a Confluence page asynchronously.
+        Updates the content and title of a Confluence page asynchronously.
+
+        This method fetches the current version of the page to ensure the
+        update is not based on stale data, increments the version number,
+        and then sends the new title and body content.
 
         Args:
             page_id (str): The ID of the page to update.
             title (str): The new title for the page.
-            body (str): The new body content in Confluence storage format.
+            body (str): The new body content in Confluence storage format (HTML).
 
         Returns:
             bool: True if the page was updated successfully, False otherwise.
@@ -259,7 +274,7 @@ class SafeConfluenceApi:
                 headers=self.headers,
                 json_data=payload,
             )
-            if response:  # httpx.put returns a response object, check its status implicitly via raise_for_status()
+            if response:
                 logger.info(f"Successfully updated page {page_id} via REST call.")
                 return True
         except Exception as e:
@@ -272,14 +287,20 @@ class SafeConfluenceApi:
         """
         Creates a new Confluence page asynchronously.
 
+        The new page can be created at the root of a space or as a child of an
+        existing page.
+
         Args:
             space_key (str): The key of the space where the page will be created.
             title (str): The title of the new page.
-            body (str): The body content in Confluence storage format.
-            parent_id (Optional[str]): The ID of the parent page, if it's a child page.
+            body (str): The body content in Confluence storage format (HTML).
+            parent_id (Optional[str]): The ID of the parent page. If None, the
+                                       page is created at the top level of the space.
+                                       Defaults to None.
 
         Returns:
-            Optional[Dict[str, Any]]: The created page object, or None.
+            Optional[Dict[str, Any]]: The created page object as a dictionary,
+                                      or None if creation fails.
         """
         url = f"{self.base_url}/rest/api/content"
         payload = {
@@ -296,7 +317,7 @@ class SafeConfluenceApi:
                 json_data=payload,
             )
             if response:
-                return response  # httpx.post returns the JSON directly if successful
+                return response
         except Exception as e:
             logger.error(f"Failed to create Confluence page '{title}': {e}")
         return None
@@ -305,7 +326,15 @@ class SafeConfluenceApi:
         self, username: str
     ) -> Optional[Dict[str, Any]]:
         """
-        Retrieves user details by username asynchronously.
+        Retrieves Confluence user details by username asynchronously.
+
+        Args:
+            username (str): The username of the user to retrieve.
+
+        Returns:
+            Optional[Dict[str, Any]]: A dictionary containing the user's
+                                      details, or None if the user is not found
+                                      or an error occurs.
         """
         url = f"{self.base_url}/rest/api/user?username={username}"
         try:
@@ -318,7 +347,15 @@ class SafeConfluenceApi:
         self, userkey: str
     ) -> Optional[Dict[str, Any]]:
         """
-        Retrieves user details by user key asynchronously.
+        Retrieves Confluence user details by user key asynchronously.
+
+        Args:
+            userkey (str): The user key (a unique identifier) of the user.
+
+        Returns:
+            Optional[Dict[str, Any]]: A dictionary containing the user's
+                                      details, or None if the user is not found
+                                      or an error occurs.
         """
         url = f"{self.base_url}/rest/api/user?key={userkey}"
         try:
@@ -329,20 +366,20 @@ class SafeConfluenceApi:
 
     async def get_all_descendants(self, page_id: str) -> List[str]:
         """
-        Recursively finds all descendant page IDs using asynchronous API calls.
+        Recursively finds all descendant page IDs using concurrent API calls.
 
-        This method builds a complete list of all child pages, and their
-        children, down the entire hierarchy from the starting page ID,
-        leveraging concurrent fetching.
+        This method builds a complete, flat list of all child pages, their
+        children, and so on, down the entire hierarchy from the starting page ID.
+        It uses `get_all_descendants_concurrently` to perform the fetch operations
+        in parallel for greater efficiency.
 
         Args:
-            page_id (str): The starting page ID.
+            page_id (str): The ID of the starting parent page.
 
         Returns:
             List[str]: A flat list of all descendant page IDs.
         """
         all_ids = []
-        # Use the concurrent method to get all descendants
         descendant_pages_data = await self.get_all_descendants_concurrently(page_id)
         for page_data in descendant_pages_data:
             all_ids.append(page_data["id"])
@@ -353,36 +390,42 @@ class SafeConfluenceApi:
     ) -> List[Dict[str, Any]]:
         """
         Recursively fetches all descendant pages of a given page concurrently.
-        This is an internal helper method for get_all_descendants.
+
+        This is an internal helper method that performs a breadth-first traversal
+        of the page tree. It fetches all direct children for a level of the
+        hierarchy in parallel, significantly speeding up the discovery of all
+        descendants compared to a sequential approach.
+
+        Args:
+            page_id (str): The ID of the root page for the traversal.
+
+        Returns:
+            List[Dict[str, Any]]: A list of page objects representing all
+                                  descendants.
         """
         all_pages = []
         processed_page_ids = set()
-        pages_to_process = [page_id]  # Start with the initial page ID
+        pages_to_process = [page_id]
 
         while pages_to_process:
-            current_batch_ids = list(pages_to_process)  # Copy for iteration
-            pages_to_process = []  # Reset for next batch of children
+            current_batch_ids = list(pages_to_process)
+            pages_to_process = []
 
             tasks = []
             for p_id in current_batch_ids:
                 if p_id not in processed_page_ids:
                     processed_page_ids.add(p_id)
-                    tasks.append(
-                        self.get_page_child_by_type(p_id)
-                    )  # Calls the async method
+                    tasks.append(self.get_page_child_by_type(p_id))
 
             if tasks:
-                # Run all child page fetches in the current batch concurrently
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 for res in results:
                     if isinstance(res, Exception):
                         logger.error(f"Error fetching a batch of child pages: {res}")
-                        continue  # Continue processing other tasks
+                        continue
                     for child_page in res:
                         all_pages.append(child_page)
-                        pages_to_process.append(
-                            child_page["id"]
-                        )  # Add children to next batch
+                        pages_to_process.append(child_page["id"])
 
         return all_pages
 
@@ -390,11 +433,12 @@ class SafeConfluenceApi:
         self, page_details: Dict[str, Any]
     ) -> List[ConfluenceTask]:
         """
-        Extracts all Confluence tasks from a page's HTML content.
+        Extracts all top-level Confluence tasks from a page's HTML content.
 
-        Parses the 'storage' format of the page body to find all task list
-        items (`<ac:task>`), ignoring any tasks within specific aggregation
-        macros defined in the config.
+        This method parses the 'storage' format of the page body to find all
+        task list items (`<ac:task>`). It specifically ignores tasks that are
+        nested inside other tasks or located within certain macros (defined in
+        the application config) used for aggregation.
 
         Args:
             page_details (Dict[str, Any]): The dictionary containing the full
@@ -402,8 +446,8 @@ class SafeConfluenceApi:
                                            including the body content.
 
         Returns:
-            List[ConfluenceTask]: A list of `ConfluenceTask` objects found on
-                                  the page.
+            List[ConfluenceTask]: A list of `ConfluenceTask` data models found
+                                  on the page.
         """
         tasks: List[ConfluenceTask] = []
         html_content = page_details.get("body", {}).get("storage", {}).get("value", "")
@@ -413,20 +457,15 @@ class SafeConfluenceApi:
         soup = BeautifulSoup(html_content, "html.parser")
 
         for task_element in soup.find_all("ac:task"):
-            # Skip tasks that are inside an aggregation macro
             if task_element.find_parent(
                 "ac:structured-macro",
                 {"ac:name": lambda x: x in config.AGGREGATION_CONFLUENCE_MACRO},
             ):
                 continue
-            # A task is nested if its immediate parent <ac:task-list> has an <ac:task-body> as its parent.
             parent_task_list = task_element.find_parent("ac:task-list")
             if parent_task_list and parent_task_list.find_parent("ac:task-body"):
-                continue  # This task is nested within another task's body.
-            # Parse the task element into a structured object
-            parsed_task = await self._parse_single_task(
-                task_element, page_details
-            )  # Await this call
+                continue
+            parsed_task = await self._parse_single_task(task_element, page_details)
             if parsed_task:
                 tasks.append(parsed_task)
         return tasks
@@ -438,14 +477,17 @@ class SafeConfluenceApi:
         Parses a single <ac:task> element into a ConfluenceTask object asynchronously.
 
         This helper method extracts all relevant details from a task element,
-        including its content, status, assignee, and due date.
+        including its content (summary), status, assignee (by fetching user
+        details if necessary), and due date. It also captures contextual
+        information and cleans the task summary by removing any nested tasks.
 
         Args:
             task_element (Any): The BeautifulSoup tag for an `<ac:task>`.
-            page_details (Dict[str, Any]): The details of the parent page.
+            page_details (Dict[str, Any]): The details of the parent page, used
+                                           for context.
 
         Returns:
-            Optional[ConfluenceTask]: A populated `ConfluenceTask` object, or
+            Optional[ConfluenceTask]: A populated `ConfluenceTask` data model, or
                                       None if the task element is malformed.
         """
         task_body = task_element.find("ac:task-body")
@@ -458,7 +500,6 @@ class SafeConfluenceApi:
         assignee_name: Optional[str] = None
         if user_mention := task_element.find("ri:user"):
             if user_key := user_mention.get("ri:userkey"):
-                # Await the call to get user details
                 user_details = await self.get_user_details_by_userkey(user_key)
                 if user_details:
                     assignee_name = user_details.get("username")
@@ -473,14 +514,11 @@ class SafeConfluenceApi:
         page_version = page_details.get("version", {})
         context = get_task_context(task_element)
 
-        # Create a modifiable copy to avoid altering the main soup object.
         task_body_copy = BeautifulSoup(str(task_body), "html.parser")
 
-        # Remove nested task lists to get only the parent task's summary.
         for nested_task_list in task_body_copy.find_all("ac:task-list"):
             nested_task_list.decompose()
 
-        # Clean the text to get a concise summary.
         task_summary = " ".join(task_body_copy.get_text(separator=" ").split()).strip()
 
         return ConfluenceTask(
@@ -504,16 +542,19 @@ class SafeConfluenceApi:
         self, page_id: str, mappings: List[Dict[str, str]]
     ) -> None:
         """
-        Replaces completed Confluence tasks with their plain text and a Jira issue macro.
+        Replaces specified Confluence tasks on a page with their plain text
+        summary and a corresponding Jira issue macro.
 
         This method retrieves a page, finds tasks based on the provided mappings,
-        converts the task element into plain text, and appends a Jira macro
-        in its place. It skips tasks found within aggregation macros.
+        replaces the task element with a paragraph containing a Jira macro and
+        the task's text, and then updates the page. It skips tasks found
+        within configured aggregation macros.
 
         Args:
             page_id (str): The ID of the Confluence page to update.
-            mappings (List[Dict[str, str]]): A list of dictionaries, each
-                                            mapping a `confluence_task_id` to a `jira_key`.
+            mappings (List[Dict[str, str]]): A list of dictionaries, where each
+                                             maps a `confluence_task_id` to a
+                                             `jira_key`.
         """
         page = await self.get_page_by_id(page_id, expand="body.storage,version")
         if not page:
@@ -524,7 +565,6 @@ class SafeConfluenceApi:
         modified = False
         mapping_dict = {m["confluence_task_id"]: m["jira_key"] for m in mappings}
 
-        # Iterate over a static list of tasks, as the soup will be modified
         for task in soup.find_all("ac:task"):
             task_id_tag = task.find("ac:task-id")
 
@@ -535,7 +575,6 @@ class SafeConfluenceApi:
                 ):
                     continue
 
-                # Find the parent list before modifying anything
                 parent_task_list = task.find_parent("ac:task-list")
                 if not parent_task_list:
                     continue
@@ -566,7 +605,6 @@ class SafeConfluenceApi:
                 )
 
         if modified:
-            # Clean up any task lists that are now empty
             for tl in soup.find_all("ac:task-list"):
                 if not tl.find("ac:task"):
                     tl.decompose()
@@ -579,8 +617,11 @@ class SafeConfluenceApi:
 
     def _generate_jira_macro_html(self, jira_key: str) -> str:
         """
-        Generates the Confluence storage format for a Jira issue macro that
-        only displays the issue key.
+        Generates the Confluence storage format for a Jira issue macro.
+
+        This helper method creates the raw HTML (storage format) for a Jira
+        macro that displays a single Jira issue key as a link, without showing
+        the issue summary.
 
         Args:
             jira_key (str): The key of the Jira issue (e.g., 'PROJ-123').
@@ -592,7 +633,6 @@ class SafeConfluenceApi:
         return (
             f'<ac:structured-macro ac:name="jira" ac:schema-version="1" '
             f'ac:macro-id="{macro_id}">'
-            # This is the key parameter from your HTML to hide the summary
             f'<ac:parameter ac:name="showSummary">false</ac:parameter>'
             f'<ac:parameter ac:name="server">{self.jira_macro_server_name}</ac:parameter>'
             f'<ac:parameter ac:name="serverId">{self.jira_macro_server_id}</ac:parameter>'
@@ -603,9 +643,18 @@ class SafeConfluenceApi:
     async def get_all_spaces(self) -> List[Dict[str, Any]]:
         """
         Retrieves a list of all Confluence spaces asynchronously.
-        Used for health checks.
+
+        This method is primarily intended for health checks to verify that the
+        API connection to Confluence is active and properly authenticated.
+
+        Returns:
+            List[Dict[str, Any]]: A list of space objects.
+
+        Raises:
+            Exception: Propagates exceptions from the underlying `HTTPSHelper` call
+                       if the API request fails.
         """
-        url = f"{self.base_url}/rest/api/space"  # Confluence Server/DC API for spaces
+        url = f"{self.base_url}/rest/api/space"
         try:
             response_data = await self.https_helper.get(url, headers=self.headers)
             return response_data.get("results", [])

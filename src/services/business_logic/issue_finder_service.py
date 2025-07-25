@@ -1,5 +1,14 @@
+"""
+Provides a service for finding and validating Jira issues within Confluence pages.
+
+This module contains the `IssueFinderService`, which is specialized in parsing
+Confluence page content to locate Jira issue macros. It then interacts with the
+Jira API to fetch details about these issues in a bulk, efficient manner,
+and validates them against specified criteria, such as issue type.
+"""
+
 import logging
-from typing import Any, Dict, Optional, List  # Added List import
+from typing import Any, Dict, Optional, List
 
 from bs4 import BeautifulSoup
 
@@ -9,12 +18,12 @@ from src.interfaces.confluence_service_interface import (
 from src.interfaces.issue_finder_service_interface import (
     IssueFinderServiceInterface,
 )
-from src.api.safe_jira_api import SafeJiraApi  # Import SafeJiraApi directly
+from src.api.safe_jira_api import SafeJiraApi
 from src.models.data_models import (
     JiraIssueMacro,
     JiraIssue,
     JiraIssueStatus,
-)  # Import necessary models
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +32,14 @@ class IssueFinderService(IssueFinderServiceInterface):
     """
     A dedicated service for finding specific Jira issues on Confluence pages.
 
-    This service uses both the Confluence and Jira APIs to first read a
-    page's content and then validate the issue types of any found Jira macros.
+    This service uses both Confluence and Jira APIs to first read a page's
+    content and then validate the issue types of any found Jira macros. It is
+    designed to be efficient by fetching issue details from Jira in bulk.
     """
 
     def __init__(
         self,
-        jira_api: SafeJiraApi,  # IssueFinderService only depends on SafeJiraApi
+        jira_api: SafeJiraApi,
     ):
         """
         Initializes the IssueFinderService.
@@ -45,28 +55,28 @@ class IssueFinderService(IssueFinderServiceInterface):
         page_id: str,
         issue_type_map: Dict[str, str],
         confluence_api_service: ConfluenceApiServiceInterface,
-    ) -> Optional[
-        Dict[str, Any]
-    ]:  # Changed return type to Dict[str, Any] to match original logic
+    ) -> Optional[Dict[str, Any]]:
         """
-        Finds the first Jira macro on a page matching a specified issue type asynchronously.
+        Finds the first Jira macro on a page matching a specified issue type.
 
         This method performs a multi-step process:
-        1. Fetches the full content of a Confluence page using the provided service.
-        2. Parses the HTML content to find all Jira issue macros and their details in bulk.
-        3. Iterates through the fetched Jira issues to find one that matches the specified issue type.
+        1. Fetches the full content of a Confluence page.
+        2. Parses the HTML to find all Jira issue macros.
+        3. Fetches details for all found issues in a single bulk request.
+        4. Iterates through the fetched issues to find one that matches a
+           target issue type.
 
         Args:
             page_id (str): The ID of the Confluence page to search.
             issue_type_map (Dict[str, str]): A mapping of issue type names to
-                their corresponding IDs (e.g., {"Work Package": "10100"}).
-            confluence_api_service (ConfluenceApiServiceInterface): The Confluence service to fetch page content.
+                their IDs (e.g., {"Work Package": "10100"}).
+            confluence_api_service (ConfluenceApiServiceInterface): The service
+                used to fetch Confluence page content.
 
         Returns:
             Optional[Dict[str, Any]]: The full Jira issue dictionary if a
                 matching issue is found, otherwise None.
         """
-        # Fetch the page content using the provided Confluence service
         page_content = await confluence_api_service.get_page_by_id(
             page_id, expand="body.storage"
         )
@@ -78,34 +88,22 @@ class IssueFinderService(IssueFinderServiceInterface):
             logger.warning(f"Could not retrieve content for page ID '{page_id}'.")
             return None
 
-        # Extract all Jira macros and fetch their details in bulk
-        # This resolves the N+1 issue for fetching individual macro details
         extracted_data = await self.find_issues_and_macros_on_page(
             page_content["body"]["storage"]["value"]
         )
-        fetched_issues_map = extracted_data[
-            "fetched_issues_map"
-        ]  # This map contains JiraIssue objects
+        fetched_issues_map = extracted_data["fetched_issues_map"]
 
-        # Create a set of target issue type names for efficient lookup
-        # This assumes issue_type_map is {name: id}
         target_issue_type_names = set(issue_type_map.keys())
 
         for (
             issue_key,
             jira_issue_obj,
-        ) in (
-            fetched_issues_map.items()
-        ):  # Iterate through the pre-fetched JiraIssue objects
-            # Check if the issue type name matches any of the target names
+        ) in fetched_issues_map.items():
             if jira_issue_obj.issue_type in target_issue_type_names:
                 logger.info(
                     f"Found matching parent issue '{issue_key}' on page "
                     f"'{page_id}'."
                 )
-                # To match the original return (full dict from API with assignee/reporter),
-                # we'll fetch it once more for the specific matching issue.
-                # This is ONE additional call if a match is found, not N calls.
                 return await self.jira_api.get_issue(
                     issue_key, fields=["key", "issuetype", "assignee", "reporter"]
                 )
@@ -118,14 +116,24 @@ class IssueFinderService(IssueFinderServiceInterface):
 
     async def find_issues_and_macros_on_page(self, page_html: str) -> Dict[str, Any]:
         """
-        Extracts Jira issue macros from HTML and fetches their corresponding Jira issues in bulk asynchronously.
-        This is the concrete implementation of the abstract method.
+        Extracts Jira macros from HTML and fetches their issues in bulk.
+
+        This implementation parses the page HTML for Jira macros, collects all
+        unique issue keys, and then uses a single JQL query to fetch the details
+        for all issues at once, which is highly efficient.
+
+        Args:
+            page_html (str): The raw HTML content of a Confluence page.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing 'jira_macros' (a list of
+                `JiraIssueMacro` objects) and 'fetched_issues_map' (a dict
+                mapping issue keys to `JiraIssue` objects).
         """
         soup = BeautifulSoup(page_html, "html.parser")
         jira_macros: List[JiraIssueMacro] = []
         jira_keys_to_fetch = set()
 
-        # Find all 'ac:structured-macro' elements for Jira issues
         for macro_tag in soup.find_all("ac:structured-macro", {"ac:name": "jira"}):
             try:
                 issue_key_param = macro_tag.find("ac:parameter", {"ac:name": "key"})
@@ -143,7 +151,6 @@ class IssueFinderService(IssueFinderServiceInterface):
         if jira_keys_to_fetch:
             jql_query = f"issue in ({','.join(jira_keys_to_fetch)})"
             try:
-                # Fetch all issues in a single batch call using JQL
                 search_results = await self.jira_api.search_issues(
                     jql_query, fields=["summary", "status", "issuetype"]
                 )
@@ -164,6 +171,6 @@ class IssueFinderService(IssueFinderServiceInterface):
                     )
             except Exception as e:
                 logger.error(f"Error fetching Jira issues in bulk via JQL: {e}")
-                raise  # Re-raise to be handled by orchestrator/main.py
+                raise
 
         return {"jira_macros": jira_macros, "fetched_issues_map": fetched_issues_map}

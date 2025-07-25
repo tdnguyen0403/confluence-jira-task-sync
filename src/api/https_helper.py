@@ -1,10 +1,34 @@
+"""
+Provides a reusable and resilient asynchronous HTTP client.
+
+This module contains the HTTPSHelper class, which is a wrapper around the
+`httpx` library. It is designed to facilitate efficient and robust
+communication with web services. Key features include:
+
+-   **Asynchronous Requests:** Leverages `httpx.AsyncClient` for high-performance,
+    non-blocking HTTP calls.
+-   **Connection Pooling:** Manages a single client instance to reuse connections,
+    improving efficiency.
+-   **Automatic Retries:** Implements an exponential backoff retry strategy for
+    transient network errors and 5xx server responses using the `tenacity`
+    library.
+-   **Custom Exceptions:** Defines a hierarchy of custom exceptions to provide
+    more specific and actionable error handling for different HTTP failure
+    scenarios.
+-   **Structured Logging:** Includes detailed logging for requests, responses,
+    errors, and retries to aid in debugging and monitoring.
+
+The HTTPSHelper is intended to be a foundational component for any part of an
+application that needs to make external HTTP requests reliably.
+"""
+
 import httpx
 import logging
 from typing import (
     Any,
     Dict,
     Optional,
-)  # Keep List for general type hints if used elsewhere
+)
 from tenacity import (
     retry,
     wait_exponential,
@@ -15,12 +39,22 @@ from tenacity import (
 logger = logging.getLogger(__name__)
 
 
-# Custom HTTPX Exceptions
-# These exceptions are used to provide more context and control over error handling
 class HTTPXCustomError(httpx.RequestError):
     """Base custom exception for errors originating from httpx_helper."""
 
     def __init__(self, message, request=None, response=None, original_exception=None):
+        """
+        Initializes the HTTPXCustomError.
+
+        Args:
+            message (str): A descriptive error message.
+            request (Optional[httpx.Request]): The httpx Request object that
+                                               caused the error.
+            response (Optional[httpx.Response]): The httpx Response object if
+                                                 one was received.
+            original_exception (Optional[Exception]): The original exception that
+                                                      was caught.
+        """
         super().__init__(message, request=request)
         self.response = response
         self.original_exception = original_exception
@@ -52,8 +86,6 @@ class HTTPXServerError(HTTPXCustomError):
     pass
 
 
-# Main HTTPS Helper Class
-# This class provides methods for making asynchronous HTTPS requests with error handling and logging.
 class HTTPSHelper:
     """
     A helper class for making asynchronous HTTPS requests using httpx.
@@ -65,8 +97,13 @@ class HTTPSHelper:
     def __init__(self, verify_ssl: bool = True):
         """
         Initializes the HTTPSHelper.
-        The httpx.AsyncClient instance should be managed externally (e.g., by FastAPI's lifespan)
-        to ensure proper connection pooling and graceful shutdown.
+
+        The httpx.AsyncClient instance should be managed externally (e.g., by
+        FastAPI's lifespan) to ensure proper connection pooling and graceful
+        shutdown.
+
+        Args:
+            verify_ssl (bool): Whether to verify the SSL certificate. Defaults to True.
         """
         self._verify_ssl = verify_ssl
 
@@ -74,7 +111,13 @@ class HTTPSHelper:
     def client(self) -> httpx.AsyncClient:
         """
         Provides access to the httpx.AsyncClient instance.
-        Ensures the client is initialized.
+
+        This property ensures that an `httpx.AsyncClient` is initialized and
+        available for use. If the client has not been set externally (e.g.,
+        via the `client` setter), it will create a new default client instance.
+
+        Returns:
+            httpx.AsyncClient: The active asynchronous client instance.
         """
         if self._client is None:
             logger.warning(
@@ -87,12 +130,19 @@ class HTTPSHelper:
 
     @client.setter
     def client(self, value: httpx.AsyncClient):
-        """Allows setting the httpx.AsyncClient instance, typically from lifespan."""
+        """
+        Allows setting the httpx.AsyncClient instance, typically from lifespan.
+
+        This setter is used to inject an externally managed `httpx.AsyncClient`
+        instance, which is a best practice for applications where the client's
+        lifecycle should be tied to the application's lifespan (e.g., in a
+        FastAPI application).
+
+        Args:
+            value (httpx.AsyncClient): The `httpx.AsyncClient` instance to use.
+        """
         self._client = value
 
-    # --- Main HTTPS Request Helper (with tenacity decorator applied) ---
-    # Define retry conditions
-    # Retry on specific httpx network/timeout errors
     RETRY_NETWORK_EXCEPTIONS = (
         httpx.ConnectError,
         httpx.TimeoutException,
@@ -100,23 +150,16 @@ class HTTPSHelper:
         httpx.WriteError,
     )
 
-    # Retry on specific custom server errors (propagated from httpx.HTTPStatusError 5xx)
     RETRY_SERVER_EXCEPTIONS = (HTTPXServerError,)
 
     @retry(
-        wait=wait_exponential(
-            multiplier=1, min=1, max=10
-        ),  # Exponential backoff: 1s, 2s, 4s, 8s, 10s, 10s...
-        stop=stop_after_attempt(5),  # Total 5 attempts (1 initial + 4 retries)
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        stop=stop_after_attempt(5),
         retry=(
-            retry_if_exception_type(
-                RETRY_NETWORK_EXCEPTIONS
-            )  # Retry if it's a network/timeout error
-            | retry_if_exception_type(
-                RETRY_SERVER_EXCEPTIONS
-            )  # Retry if it's a 5xx server error
+            retry_if_exception_type(RETRY_NETWORK_EXCEPTIONS)
+            | retry_if_exception_type(RETRY_SERVER_EXCEPTIONS)
         ),
-        reraise=True,  # Re-raise the last exception if all retries fail
+        reraise=True,
     )
     async def _make_request(
         self,
@@ -126,10 +169,15 @@ class HTTPSHelper:
         json_data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, str]] = None,
         timeout: int = 5,
-        follow_redirects: bool = False,  # Parameter to control redirect following
+        follow_redirects: bool = False,
     ) -> httpx.Response:
         """
         Makes an asynchronous HTTPS request and handles common exceptions.
+
+        This is the core method for all HTTP requests made by the helper. It
+        builds and sends a request, handles status code validation, and wraps
+        potential `httpx` exceptions in custom, more specific exception types.
+        The `tenacity` decorator provides retry logic for transient errors.
 
         Args:
             method (str): The HTTP method (e.g., 'GET', 'POST', 'PUT', 'DELETE').
@@ -137,16 +185,19 @@ class HTTPSHelper:
             headers (Optional[Dict[str, str]]): Dictionary of HTTP headers. Defaults to None.
             json_data (Optional[Dict[str, Any]]): JSON data to send in the request body. Defaults to None.
             params (Optional[Dict[str, str]]): Dictionary of URL parameters. Defaults to None.
-            timeout (int): Request timeout in seconds. Defaults to 15.
+            timeout (int): Request timeout in seconds. Defaults to 5.
             follow_redirects (bool): Whether to automatically follow HTTP redirects. Defaults to False.
 
         Returns:
-            httpx.Response: The httpx response object.
+            httpx.Response: The httpx response object on success.
 
         Raises:
-            httpx.HTTPStatusError: For 4xx or 5xx responses.
-            httpx.RequestError: For network-related errors (connection, timeout).
-            Exception: For any other unexpected errors.
+            HTTPXClientError: For 4xx HTTP status codes.
+            HTTPXServerError: For 5xx HTTP status codes, which may trigger retries.
+            HTTPXConnectionError: For DNS or connection-refused errors.
+            HTTPXTimeoutError: For request timeouts.
+            HTTPXCustomError: For other `httpx` request-related errors or unexpected
+                              HTTP status codes.
         """
         try:
             request_obj = self.client.build_request(
@@ -160,9 +211,7 @@ class HTTPSHelper:
 
             response = await self.client.send(request_obj)
 
-            # Explicitly check status code and only raise for 4xx or 5xx
             if 400 <= response.status_code < 600:
-                # Re-raise the HTTPStatusError that httpx would normally create
                 response.raise_for_status()
 
             logger.info(
@@ -183,7 +232,7 @@ class HTTPSHelper:
             ) from e
         except httpx.HTTPStatusError as e:
             status_code = e.response.status_code
-            error_details = e.response.text  # This is where redaction would ideally happen if sensitive data is logged
+            error_details = e.response.text
             log_message = f"HTTP Error for {method} {url} - Status: {status_code}, Details: {error_details}"
             if 400 <= status_code < 500:
                 logger.warning(log_message)
@@ -210,7 +259,6 @@ class HTTPSHelper:
                     original_exception=e,
                 ) from e
         except httpx.RequestError as e:
-            # Catch any other httpx.RequestError not specifically handled above (e.g., ReadError, WriteError)
             logger.error(
                 f"A general httpx.RequestError occurred while requesting {e.request.url!r}: {e}"
             )
@@ -236,7 +284,23 @@ class HTTPSHelper:
         timeout: int = 5,
         follow_redirects: bool = False,
     ) -> Dict[str, Any]:
-        """Performs an asynchronous GET request and returns JSON response."""
+        """
+        Performs an asynchronous GET request and returns the JSON response.
+
+        This method is a convenient wrapper around `_make_request` for the
+        common case of making a GET request and expecting a JSON object as the
+        response.
+
+        Args:
+            url (str): The URL for the GET request.
+            headers (Optional[Dict[str, str]]): HTTP headers. Defaults to None.
+            params (Optional[Dict[str, str]]): URL parameters. Defaults to None.
+            timeout (int): Request timeout in seconds. Defaults to 5.
+            follow_redirects (bool): Whether to follow redirects. Defaults to False.
+
+        Returns:
+            Dict[str, Any]: A dictionary parsed from the JSON response body.
+        """
         response = await self._make_request(
             "GET", url, headers=headers, params=params, timeout=timeout
         )
@@ -250,8 +314,25 @@ class HTTPSHelper:
         json_data: Optional[Dict[str, Any]] = None,
         timeout: int = 5,
         follow_redirects: bool = False,
-    ) -> Any:  # Changed return type to Any
-        """Performs an asynchronous POST request and returns JSON response if available, else None/empty dict for 204."""
+    ) -> Any:
+        """
+        Performs an asynchronous POST request.
+
+        This method handles POST requests and returns the JSON response body if
+        one is provided. It correctly handles cases like a 204 No Content
+        response by returning an empty dictionary.
+
+        Args:
+            url (str): The URL for the POST request.
+            headers (Optional[Dict[str, str]]): HTTP headers. Defaults to None.
+            params (Optional[Dict[str, str]]): URL parameters. Defaults to None.
+            json_data (Optional[Dict[str, Any]]): The JSON payload. Defaults to None.
+            timeout (int): Request timeout in seconds. Defaults to 5.
+            follow_redirects (bool): Whether to follow redirects. Defaults to False.
+
+        Returns:
+            Any: The parsed JSON response, or an empty dictionary for 204 responses.
+        """
         response = await self._make_request(
             "POST",
             url,
@@ -260,7 +341,7 @@ class HTTPSHelper:
             json_data=json_data,
             timeout=timeout,
         )
-        if response.status_code == 204:  # If No Content, return empty dict or None
+        if response.status_code == 204:
             return {}
         return response.json()
 
@@ -272,8 +353,25 @@ class HTTPSHelper:
         json_data: Optional[Dict[str, Any]] = None,
         timeout: int = 5,
         follow_redirects: bool = False,
-    ) -> Any:  # Changed return type to Any
-        """Performs an asynchronous PUT request and returns JSON response if available, else None/empty dict for 204."""
+    ) -> Any:
+        """
+        Performs an asynchronous PUT request.
+
+        This method handles PUT requests and returns the JSON response body if
+        one is provided. It correctly handles cases like a 204 No Content
+        response by returning an empty dictionary.
+
+        Args:
+            url (str): The URL for the PUT request.
+            headers (Optional[Dict[str, str]]): HTTP headers. Defaults to None.
+            params (Optional[Dict[str, str]]): URL parameters. Defaults to None.
+            json_data (Optional[Dict[str, Any]]): The JSON payload. Defaults to None.
+            timeout (int): Request timeout in seconds. Defaults to 5.
+            follow_redirects (bool): Whether to follow redirects. Defaults to False.
+
+        Returns:
+            Any: The parsed JSON response, or an empty dictionary for 204 responses.
+        """
         response = await self._make_request(
             "PUT",
             url,
@@ -282,7 +380,7 @@ class HTTPSHelper:
             json_data=json_data,
             timeout=timeout,
         )
-        if response.status_code == 204:  # If No Content, return empty dict or None
+        if response.status_code == 204:
             return {}
         return response.json()
 
@@ -294,16 +392,34 @@ class HTTPSHelper:
         params: Optional[Dict[str, str]] = None,
         follow_redirects: bool = False,
     ) -> httpx.Response:
-        """Performs an asynchronous DELETE request and returns the response object."""
+        """
+        Performs an asynchronous DELETE request and returns the response object.
+
+        Args:
+            url (str): The URL for the DELETE request.
+            headers (Optional[Dict[str, str]]): HTTP headers. Defaults to None.
+            timeout (int): Request timeout in seconds. Defaults to 5.
+            params (Optional[Dict[str, str]]): URL parameters. Defaults to None.
+            follow_redirects (bool): Whether to follow redirects. Defaults to False.
+
+        Returns:
+            httpx.Response: The raw `httpx.Response` object.
+        """
         response = await self._make_request(
             "DELETE", url, headers=headers, params=params, timeout=timeout
         )
         return response
 
     async def close(self):
-        """Closes the httpx.AsyncClient if it was initialized."""
+        """
+        Closes the httpx.AsyncClient if it was initialized.
+
+        This method should be called to gracefully shut down the client and
+        release its resources and connections. It is typically called during
+        application shutdown (e.g., in a FastAPI `lifespan` event).
+        """
         if self._client:
             logger.info("Closing httpx.AsyncClient.")
-            await self._client.aclose()  # Use aclose for AsyncClient
+            await self._client.aclose()
             self._client = None
             logger.info("httpx.AsyncClient closed successfully.")

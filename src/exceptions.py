@@ -1,5 +1,10 @@
 """
-Custom exception classes for the Jira-Confluence automation application.
+Defines custom exception classes for the application.
+
+This module establishes a hierarchy of custom exceptions that are used to
+signal specific error conditions throughout the application. Using custom
+exceptions allows for more granular error handling and clearer, more expressive
+code in the service and API layers.
 """
 
 
@@ -10,7 +15,7 @@ class AutomationError(Exception):
 
 
 class SyncError(AutomationError):
-    """Exception raised for errors during the synchronization process."""
+    """Exception raised for errors during the task synchronization process."""
 
     pass
 
@@ -22,18 +27,18 @@ class UndoError(AutomationError):
 
 
 class InvalidInputError(AutomationError):
-    """Exception raised for invalid or malformed input data."""
+    """Exception raised for invalid or malformed input data provided to an endpoint."""
 
     pass
 
 
 class MissingRequiredDataError(AutomationError):
-    """Exception raised when essential data (e.g., Work Package) is missing."""
+    """Exception raised when essential data for an operation is missing."""
 
     pass
 
 
 class JiraConfluenceError(Exception):
-    """Exception raised for all api errors by requests to Jira or Confluence."""
+    """Exception raised for low-level API errors from Jira or Confluence."""
 
     pass
