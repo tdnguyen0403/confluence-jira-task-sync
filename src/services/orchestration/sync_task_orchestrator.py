@@ -288,7 +288,7 @@ class SyncTaskOrchestrator:
                 target_status = config.JIRA_TARGET_STATUSES["new_task_dev"]
                 await self.jira_service.transition_issue(new_issue_key, target_status)
 
-            if assignee_from_wp is None:  # Explicitly check for None
+            if assignee_from_wp is None and task.assignee_name is None:
                 logger.info(
                     f"Work Package was unassigned (assignee_from_wp is None). "
                     f"Attempting to explicitly unassign newly created Jira issue "

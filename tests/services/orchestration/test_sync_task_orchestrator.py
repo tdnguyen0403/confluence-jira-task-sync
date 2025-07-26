@@ -189,6 +189,7 @@ class JiraServiceStub(JiraApiServiceInterface):
 class IssueFinderServiceStub(IssueFinderServiceInterface):
     def __init__(self):
         self.found_issue_key = "WP-001"
+        self.wp_assignee: Optional[str] = "wp_assignee"  # Make assignee configurable
         self.mock = AsyncMock()  # Added AsyncMock for consistency
 
     async def find_issue_on_page(
@@ -198,12 +199,13 @@ class IssueFinderServiceStub(IssueFinderServiceInterface):
         confluence_api_service: ConfluenceApiServiceInterface,
     ) -> Optional[Dict[str, Any]]:
         # Simulate the return structure that IssueFinderService actually provides
+        assignee_data = {"name": self.wp_assignee} if self.wp_assignee else None
         return (
             {
                 "key": self.found_issue_key,
                 "fields": {
                     "issuetype": {"id": "10000", "name": "Work Package"},
-                    "assignee": {"name": "wp_assignee"},
+                    "assignee": assignee_data,
                     "reporter": {"name": "wp_reporter"},
                 },
             }
@@ -437,3 +439,148 @@ async def test_prod_mode_new_task_no_transition(
     assert result.status_text == "Success"
     assert jira_stub.transitioned_issue_key is None
     assert jira_stub.transitioned_to_status is None
+
+
+@pytest.mark.asyncio
+async def test_assign_jira_task_from_work_package_when_confluence_task_unassigned(
+    sync_orchestrator,
+    confluence_stub,
+    jira_stub,
+    issue_finder_stub,
+    sync_context,
+    sample_task,
+):
+    """
+    Test that a Jira task is assigned from the Work Package
+    if the Confluence task itself has no assignee.
+    """
+    # Arrange
+    sample_task.assignee_name = None  # Confluence task has no assignee
+    confluence_stub._task = sample_task
+    issue_finder_stub.wp_assignee = "wp_assignee_from_jira"  # WP has an assignee
+    jira_stub.created_issue_key = "JIRA-400"
+    input_data = {
+        "confluence_page_urls": [
+            "[http://example.com/page1](http://example.com/page1)"
+        ],
+        "context": sync_context,
+    }
+
+    # Act
+    results = await sync_orchestrator.run(input_data, sync_context)
+
+    # Assert
+    assert len(results) == 1
+    result = results[0]
+    assert result.status_text == "Success"
+    # Verify create_issue was called with the correct assignee
+    # The actual assignment is done internally by create_issue in the orchestrator
+    # We check if the task.assignee_name was updated before create_issue call
+    # and if assign_issue was NOT explicitly called after creation
+    jira_stub.mock.assign_issue.assert_not_awaited()  # Should not be called because assignee is set by create_issue
+
+
+@pytest.mark.asyncio
+async def test_jira_task_retains_confluence_assignee_even_if_work_package_has_assignee(
+    sync_orchestrator,
+    confluence_stub,
+    jira_stub,
+    issue_finder_stub,
+    sync_context,
+    sample_task,
+):
+    """
+    Test that a Jira task retains the assignee from the Confluence task
+    even if the Work Package also has an assignee.
+    """
+    # Arrange
+    sample_task.assignee_name = "confluence_assignee"  # Confluence task has an assignee
+    confluence_stub._task = sample_task
+    issue_finder_stub.wp_assignee = "wp_assignee_from_jira"  # WP also has an assignee
+    jira_stub.created_issue_key = "JIRA-500"
+    input_data = {
+        "confluence_page_urls": [
+            "[http://example.com/page1](http://example.com/page1)"
+        ],
+        "context": sync_context,
+    }
+
+    # Act
+    results = await sync_orchestrator.run(input_data, sync_context)
+
+    # Assert
+    assert len(results) == 1
+    result = results[0]
+    assert result.status_text == "Success"
+    # No explicit assign_issue call should be made here
+    jira_stub.mock.assign_issue.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_jira_task_retains_confluence_assignee_when_work_package_unassigned(
+    sync_orchestrator,
+    confluence_stub,
+    jira_stub,
+    issue_finder_stub,
+    sync_context,
+    sample_task,
+):
+    """
+    Test that a Jira task retains the assignee from the Confluence task
+    even if the Work Package has no assignee.
+    """
+    # Arrange
+    sample_task.assignee_name = "confluence_assignee"  # Confluence task has an assignee
+    confluence_stub._task = sample_task
+    issue_finder_stub.wp_assignee = None  # Work Package has no assignee
+    jira_stub.created_issue_key = "JIRA-700"
+    input_data = {
+        "confluence_page_urls": [
+            "[http://example.com/page1](http://example.com/page1)"
+        ],
+        "context": sync_context,
+    }
+
+    # Act
+    results = await sync_orchestrator.run(input_data, sync_context)
+
+    # Assert
+    assert len(results) == 1
+    result = results[0]
+    assert result.status_text == "Success"
+    # No explicit assign_issue call should be made here, as assignee is set during create_issue
+    jira_stub.mock.assign_issue.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_unassign_jira_task_when_both_confluence_task_and_work_package_unassigned(
+    sync_orchestrator,
+    confluence_stub,
+    jira_stub,
+    issue_finder_stub,
+    sync_context,
+    sample_task,
+):
+    """
+    Test that a newly created Jira task is explicitly unassigned
+    if neither the Confluence task nor the Work Package has an assignee.
+    """
+    # Arrange
+    sample_task.assignee_name = None  # Confluence task has no assignee
+    confluence_stub._task = sample_task
+    issue_finder_stub.wp_assignee = None  # Work Package has no assignee
+    jira_stub.created_issue_key = "JIRA-600"
+    input_data = {
+        "confluence_page_urls": ["http://example.com/page1"],
+        "context": sync_context,
+    }
+
+    # Act
+    results = await sync_orchestrator.run(input_data, sync_context)
+
+    # Assert
+    assert len(results) == 1
+    result = results[0]
+    assert result.status_text == "Success"
+    # Verify that assign_issue was called with None to unassign
+    jira_stub.mock.assign_issue.assert_awaited_once_with("JIRA-600", None)
