@@ -150,18 +150,30 @@ async def test_sync_task_success_response(mock_sync_orchestrator, client):
     mock_sync_orchestrator.run.assert_awaited_once()
 
 
-# TODO: change the test to ensure it works
 @pytest.mark.asyncio
 async def test_unhandled_exception(mock_sync_orchestrator, client):
-    """Verify the global exception handler catches unhandled errors."""
+    """
+    Verify the global exception handler catches unhandled errors and returns a 500 response.
+    """
+    # Arrange: Configure the mock to raise a generic, unhandled exception.
     mock_sync_orchestrator.run.side_effect = Exception("A critical unhandled error")
     request_body = {
         "confluence_page_urls": ["http://page.com"],
         "context": {"request_user": "user", "days_to_due_date": 7},
     }
-    # Corrected: Use pytest.raises to catch the exception raised by the TestClient
-    with pytest.raises(Exception, match="A critical unhandled error"):
-        client.post("/sync_task", json=request_body, headers={"X-API-Key": "valid_key"})
+
+    # Act: Make the request that will trigger the exception.
+    response = client.post(
+        "/sync_task", json=request_body, headers={"X-API-Key": "valid_key"}
+    )
+
+    # Assert: Verify that the unhandled_exception_handler caught the error
+    # and returned the correct HTTP 500 response. The exception does not
+    # bubble up to the test client itself.
+    assert response.status_code == 500
+    assert response.json() == {
+        "detail": "An unexpected internal server error occurred."
+    }
 
 
 @pytest.mark.asyncio
@@ -228,13 +240,25 @@ async def test_readiness_check_success(mock_jira_api, mock_confluence_api, clien
 
 @pytest.mark.asyncio
 async def test_readiness_check_jira_api_failure(mock_jira_api, client):
-    """Verify /ready returns 503 when Jira API is unreachable."""
+    """
+    Verify /ready returns a 500 response when a dependency like the Jira API fails.
+    """
+    # Arrange: Configure the mock Jira API to raise an exception, simulating
+    # a connection failure.
     mock_jira_api.get_current_user.side_effect = httpx.RequestError(
         "Jira Down", request=httpx.Request("GET", "/")
     )
-    # Corrected: Use pytest.raises to catch the exception raised by the TestClient
-    with pytest.raises(httpx.RequestError, match="Jira Down"):
-        client.get("/ready")
+
+    # Act: Make the request to the readiness endpoint.
+    response = client.get("/ready")
+
+    # Assert: The httpx.RequestError is caught by the generic exception handler,
+    # which should return a 500 status, indicating the service is not "ready"
+    # due to an internal error.
+    assert response.status_code == 500
+    assert response.json() == {
+        "detail": "An unexpected internal server error occurred."
+    }
 
 
 # --- Parameterized Tests for Custom Exception Handlers ---
