@@ -336,7 +336,6 @@ async def test_get_issue_type_details_by_id_success_empty_response(
     # Simulate a successful call (200 OK) but with an empty dictionary
     mock_https_helper.get.return_value = {}
 
-    # FIX HERE#
     details = await safe_jira_api.get_issue_type_details_by_id("10001")
 
     # The method should return the empty dict without raising an error

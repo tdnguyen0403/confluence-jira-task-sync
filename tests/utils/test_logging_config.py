@@ -133,7 +133,7 @@ def test_setup_logging_configures_root_logger(
     )
 
     # Verify that handlers were added to the root logger
-    assert mock_root_logger.addHandler.call_count == 2
+    assert mock_root_logger.addHandler.call_count == 3
 
     # Verify a filter was added to the root logger (for secrets)
     assert mock_root_logger.addFilter.call_count > 0

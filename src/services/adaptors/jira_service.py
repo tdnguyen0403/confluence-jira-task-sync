@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
+from src.exceptions import JiraApiError
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.models.data_models import (
     ConfluenceTask,
@@ -105,7 +106,7 @@ class JiraService(JiraApiServiceInterface):
         try:
             await self._api.transition_issue(issue_key, target_status)
             return True
-        except Exception as e:
+        except JiraApiError as e:
             logger.error(
                 f"Failed to transition Jira issue {issue_key} to {target_status}: {e}"
             )
@@ -284,7 +285,7 @@ class JiraService(JiraApiServiceInterface):
                     name=status_info.get("name"),
                     category=status_info.get("statusCategory", {}).get("key"),
                 )
-        except Exception as e:
+        except JiraApiError as e:
             logger.error(f"Could not retrieve status for Jira issue {issue_key}: {e}")
         return None
 
@@ -316,7 +317,7 @@ class JiraService(JiraApiServiceInterface):
                     status=issue_status,
                     issue_type=issue_data["fields"]["issuetype"]["name"],
                 )
-        except Exception as e:
+        except JiraApiError as e:
             logger.error(f"Could not retrieve full Jira issue {issue_key}: {e}")
         return None
 
@@ -328,6 +329,6 @@ class JiraService(JiraApiServiceInterface):
         try:
             await self._api.assign_issue(issue_key, assignee_name)
             return True
-        except Exception as e:
+        except JiraApiError as e:
             logger.error(f"Failed to assign/unassign Jira issue {issue_key}: {e}")
             return False

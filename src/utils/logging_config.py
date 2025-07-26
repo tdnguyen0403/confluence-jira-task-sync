@@ -2,6 +2,7 @@ import json
 import logging
 import logging.handlers
 import os
+import sys
 from contextvars import ContextVar
 from datetime import datetime
 from typing import Optional, Set
@@ -101,16 +102,30 @@ def setup_logging() -> None:
     formatter = JsonFormatter()
     file_handler.setFormatter(formatter)
 
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
+    # Console handler for INFO/WARNING to stdout
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    stdout_handler.setLevel(logging.DEBUG)
+    stdout_handler.setFormatter(formatter)
+    stdout_handler.addFilter(RequestIdFilter())
+    stdout_handler.addFilter(
+        lambda record: record.levelno <= logging.WARNING
+    )  # Filter for INFO, DEBUG, WARNING
+
+    # Console handler for ERROR/CRITICAL to stderr
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setLevel(logging.ERROR)
+    stderr_handler.setFormatter(formatter)
+    stderr_handler.addFilter(RequestIdFilter())
 
     # Add the filter to both handlers
     request_filter = RequestIdFilter()
     file_handler.addFilter(request_filter)
-    console_handler.addFilter(request_filter)
+    stdout_handler.addFilter(request_filter)
+    stderr_handler.addFilter(request_filter)
 
     root_logger.addHandler(file_handler)
-    root_logger.addHandler(console_handler)
+    root_logger.addHandler(stdout_handler)
+    root_logger.addHandler(stderr_handler)
 
     # Define and add secret redacting filter
     sensitive_patterns = set(

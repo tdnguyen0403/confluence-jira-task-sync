@@ -12,6 +12,7 @@ from src.api.safe_jira_api import SafeJiraApi
 
 # Import the code to be tested and its dependencies
 from src.config import config
+from src.exceptions import JiraApiError
 from src.models.data_models import ConfluenceTask, SyncContext
 from src.services.adaptors.jira_service import JiraService
 
@@ -274,7 +275,7 @@ async def test_transition_issue_success(jira_service):
 @pytest.mark.asyncio
 async def test_transition_issue_failure(jira_service, mocker):
     service, api_stub = jira_service
-    mocker.patch.object(api_stub, "transition_issue", side_effect=Exception("fail"))
+    mocker.patch.object(api_stub, "transition_issue", side_effect=JiraApiError("fail"))
     result = await service.transition_issue("TEST-1", "Done")
     assert result is False
 
@@ -329,7 +330,7 @@ async def test_get_issue_status_success(jira_service, mocker):
 @pytest.mark.asyncio
 async def test_get_issue_status_failure(jira_service, mocker):
     service, api_stub = jira_service
-    mocker.patch.object(api_stub, "get_issue", side_effect=Exception("fail"))
+    mocker.patch.object(api_stub, "get_issue", side_effect=JiraApiError("fail"))
     status = await service.get_issue_status("ISSUE-1")
     assert status is None
 
@@ -358,7 +359,7 @@ async def test_get_jira_issue_success(jira_service, mocker):
 @pytest.mark.asyncio
 async def test_get_jira_issue_failure(jira_service, mocker):
     service, api_stub = jira_service
-    mocker.patch.object(api_stub, "get_issue", side_effect=Exception("fail"))
+    mocker.patch.object(api_stub, "get_issue", side_effect=JiraApiError("fail"))
     issue = await service.get_jira_issue("ISSUE-2")
     assert issue is None
 
@@ -410,7 +411,7 @@ async def test_assign_issue_delegates_failure(jira_service):
     service, api_stub = jira_service
     issue_key = "PROJ-FAIL-ASSIGN"
     assignee_name = "error_user"
-    api_stub.mock.assign_issue.side_effect = Exception("API assignment failed")
+    api_stub.mock.assign_issue.side_effect = JiraApiError("API assignment failed")
 
     result = await service.assign_issue(issue_key, assignee_name)
     assert result is False
