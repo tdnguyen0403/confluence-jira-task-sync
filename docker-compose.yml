@@ -14,6 +14,7 @@ services:
       - jira-automator-logs:/app/logs
     container_name: jira-to-teamspace-automator-prod
     environment:
+      - LOG_LEVEL: ERROR
       # Secrets
       - JIRA_API_TOKEN
       - CONFLUENCE_API_TOKEN
@@ -33,7 +34,6 @@ services:
       - JIRA_PROJECT_WP_ISSUE_TYPE_ID
 
       # Logging Configuration
-      - LOG_LEVEL
       - HTTPX_LOG_LEVEL
       - ASYNCIO_LOG_LEVEL
       - URLLIB3_LOG_LEVEL

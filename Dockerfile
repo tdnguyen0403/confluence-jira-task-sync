@@ -45,6 +45,7 @@ USER appuser
 # Expose the port the app will run on.
 EXPOSE 8080
 
+ENV LOG_LEVEL=INFO
 # Command to run the production application.
 # The port can be overridden by the PORT environment variable.
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "${PORT:-8080}"]

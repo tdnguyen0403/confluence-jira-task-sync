@@ -13,6 +13,7 @@ services:
        - ${LOG_DIR:-./logs}:/app/logs
     container_name: jira-to-teamspace-automator-dev
     environment:
+      - LOG_LEVEL: INFO
       # Secrets
       - JIRA_API_TOKEN
       - CONFLUENCE_API_TOKEN
@@ -32,7 +33,6 @@ services:
       - JIRA_PROJECT_WP_ISSUE_TYPE_ID
 
       # Logging Configuration
-      - LOG_LEVEL
       - HTTPX_LOG_LEVEL
       - ASYNCIO_LOG_LEVEL
       - URLLIB3_LOG_LEVEL
