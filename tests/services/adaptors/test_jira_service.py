@@ -216,7 +216,7 @@ async def test_prepare_jira_task_fields_with_defaults_context(
     result = await service.prepare_jira_task_fields(
         mock_task, "ANOTHER-456", mock_context
     )
-    assert result["assignee"]["name"] is None
+    assert result["summary"] == "My Summary"
     assert result["duedate"] == expected_due_date
 
 

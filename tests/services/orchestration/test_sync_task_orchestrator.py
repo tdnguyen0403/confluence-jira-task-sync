@@ -112,6 +112,11 @@ class JiraServiceStub(JiraApiServiceInterface):
         self.transitioned_to_status = target_status
         return True
 
+    async def assign_issue(self, issue_key: str, assignee_name: Optional[str]) -> bool:
+        await self.mock.assign_issue(issue_key, assignee_name)  # Record call
+        # Simulate success by default for assign/unassign in stub
+        return True
+
     # --- Methods not used in these tests, but required by the interface ---
     async def get_issue(self, issue_key: str, fields: str = "*all") -> dict:
         # Simulate an issue return that includes assignee if needed by orchestrator

@@ -209,8 +209,9 @@ class SyncTaskOrchestrator:
             )
 
         closest_wp_key = closest_wp["key"]
-        # TODO: fix the logic below because if there is unassigned
-        # assignee for Work Package in JIRA it will failed !!
+
+        # Initialize assignee_from_wp here to ensure it's always defined
+        assignee_from_wp = None
 
         if not isinstance(closest_wp, dict):
             error_msg = (
@@ -242,12 +243,8 @@ class SyncTaskOrchestrator:
         if (
             not task.assignee_name
         ):  # Only try to assign if the Confluence task doesn't already have an assignee
-            assignee_from_wp = None
-
-            # Get 'fields' safely
             fields = closest_wp.get("fields")
             if isinstance(fields, dict):
-                # Get 'assignee' safely from 'fields'
                 assignee_data = fields.get("assignee")
                 if isinstance(assignee_data, dict):
                     assignee_from_wp = assignee_data.get("name")
@@ -276,24 +273,48 @@ class SyncTaskOrchestrator:
         else:
             logger.info(f"Assigning task from Confluence task: {task.assignee_name}")
 
-        new_issue = await self.jira_service.create_issue(task, closest_wp_key, context)
+        new_issue_key = await self.jira_service.create_issue(
+            task, closest_wp_key, context
+        )
 
-        if new_issue:
-            new_key = new_issue
+        if new_issue_key:
             status_text = "Success"
 
             if task.status == "complete":
                 target_status = config.JIRA_TARGET_STATUSES["completed_task"]
-                await self.jira_service.transition_issue(new_key, target_status)
+                await self.jira_service.transition_issue(new_issue_key, target_status)
                 status_text = "Success - Completed Task Created"
             elif config.DEV_ENVIRONMENT:
                 target_status = config.JIRA_TARGET_STATUSES["new_task_dev"]
-                await self.jira_service.transition_issue(new_key, target_status)
+                await self.jira_service.transition_issue(new_issue_key, target_status)
 
+            if assignee_from_wp is None:  # Explicitly check for None
+                logger.info(
+                    f"Work Package was unassigned (assignee_from_wp is None). "
+                    f"Attempting to explicitly unassign newly created Jira issue "
+                    f"{new_issue_key}."
+                )
+                unassign_successful = await self.jira_service.assign_issue(
+                    new_issue_key, None
+                )  # Call with None to unassign
+                if unassign_successful:
+                    logger.info(
+                        f"Successfully explicitly unassigned issue {new_issue_key}."
+                    )
+                else:
+                    logger.warning(
+                        f"Failed to explicitly unassign issue {new_issue_key} "
+                        f"after creation."
+                    )
+            else:
+                logger.info(
+                    f"Issue {new_issue_key} created with assignee from Work Package: "
+                    f"{assignee_from_wp}."
+                )
             return AutomationResult(
                 task_data=task,
                 status_text=status_text,
-                new_jira_task_key=new_key,
+                new_jira_task_key=new_issue_key,
                 linked_work_package=closest_wp_key,
                 request_user=context.request_user,
             )

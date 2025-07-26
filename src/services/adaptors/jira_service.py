@@ -230,10 +230,12 @@ class JiraService(JiraApiServiceInterface):
             "issuetype": {"id": config.TASK_ISSUE_TYPE_ID},
             "description": description,
             "duedate": due_date,
-            "assignee": {"name": task.assignee_name},
             config.JIRA_PARENT_WP_CUSTOM_FIELD_ID: parent_key,
         }
 
+        # Conditionally add the assignee field if task.assignee_name is set
+        if task.assignee_name:
+            fields["assignee"] = {"name": task.assignee_name}
         return fields
 
     async def search_issues_by_jql(
@@ -317,3 +319,15 @@ class JiraService(JiraApiServiceInterface):
         except Exception as e:
             logger.error(f"Could not retrieve full Jira issue {issue_key}: {e}")
         return None
+
+    async def assign_issue(self, issue_key: str, assignee_name: Optional[str]) -> bool:
+        """
+        Assigns a Jira issue to a specified user or unassigns it.
+        Exposes SafeJiraApi's assign_issue method.
+        """
+        try:
+            await self._api.assign_issue(issue_key, assignee_name)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to assign/unassign Jira issue {issue_key}: {e}")
+            return False

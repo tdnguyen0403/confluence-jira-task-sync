@@ -121,6 +121,41 @@ class SafeJiraApi:
         )
 
     @handle_api_errors(JiraApiError)
+    async def assign_issue(
+        self, issue_key: str, assignee_name: Optional[str]
+    ) -> Dict[str, Any]:
+        """
+        Assigns a Jira issue to a specified user or unassigns it.
+
+        Args:
+            issue_key (str): The key of the issue to assign (e.g., "PROJ-123").
+            assignee_name (Optional[str]): The username of the user to assign the
+                                           issue to. If None, the issue will be
+                                           explicitly unassigned.
+
+        Returns:
+            Dict[str, Any]: The response from Jira (often an empty dict on success).
+
+        Raises:
+            Exception: Propagates exceptions from the `HTTPSHelper`
+            if the request fails.
+        """
+        url = f"{self.base_url}/rest/api/2/issue/{issue_key}/assignee"
+
+        payload: Dict[str, Any] = {}
+        if assignee_name:
+            payload = {"name": assignee_name}
+            logger.debug(f"Attempting to assign issue {issue_key} to '{assignee_name}'")
+        else:
+            # According to Jira API documentation for /assignee endpoint,
+            # sending a payload with "name": null (or "accountId": null)
+            # is the way to explicitly unassign an issue.
+            payload = {"name": None}  # Sending {"name": null}
+            logger.debug(f"Attempting to explicitly unassign issue {issue_key}")
+
+        return await self.https_helper.put(url, headers=self.headers, json_data=payload)
+
+    @handle_api_errors(JiraApiError)
     async def get_available_transitions(self, issue_key: str) -> List[Dict[str, Any]]:
         """
         Retrieves all available workflow transitions for a given Jira issue.
