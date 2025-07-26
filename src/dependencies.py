@@ -10,6 +10,7 @@ wired together here, promoting loose coupling throughout the application.
 """
 
 import logging
+import secrets
 from functools import lru_cache
 
 from fastapi import Depends, HTTPException, Security, status
@@ -58,7 +59,7 @@ def get_api_key(api_key: str = Security(api_key_header)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Server API key not configured.",
         )
-    if api_key == config.API_SECRET_KEY:
+    if secrets.compare_digest(api_key, config.API_SECRET_KEY):
         return api_key
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

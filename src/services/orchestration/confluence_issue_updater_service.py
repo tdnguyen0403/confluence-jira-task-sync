@@ -1,3 +1,4 @@
+import asyncio
 import difflib
 import logging
 from typing import (
@@ -9,7 +10,6 @@ from typing import (
     Tuple,
 )
 
-# Ensured all types are imported
 from bs4 import BeautifulSoup
 
 from src.config import config
@@ -26,16 +26,12 @@ logger = logging.getLogger(__name__)
 class ConfluenceIssueUpdaterService:
     """
     A service to update Confluence pages by replacing embedded Jira issue macros.
-    It finds suitable replacement issues from a given root project based on
-    issue type and fuzzy summary matching.
     """
 
-    # This service directly interacts with SafeConfluenceApi and SafeJiraApi
-    # as it needs low-level control over page updates and macro generation.
     def __init__(
         self,
-        confluence_api: ConfluenceApiServiceInterface,  # Renamed
-        jira_api: JiraApiServiceInterface,  # Renamed
+        confluence_api: ConfluenceApiServiceInterface,
+        jira_api: JiraApiServiceInterface,
         issue_finder_service: Any,
     ):
         self.confluence_api = confluence_api
@@ -50,27 +46,10 @@ class ConfluenceIssueUpdaterService:
         phase_issue_type_id: Optional[str] = None,
     ) -> List[SyncProjectPageDetail]:
         """
-        Updates Jira issue macros on a Confluence page hierarchy asynchronously.
-
-        Args:
-            root_confluence_page_url (str): The URL of the root Confluence page.
-            root_project_issue_key (str): The Jira key of the root project/portfolio
-                issue to find replacement candidates under.
-            project_issue_type_id (Optional[str]): The Jira issue type ID for
-                'Project'. Defaults to config.
-            phase_issue_type_id (Optional[str]): The Jira issue type ID for
-                'Phase'. Defaults to config.
-
-        Returns:
-            List[SyncProjectPageDetail]: A list of SyncProjectPageDetail objects
-                summarizing the updates made.
-
-        Raises:
-            InvalidInputError: If the root Confluence page ID cannot be resolved.
-            SyncError: For other errors during the update process.
+        Updates Jira issue macros on a Confluence page hierarchy concurrently.
         """
         logger.info(
-            "Starting Confluence issue update for hierarchy from: "
+            f"Starting Confluence issue update for hierarchy from: "
             f"{root_confluence_page_url}"
         )
 
@@ -78,12 +57,10 @@ class ConfluenceIssueUpdaterService:
             root_confluence_page_url
         )
         if not root_page_id:
-            error_msg = (
+            raise InvalidInputError(
                 f"Could not find page ID for URL: {root_confluence_page_url}. "
-                "Aborting update."
+                f"Aborting update."
             )
-            logger.error(error_msg)
-            raise InvalidInputError(error_msg)
 
         all_page_ids = [root_page_id] + await self.confluence_api.get_all_descendants(
             root_page_id
@@ -92,123 +69,133 @@ class ConfluenceIssueUpdaterService:
             f"Found {len(all_page_ids)} total page(s) in the hierarchy to scan."
         )
 
-        actual_project_type_id = (
-            project_issue_type_id
-            if project_issue_type_id
-            else config.JIRA_PROJECT_ISSUE_TYPE_ID
-        )
-        actual_phase_type_id = (
-            phase_issue_type_id
-            if phase_issue_type_id
-            else config.JIRA_PHASE_ISSUE_TYPE_ID
-        )
-        actual_work_package_type_id = config.JIRA_WORK_PACKAGE_ISSUE_TYPE_ID
-
-        target_issue_type_ids_set = {
-            actual_project_type_id,
-            actual_phase_type_id,
-            actual_work_package_type_id,
+        target_issue_type_ids = {
+            project_issue_type_id or config.JIRA_PROJECT_ISSUE_TYPE_ID,
+            phase_issue_type_id or config.JIRA_PHASE_ISSUE_TYPE_ID,
+            config.JIRA_WORK_PACKAGE_ISSUE_TYPE_ID,
         }
 
         candidate_new_issues = await self._get_relevant_jira_issues_under_root(
-            root_project_issue_key, target_issue_type_ids_set
+            root_project_issue_key, target_issue_type_ids
         )
+
         if not candidate_new_issues:
             logger.warning(
-                f"No suitable candidate issues found under root project "
-                f"'{root_project_issue_key}'. No replacements can be made."
+                f"No suitable candidate issues found under root project '"
+                f"{root_project_issue_key}'. No replacements can be made."
             )
             return []
 
+        # Create a coroutine for each page to be processed
+        processing_tasks = [
+            self._process_page(
+                page_id,
+                candidate_new_issues,
+                target_issue_type_ids,
+                root_project_issue_key,
+            )
+            for page_id in all_page_ids
+        ]
+
+        # Execute all page processing tasks concurrently
+        results = await asyncio.gather(*processing_tasks, return_exceptions=True)
+
+        # Filter out None results and log any exceptions
         updated_pages_summary = []
-        for page_id in all_page_ids:
-            try:
-                page_details = await self.confluence_api.get_page_by_id(
-                    page_id, expand="body.storage,version"
-                )
-                if not page_details:
-                    logger.warning(
-                        f"Could not retrieve content for page ID '{page_id}'. Skipping."
-                    )
-                    continue
-
-                original_html = (
-                    page_details.get("body", {}).get("storage", {}).get("value", "")
-                )
-                if not original_html:
-                    logger.info(f"Page ID '{page_id}' has no content. Skipping.")
-                    continue
-
-                (
-                    modified_html,
-                    did_modify,
-                ) = await self._find_and_replace_jira_macros_on_page(
-                    page_details=page_details,
-                    html_content=original_html,
-                    candidate_new_issues=candidate_new_issues,
-                    target_issue_type_ids=target_issue_type_ids_set,
-                )
-
-                if did_modify:
-                    logger.info(
-                        f"Updating page '{page_details.get('title', page_id)}' "
-                        f"(ID: {page_id}) with new Jira links."
-                    )
-                    success = await self.confluence_api.update_page(
-                        page_id, page_details["title"], modified_html
-                    )
-                    if success:
-                        updated_pages_summary.append(
-                            SyncProjectPageDetail(
-                                page_id=page_id,
-                                page_title=page_details.get("title", "N/A"),
-                                new_jira_keys=[
-                                    issue.get("key")
-                                    for issue in candidate_new_issues
-                                    if issue.get("key") in modified_html
-                                ],
-                                root_project_linked=root_project_issue_key,
-                            )
-                        )
-                    else:
-                        logger.error(
-                            f"Failed to update page "
-                            f"'{page_details.get('title', page_id)}' "
-                            f"(ID: {page_id})."
-                        )
-                else:
-                    logger.info(
-                        f"No relevant Jira macros found or replaced on page "
-                        f"'{page_details.get('title', page_id)}'. Skipping."
-                    )
-            except Exception as e:
+        for result in results:
+            if isinstance(result, SyncProjectPageDetail):
+                updated_pages_summary.append(result)
+            elif isinstance(result, Exception):
                 logger.error(
-                    f"An error occurred while processing page {page_id}: {e}",
-                    exc_info=True,
+                    f"An error occurred during page processing: {result}",
+                    exc_info=result,
                 )
 
         logger.info("Finished Confluence issue update process.")
         return updated_pages_summary
+
+    async def _process_page(
+        self,
+        page_id: str,
+        candidate_new_issues: List[Dict[str, Any]],
+        target_issue_type_ids: Set[str],
+        root_project_issue_key: str,
+    ) -> Optional[SyncProjectPageDetail]:
+        """
+        Processes a single Confluence page to find and replace Jira macros.
+        Returns a summary object if the page was successfully updated.
+        """
+        page_details = await self.confluence_api.get_page_by_id(
+            page_id, expand="body.storage,version"
+        )
+        if not page_details:
+            logger.warning(
+                f"Could not retrieve content for page ID '{page_id}'. Skipping."
+            )
+            return None
+
+        original_html = page_details.get("body", {}).get("storage", {}).get("value", "")
+        if not original_html:
+            logger.info(f"Page ID '{page_id}' has no content. Skipping.")
+            return None
+
+        modified_html, did_modify = await self._find_and_replace_jira_macros_on_page(
+            page_details=page_details,
+            html_content=original_html,
+            candidate_new_issues=candidate_new_issues,
+            target_issue_type_ids=target_issue_type_ids,
+        )
+
+        if did_modify:
+            logger.info(
+                f"Updating page '{page_details.get('title', page_id)}' "
+                f"(ID: {page_id}) with new Jira links."
+            )
+            success = await self.confluence_api.update_page(
+                page_id, page_details["title"], modified_html
+            )
+            if success:
+                return SyncProjectPageDetail(
+                    page_id=page_id,
+                    page_title=page_details.get("title", "N/A"),
+                    new_jira_keys=[
+                        issue.get("key")
+                        for issue in candidate_new_issues
+                        if issue.get("key") in modified_html
+                    ],
+                    root_project_linked=root_project_issue_key,
+                )
+            else:
+                logger.error(
+                    f"Failed to update page '{page_details.get('title', page_id)}' "
+                    f"(ID: {page_id})."
+                )
+        else:
+            logger.info(
+                f"No relevant Jira macros found or replaced on page '"
+                f"{page_details.get('title', page_id)}'. Skipping."
+            )
+
+        return None
 
     async def _get_relevant_jira_issues_under_root(
         self, root_key: str, target_issue_type_ids: Set[str]
     ) -> List[Dict[str, Any]]:
         """
         Fetches all Jira issues of target types under a given root project issue.
-
-        Uses JQL to query for issues whose 'Root Parent' custom field points
-        to the root_key, and whose issue type is one of the target types.
         """
-        issue_type_names = []
-        for type_id in target_issue_type_ids:
-            name_details = await self.jira_api.get_issue_type_details_by_id(type_id)
-            if name_details and name_details.get("name"):
-                issue_type_names.append(f'"{name_details.get("name")}"')
-            else:
-                logger.warning(
-                    f"Could not get name for issue type ID '{type_id}'. "
-                    "This type will be excluded from JQL search."
-                )
+        # Concurrently fetch names for all issue type IDs
+        name_tasks = [
+            self.jira_api.get_issue_type_details_by_id(type_id)
+            for type_id in target_issue_type_ids
+        ]
+        name_details_list = await asyncio.gather(*name_tasks)
+
+        issue_type_names = [
+            f'"{details.get("name")}"'
+            for details in name_details_list
+            if details and details.get("name")
+        ]
 
         if not issue_type_names:
             logger.warning(
@@ -223,9 +210,8 @@ class ConfluenceIssueUpdaterService:
         )
         logger.info(f"Searching Jira with JQL: {jql_query}")
 
-        fields_to_retrieve = ["key", "issuetype", "summary"]
         relevant_issues = await self.jira_api.search_issues(
-            jql_query, fields=fields_to_retrieve
+            jql_query, fields=["key", "issuetype", "summary"]
         )
 
         filtered_issues = [
@@ -236,8 +222,8 @@ class ConfluenceIssueUpdaterService:
         ]
 
         logger.info(
-            f"Found {len(filtered_issues)} relevant candidate issues under "
-            f"'{root_key}' after filtering."
+            f"Found {len(filtered_issues)} relevant candidate issues under '"
+            f"{root_key}' after filtering."
         )
         return filtered_issues
 
@@ -249,9 +235,6 @@ class ConfluenceIssueUpdaterService:
     ) -> Optional[Dict[str, Any]]:
         """
         Finds the best matching new issue from candidates for a given old issue.
-
-        A 'best' match is one that has the same issue type and the highest
-        summary similarity above a given threshold.
         """
         old_issue_type_id = (
             old_issue_details.get("fields", {}).get("issuetype", {}).get("id")
@@ -275,14 +258,19 @@ class ConfluenceIssueUpdaterService:
                     None, old_issue_summary.lower(), candidate_summary.lower()
                 ).ratio()
 
-                if similarity_ratio >= FUZZY_MATCH_THRESHOLD:
-                    if similarity_ratio > highest_similarity:
-                        highest_similarity = similarity_ratio
-                        best_match = candidate
-            elif not old_issue_summary and not candidate_summary:
-                if highest_similarity < 1.0:
-                    highest_similarity = 1.0
+                if (
+                    similarity_ratio >= FUZZY_MATCH_THRESHOLD
+                    and similarity_ratio > highest_similarity
+                ):
+                    highest_similarity = similarity_ratio
                     best_match = candidate
+            elif (
+                not old_issue_summary
+                and not candidate_summary
+                and highest_similarity < 1.0
+            ):
+                highest_similarity = 1.0
+                best_match = candidate
 
         return best_match
 
@@ -295,18 +283,6 @@ class ConfluenceIssueUpdaterService:
     ) -> Tuple[str, bool]:
         """
         Parses HTML, finds specific Jira macros, finds replacements, and replaces.
-
-        Args:
-            page_details (Dict[str, Any]): The details of the Confluence page.
-            html_content (str): The Confluence page content in storage format.
-            candidate_new_issues (List[Dict[str, Any]]): A list of Jira issues
-                to consider as replacements.
-            target_issue_type_ids (Set[str]): The set of Jira issue type IDs
-                that are eligible for replacement.
-
-        Returns:
-            Tuple[str, bool]: The modified HTML and a boolean indicating
-                if any modifications were made.
         """
         soup = BeautifulSoup(html_content, "html.parser")
         modified = False
@@ -343,16 +319,17 @@ class ConfluenceIssueUpdaterService:
                 old_issue = fetched_old_issues_map.get(current_key)
                 if not old_issue:
                     logger.warning(
-                        f"Could not get details for Jira issue '{current_key}' on page "
-                        f"'{page_details.get('title', page_details.get('id'))}'. "
-                        "Skipping it."
+                        f"Could not get details for Jira issue "
+                        f"'{current_key}' on page '"
+                        f"{page_details.get('title', page_details.get('id'))}'. "
+                        f"Skipping it."
                     )
                     continue
 
-                issue_type_id = (
+                if (
                     old_issue.get("fields", {}).get("issuetype", {}).get("id")
-                )  # noqa: E501
-                if issue_type_id not in target_issue_type_ids:
+                    not in target_issue_type_ids
+                ):
                     continue
 
                 best_match = self._find_best_new_issue_match(
@@ -362,31 +339,24 @@ class ConfluenceIssueUpdaterService:
                 )
 
                 if best_match and (new_key := best_match.get("key")):
-                    old_summary = old_issue.get("fields", {}).get("summary", "")
-                    new_summary = best_match.get("fields", {}).get("summary", "")
                     logger.info(
-                        f"On page '{page_details.get('title')}', "
-                        f"replacing '{current_key}' "
-                        f"(Summary: '{old_summary}') with '{new_key}' "
-                        f"(Summary: '{new_summary}')"
+                        f"On page '{page_details.get('title')}', replacing "
+                        f"'{current_key}' with '{new_key}'"
                     )
                     new_macro_html = self.confluence_api._generate_jira_macro_html(
                         new_key
-                    )  # noqa: E501
+                    )
                     macro.replace_with(BeautifulSoup(new_macro_html, "html.parser"))
                     modified = True
                 else:
-                    old_summary = old_issue.get("fields", {}).get("summary", "")
                     logger.info(
-                        f"No suitable replacement found for '{current_key}' "
-                        f"(Summary: '{old_summary}') on page "
-                        f"'{page_details.get('title')}'. "
-                        "Skipping."
+                        f"No suitable replacement found for '{current_key}' on page '"
+                        f"{page_details.get('title')}'. Skipping."
                     )
             except Exception as e:
                 logger.warning(
-                    f"Error processing macro for '{current_key}' on page "
-                    f"'{page_details.get('title')}': {e}",
+                    f"Error processing macro for '{current_key}' on page '"
+                    f"{page_details.get('title')}': {e}",
                     exc_info=True,
                 )
 

@@ -150,6 +150,7 @@ async def test_sync_task_success_response(mock_sync_orchestrator, client):
     mock_sync_orchestrator.run.assert_awaited_once()
 
 
+# TODO: change the test to ensure it works
 @pytest.mark.asyncio
 async def test_unhandled_exception(mock_sync_orchestrator, client):
     """Verify the global exception handler catches unhandled errors."""

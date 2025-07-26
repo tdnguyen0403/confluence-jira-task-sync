@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -143,121 +144,119 @@ class SyncTaskOrchestrator:
             SyncError: If Jira task creation fails.
         """
         tasks_to_update_on_pages: Dict[str, List] = {}
-        results_for_this_process_call: List[AutomationResult] = []
 
-        for task in tasks:
-            logging.info(
-                f"\nProcessing task: '{task.task_summary}' from page ID: "
-                f"{task.confluence_page_id}"
-            )
+        processing_coroutines = [
+            self._process_single_task(task, context) for task in tasks
+        ]
+        results_for_this_process_call = await asyncio.gather(*processing_coroutines)
 
-            if not task.task_summary or not task.task_summary.strip():
-                logger.warning(
-                    "Skipping empty task on page ID: %s.", task.confluence_page_id
-                )
-                continue
-
-            closest_wp = await self.issue_finder_service.find_issue_on_page(
-                task.confluence_page_id,
-                config.PARENT_ISSUES_TYPE_ID,
-                self.confluence_service,
-            )
-
-            if not closest_wp:
-                error_msg = (
-                    f"Skipped task '{task.task_summary}' "
-                    f"(ID: {task.confluence_task_id}) "
-                    f"on page ID: {task.confluence_page_id} - No Work Package found."
-                )
-                logger.error(f"ERROR: {error_msg}")
-                results_for_this_process_call.append(
-                    AutomationResult(
-                        task_data=task,
-                        status_text="Skipped - No Work Package found",
-                        request_user=context.request_user,
-                    )
-                )
-                continue
-
-            closest_wp_key = closest_wp["key"]
-
-            if task.assignee_name:
-                logger.info(
-                    f"Assigning task from Confluence task: {task.assignee_name}"
-                )
-            elif closest_wp and closest_wp.get("fields", {}).get("assignee", {}).get(
-                "name"
-            ):
-                task.assignee_name = closest_wp["fields"]["assignee"]["name"]
-                logger.info(
-                    f"Assigning task from parent Work Package: {task.assignee_name}"
-                )
-            else:
-                logger.info(
-                    "No assignee found in Confluence task or parent Work Package. "
-                    "Leaving unassigned."
-                )
-
-            new_issue = await self.jira_service.create_issue(
-                task, closest_wp_key, context
-            )
-
-            if new_issue:
-                new_key = new_issue
-
-                if task.status == "complete":
-                    target_status = config.JIRA_TARGET_STATUSES["completed_task"]
-                    await self.jira_service.transition_issue(new_key, target_status)
-                    results_for_this_process_call.append(
-                        AutomationResult(
-                            task_data=task,
-                            status_text="Success - Completed Task Created",
-                            new_jira_task_key=new_key,
-                            linked_work_package=closest_wp_key,
-                            request_user=context.request_user,
-                        )
-                    )
-                else:
-                    if config.DEV_ENVIRONMENT:
-                        target_status = config.JIRA_TARGET_STATUSES["new_task_dev"]
-                        await self.jira_service.transition_issue(new_key, target_status)
-                    results_for_this_process_call.append(
-                        AutomationResult(
-                            task_data=task,
-                            status_text="Success",
-                            new_jira_task_key=new_key,
-                            linked_work_package=closest_wp_key,
-                            request_user=context.request_user,
-                        )
-                    )
-
+        for result in results_for_this_process_call:
+            if result.status_text.startswith("Success") and result.new_jira_task_key:
+                task = result.task_data
                 tasks_to_update_on_pages.setdefault(task.confluence_page_id, []).append(
-                    {"confluence_task_id": task.confluence_task_id, "jira_key": new_key}
+                    {
+                        "confluence_task_id": task.confluence_task_id,
+                        "jira_key": result.new_jira_task_key,
+                    }
                 )
-            else:
-                error_msg = (
-                    f"Failed to create Jira task for '{task.task_summary}' "
-                    f"(ID: {task.confluence_task_id}) on page ID: "
-                    f"{task.confluence_page_id} linked to WP: {closest_wp_key}. "
-                    "Skipping further processing for this task."
-                )
-                logger.error(f"ERROR: {error_msg}")
-                results_for_this_process_call.append(
-                    AutomationResult(
-                        task_data=task,
-                        status_text="Failed - Jira task creation",
-                        linked_work_package=closest_wp_key,
-                        request_user=self.request_user,
-                        error_message=error_msg,
-                    )
-                )
-                continue
 
         if tasks_to_update_on_pages:
             logging.info("\nAll Jira tasks processed. Now updating Confluence pages...")
-            for page_id, mappings in tasks_to_update_on_pages.items():
-                await self.confluence_service.update_page_with_jira_links(
-                    page_id, mappings
-                )
+            update_coroutines = [
+                self.confluence_service.update_page_with_jira_links(page_id, mappings)
+                for page_id, mappings in tasks_to_update_on_pages.items()
+            ]
+            await asyncio.gather(*update_coroutines)
 
         return results_for_this_process_call
+
+    async def _process_single_task(
+        self, task: ConfluenceTask, context: SyncContext
+    ) -> AutomationResult:
+        """Helper method to process a single Confluence task."""
+        logging.info(
+            f"\nProcessing task: '{task.task_summary}' from page ID: "
+            f"{task.confluence_page_id}"
+        )
+
+        if not task.task_summary or not task.task_summary.strip():
+            logger.warning(
+                "Skipping empty task on page ID: %s.", task.confluence_page_id
+            )
+            return AutomationResult(
+                task_data=task,
+                status_text="Skipped - Empty Task",
+                request_user=context.request_user,
+            )
+
+        closest_wp = await self.issue_finder_service.find_issue_on_page(
+            task.confluence_page_id,
+            config.PARENT_ISSUES_TYPE_ID,
+            self.confluence_service,
+        )
+
+        if not closest_wp:
+            error_msg = (
+                f"Skipped task '{task.task_summary}' "
+                f"(ID: {task.confluence_task_id}) "
+                f"on page ID: {task.confluence_page_id} - No Work Package found."
+            )
+            logger.error(f"ERROR: {error_msg}")
+            return AutomationResult(
+                task_data=task,
+                status_text="Skipped - No Work Package found",
+                request_user=context.request_user,
+            )
+
+        closest_wp_key = closest_wp["key"]
+
+        if task.assignee_name:
+            logger.info(f"Assigning task from Confluence task: {task.assignee_name}")
+        elif closest_wp and closest_wp.get("fields", {}).get("assignee", {}).get(
+            "name"
+        ):
+            task.assignee_name = closest_wp["fields"]["assignee"]["name"]
+            logger.info(
+                f"Assigning task from parent Work Package: {task.assignee_name}"
+            )
+        else:
+            logger.info(
+                "No assignee found in Confluence task or parent Work Package. "
+                "Leaving unassigned."
+            )
+
+        new_issue = await self.jira_service.create_issue(task, closest_wp_key, context)
+
+        if new_issue:
+            new_key = new_issue
+            status_text = "Success"
+
+            if task.status == "complete":
+                target_status = config.JIRA_TARGET_STATUSES["completed_task"]
+                await self.jira_service.transition_issue(new_key, target_status)
+                status_text = "Success - Completed Task Created"
+            elif config.DEV_ENVIRONMENT:
+                target_status = config.JIRA_TARGET_STATUSES["new_task_dev"]
+                await self.jira_service.transition_issue(new_key, target_status)
+
+            return AutomationResult(
+                task_data=task,
+                status_text=status_text,
+                new_jira_task_key=new_key,
+                linked_work_package=closest_wp_key,
+                request_user=context.request_user,
+            )
+        else:
+            error_msg = (
+                f"Failed to create Jira task for '{task.task_summary}' "
+                f"(ID: {task.confluence_task_id}) on page ID: "
+                f"{task.confluence_page_id} linked to WP: {closest_wp_key}. "
+                "Skipping further processing for this task."
+            )
+            logger.error(f"ERROR: {error_msg}")
+            return AutomationResult(
+                task_data=task,
+                status_text="Failed - Jira task creation",
+                linked_work_package=closest_wp_key,
+                request_user=context.request_user,
+            )
