@@ -22,8 +22,10 @@ error handling, and improves the overall reliability of Jira-dependent services.
 import logging
 from typing import Any, Dict, List, Optional
 
+from src.api.error_handler import handle_api_errors
 from src.api.https_helper import HTTPSHelper
 from src.config import config
+from src.exceptions import JiraApiError
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +62,7 @@ class SafeJiraApi:
             "Authorization": f"Bearer {config.JIRA_API_TOKEN}",
         }
 
+    @handle_api_errors(JiraApiError)
     async def get_issue(
         self, issue_key: str, fields: Optional[List[str]] = None
     ) -> Dict[str, Any]:
@@ -81,12 +84,9 @@ class SafeJiraApi:
         """
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}"
         params = {"fields": ",".join(fields)} if fields else {}
-        try:
-            return await self.https_helper.get(url, headers=self.headers, params=params)
-        except Exception as e:
-            logger.error(f"Failed to get Jira issue {issue_key}: {e}")
-            raise
+        return await self.https_helper.get(url, headers=self.headers, params=params)
 
+    @handle_api_errors(JiraApiError)
     async def create_issue(self, fields: Dict[str, Any]) -> Dict[str, Any]:
         """
         Creates a new Jira issue asynchronously.
@@ -115,14 +115,12 @@ class SafeJiraApi:
         """
         url = f"{self.base_url}/rest/api/2/issue"
         payload = {"fields": fields}
-        try:
-            return await self.https_helper.post(
-                url, headers=self.headers, json_data=payload
-            )
-        except Exception as e:
-            logger.error(f"Failed to create Jira issue with fields {fields}: {e}")
-            raise
 
+        return await self.https_helper.post(
+            url, headers=self.headers, json_data=payload
+        )
+
+    @handle_api_errors(JiraApiError)
     async def get_available_transitions(self, issue_key: str) -> List[Dict[str, Any]]:
         """
         Retrieves all available workflow transitions for a given Jira issue.
@@ -142,15 +140,10 @@ class SafeJiraApi:
             if the request fails.
         """
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
-        try:
-            response_data = await self.https_helper.get(url, headers=self.headers)
-            return response_data.get("transitions", [])
-        except Exception as e:
-            logger.error(
-                f"Failed to get available transitions for issue {issue_key}: {e}"
-            )
-            raise
+        response_data = await self.https_helper.get(url, headers=self.headers)
+        return response_data.get("transitions", [])
 
+    @handle_api_errors(JiraApiError)
     async def find_transition_id_by_name(
         self, issue_key: str, transition_name: str
     ) -> Optional[str]:
@@ -173,11 +166,13 @@ class SafeJiraApi:
         for transition in transitions:
             if transition.get("name", "").lower() == transition_name.lower():
                 return transition["id"]
+
         logger.warning(
             f"Transition '{transition_name}' not found for issue {issue_key}."
         )
         return None
 
+    @handle_api_errors(JiraApiError)
     async def transition_issue(
         self, issue_key: str, transition_name: str
     ) -> Dict[str, Any]:
@@ -214,18 +209,13 @@ class SafeJiraApi:
 
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
         payload = {"transition": {"id": transition_id}}
-        try:
-            response = await self.https_helper.post(
-                url, headers=self.headers, json_data=payload
-            )
-            return response
-        except Exception as e:
-            logger.error(
-                f"Failed to transition Jira issue {issue_key} "
-                f"to '{transition_name}': {e}"
-            )
-            raise
 
+        response = await self.https_helper.post(
+            url, headers=self.headers, json_data=payload
+        )
+        return response
+
+    @handle_api_errors(JiraApiError)
     async def get_current_user(self) -> Dict[str, Any]:
         """
         Retrieves information about the current authenticated Jira user.
@@ -242,12 +232,10 @@ class SafeJiraApi:
             if the request fails.
         """
         url = f"{self.base_url}/rest/api/2/myself"
-        try:
-            return await self.https_helper.get(url, headers=self.headers)
-        except Exception as e:
-            logger.error(f"Error getting current Jira user: {e}")
-            raise
 
+        return await self.https_helper.get(url, headers=self.headers)
+
+    @handle_api_errors(JiraApiError)
     async def search_issues(
         self, jql_query: str, fields: Optional[List[str]] = None
     ) -> Dict[str, Any]:
@@ -273,12 +261,9 @@ class SafeJiraApi:
         if fields:
             params["fields"] = ",".join(fields)
 
-        try:
-            return await self.https_helper.get(url, headers=self.headers, params=params)
-        except Exception as e:
-            logger.error(f"Error executing JQL search '{jql_query}': {e}")
-            raise
+        return await self.https_helper.get(url, headers=self.headers, params=params)
 
+    @handle_api_errors(JiraApiError)
     async def get_issue_type_details_by_id(
         self, issue_type_id: str
     ) -> Optional[Dict[str, Any]]:
@@ -293,14 +278,10 @@ class SafeJiraApi:
                                       issue type, or None if an error occurs.
         """
         url = f"{self.base_url}/rest/api/2/issuetype/{issue_type_id}"
-        try:
-            return await self.https_helper.get(url, headers=self.headers)
-        except Exception as e:
-            logger.error(
-                f"Failed to get Jira issue type details for ID {issue_type_id}: {e}"
-            )
-            return None
 
+        return await self.https_helper.get(url, headers=self.headers)
+
+    @handle_api_errors(JiraApiError)
     async def update_issue_description(
         self, issue_key: str, new_description: str
     ) -> Dict[str, Any]:
@@ -324,11 +305,8 @@ class SafeJiraApi:
         """
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}"
         payload = {"fields": {"description": new_description}}
-        try:
-            response = await self.https_helper.put(
-                url, headers=self.headers, json_data=payload
-            )
-            return response
-        except Exception as e:
-            logger.error(f"Failed to update Jira issue {issue_key} description: {e}")
-            raise
+
+        response = await self.https_helper.put(
+            url, headers=self.headers, json_data=payload
+        )
+        return response

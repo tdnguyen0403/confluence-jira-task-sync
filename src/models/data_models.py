@@ -340,12 +340,12 @@ class UndoSyncTaskResponse(BaseModel):
 
     Attributes:
         request_id (str): A unique identifier for the undo request.
-        message (str): A confirmation message indicating the result of the undo
+        detail (str): A confirmation detail indicating the result of the undo
             operation.
     """
 
     request_id: str
-    message: str
+    detail: str
 
 
 class SyncProjectResponse(BaseModel):

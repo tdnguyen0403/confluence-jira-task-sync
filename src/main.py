@@ -27,8 +27,11 @@ from src.dependencies import (
     get_undo_sync_task_orchestrator,
 )
 from src.exceptions import (
+    AutomationError,
     InvalidInputError,
     MissingRequiredDataError,
+    ParentIssueNotFoundError,
+    SetupError,
     SyncError,
     UndoError,
 )
@@ -131,32 +134,55 @@ app.add_middleware(LoggingMiddleware)
 
 
 @app.exception_handler(InvalidInputError)
-async def invalid_input_exception_handler(request: Request, exc: InvalidInputError):
-    """Handles `InvalidInputError` exceptions globally."""
-    logger.warning(f"Invalid input received: {exc}")
+async def invalid_input_error_handler(request: Request, exc: InvalidInputError):
+    """Handles errors from invalid request body format."""
+    logger.warning(f"Invalid input provided: {exc}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
-        content={"message": str(exc)},
+        content={"detail": f"Invalid input: {exc}"},
+    )
+
+
+@app.exception_handler(ParentIssueNotFoundError)
+async def parent_issue_not_found_error_handler(
+    request: Request, exc: ParentIssueNotFoundError
+):
+    """Handles failure to find a required parent entity (e.g., Work Package)."""
+    logger.error(f"A required parent issue was not found: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"detail": str(exc)},
+    )
+
+
+@app.exception_handler(SetupError)
+async def setup_error_handler(request: Request, exc: SetupError):
+    """Handles generic errors during the pre-processing/setup phase."""
+    logger.warning(f"Request setup failed: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"detail": f"Request setup failed: {exc}"},
     )
 
 
 @app.exception_handler(SyncError)
-async def sync_error_exception_handler(request: Request, exc: SyncError):
-    """Handles `SyncError` exceptions globally."""
-    logger.error(f"Synchronization error: {exc}", exc_info=True)
+async def sync_error_handler(request: Request, exc: SyncError):
+    """Handles errors during the main synchronization workflow."""
+    # This indicates a backend failure during a complex operation.
+    logger.error(f"Synchronization process error: {exc}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"message": f"Synchronization failed: {exc}"},
+        content={"detail": f"An error occurred during synchronization: {exc}"},
     )
 
 
 @app.exception_handler(UndoError)
-async def undo_error_exception_handler(request: Request, exc: UndoError):
-    """Handles `UndoError` exceptions globally."""
-    logger.error(f"Undo error: {exc}", exc_info=True)
+async def undo_error_handler(request: Request, exc: UndoError):
+    """Handles errors specifically from the undo workflow."""
+    logger.error(f"Undo process error: {exc}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"message": f"Undo operation failed: {exc}"},
+        content={"detail": f"An error occurred during the undo process: {exc}"},
     )
 
 
@@ -168,7 +194,17 @@ async def missing_data_exception_handler(
     logger.warning(f"Missing required data: {exc}")
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
-        content={"message": str(exc)},
+        content={"detail": str(exc)},
+    )
+
+
+@app.exception_handler(AutomationError)
+async def general_automation_error_handler(request: Request, exc: AutomationError):
+    """A final catch-all for any other application-specific errors."""
+    logger.critical(f"An unexpected automation error occurred: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": f"An unexpected internal error occurred: {exc}"},
     )
 
 
@@ -178,7 +214,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     logger.critical(f"Unhandled exception: {exc}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"message": "An unexpected internal server error occurred."},
+        content={"detail": "An unexpected internal server error occurred."},
     )
 
 
@@ -259,7 +295,7 @@ async def undo_sync_task(
     logger.info("Undo run completed successfully.")
     return UndoSyncTaskResponse(
         request_id=request_id_var.get(),
-        message="Undo operation completed successfully.",
+        detail="Undo operation completed successfully.",
     )
 
 
@@ -327,7 +363,7 @@ async def health_check():
     This check confirms that the application process is running and able to
     respond to requests.
     """
-    return {"status": "ok", "message": "Application is alive."}
+    return {"status": "ok", "detail": "Application is alive."}
 
 
 @app.get("/ready", status_code=status.HTTP_200_OK)
@@ -353,4 +389,4 @@ async def readiness_check(
     logger.info("Jira API is reachable and authenticated.")
     await confluence_api_dep.get_all_spaces()
     logger.info("Confluence API is reachable and authenticated.")
-    return {"status": "ready", "message": "Application and dependencies are ready."}
+    return {"status": "ready", "detail": "Application and dependencies are ready."}

@@ -181,7 +181,7 @@ async def test_undo_sync_task_success(mock_undo_orchestrator, client):
     assert response.status_code == 200
     response_data = response.json()
     assert "request_id" in response_data
-    assert response_data["message"] == "Undo operation completed successfully."
+    assert response_data["detail"] == "Undo operation completed successfully."
     mock_undo_orchestrator.run.assert_awaited_once()
 
 
@@ -212,7 +212,7 @@ async def test_health_check_returns_ok(client):
     """Verify the /health endpoint returns 200 OK."""
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "message": "Application is alive."}
+    assert response.json() == {"status": "ok", "detail": "Application is alive."}
 
 
 @pytest.mark.asyncio
@@ -220,7 +220,7 @@ async def test_readiness_check_success(mock_jira_api, mock_confluence_api, clien
     """Verify /ready returns 200 OK when dependencies are healthy."""
     response = client.get("/ready")
     assert response.status_code == 200
-    assert response.json()["message"] == "Application and dependencies are ready."
+    assert response.json()["detail"] == "Application and dependencies are ready."
     mock_jira_api.get_current_user.assert_awaited_once()
     mock_confluence_api.get_all_spaces.assert_awaited_once()
 
@@ -242,11 +242,15 @@ async def test_readiness_check_jira_api_failure(mock_jira_api, client):
 @pytest.mark.parametrize(
     "exception, expected_status, expected_message",
     [
-        (InvalidInputError("Test Invalid Input"), 400, "Test Invalid Input"),
+        (
+            InvalidInputError("Test Invalid Input"),
+            400,
+            "Invalid input: Test Invalid Input",
+        ),
         (
             SyncError("Test Sync Failure"),
             500,
-            "Synchronization failed: Test Sync Failure",
+            "An error occurred during synchronization: Test Sync Failure",
         ),
         (MissingRequiredDataError("Test Missing Data"), 404, "Test Missing Data"),
     ],
@@ -267,17 +271,21 @@ async def test_sync_task_custom_exceptions(
     )
 
     assert response.status_code == expected_status
-    assert response.json()["message"] == expected_message
+    assert expected_message in response.json()["detail"]
 
 
 @pytest.mark.parametrize(
     "exception, expected_status, expected_message",
     [
-        (InvalidInputError("Invalid undo data"), 400, "Invalid undo data"),
+        (
+            InvalidInputError("Invalid undo data"),
+            400,
+            "Invalid input: Invalid undo data",
+        ),
         (
             UndoError("Test Undo Failure"),
             500,
-            "Undo operation failed: Test Undo Failure",
+            "An error occurred during the undo process: Test Undo Failure",
         ),
         (
             MissingRequiredDataError("Missing original version"),
@@ -307,4 +315,4 @@ async def test_undo_sync_task_custom_exceptions(
     )
 
     assert response.status_code == expected_status
-    assert response.json()["message"] == expected_message
+    assert expected_message in response.json()["detail"]
