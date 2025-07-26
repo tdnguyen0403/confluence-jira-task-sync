@@ -3,9 +3,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.api.https_helper import HTTPSHelper
+from src.api.https_helper import HTTPSHelper, HTTPXCustomError
 from src.api.safe_jira_api import SafeJiraApi
 from src.config import config  # Assuming config is used for JIRA_API_TOKEN
+from src.exceptions import JiraApiError
 
 # Configure logging to capture messages during tests
 logging.basicConfig(level=logging.INFO)
@@ -82,15 +83,25 @@ async def test_get_available_transitions_success(safe_jira_api, mock_https_helpe
 
 
 @pytest.mark.asyncio
-async def test_find_transition_id_by_name_found(safe_jira_api, mock_https_helper):
+async def test_find_transition_id_by_name_found(safe_jira_api, mocker):
     """Tests finding transition ID by name when found."""
     mock_transitions = [{"id": "1", "name": "To Do"}, {"id": "2", "name": "Done"}]
-    mock_https_helper.get.return_value = {"transitions": mock_transitions}
 
+    # Use mocker to patch the 'get_available_transitions' method directly
+    # on the instance provided by the fixture. This is the most reliable way.
+    mocked_method = mocker.patch.object(
+        safe_jira_api,
+        "get_available_transitions",
+        new_callable=AsyncMock,
+        return_value=mock_transitions,
+    )
+
+    # Now, when the method under test is called, it will use our mock.
     transition_id = await safe_jira_api.find_transition_id_by_name("PROJ-1", "Done")
 
     assert transition_id == "2"
-    mock_https_helper.get.assert_awaited_once()  # Call count is 1, URL is internal to the method
+    # Verify the mocked method was called correctly.
+    mocked_method.assert_awaited_once_with("PROJ-1")
 
 
 @pytest.mark.asyncio
@@ -292,11 +303,16 @@ async def test_search_issues_error_handling(safe_jira_api, mock_https_helper):
 async def test_get_issue_type_details_by_id_error_handling(
     safe_jira_api, mock_https_helper
 ):
-    """Tests get_issue_type_details_by_id when https_helper.get raises an exception."""
-    mock_https_helper.get.side_effect = Exception("Issue type not found")
-    details = await safe_jira_api.get_issue_type_details_by_id("nonexistent_id")
-    assert details is None
-    mock_https_helper.get.assert_awaited_once()
+    """Tests get_issue_type_details_by_id when the API call fails."""
+    # Simulate a realistic error from the lower layer.
+    mock_https_helper.get.side_effect = HTTPXCustomError("API call failed")
+
+    # The correct behavior is now to raise a JiraApiError. We assert this.
+    with pytest.raises(JiraApiError) as excinfo:
+        await safe_jira_api.get_issue_type_details_by_id("nonexistent_id")
+
+    # Verify the exception contains the original error message.
+    assert "API call failed" in str(excinfo.value)
 
 
 @pytest.mark.asyncio

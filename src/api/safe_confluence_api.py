@@ -27,8 +27,10 @@ from typing import Any, Dict, List, Optional
 
 from bs4 import BeautifulSoup
 
+from src.api.error_handler import handle_api_errors
 from src.api.https_helper import HTTPSHelper
 from src.config import config
+from src.exceptions import ConfluenceApiError
 from src.models.data_models import ConfluenceTask
 from src.utils.context_extractor import get_task_context
 
@@ -81,6 +83,7 @@ class SafeConfluenceApi:
         self.jira_macro_server_name = jira_macro_server_name
         self.jira_macro_server_id = jira_macro_server_id
 
+    @handle_api_errors(ConfluenceApiError)
     async def get_page_id_from_url(self, url: str) -> Optional[str]:
         """
         Extracts the Confluence page ID from a standard or short URL asynchronously.
@@ -148,6 +151,7 @@ class SafeConfluenceApi:
             logger.error(f"Could not resolve the short URL '{url}'. Details: {e}")
             return None
 
+    @handle_api_errors(ConfluenceApiError)
     async def get_page_by_id(
         self, page_id: str, expand: Optional[str] = None, version: Optional[int] = None
     ) -> Optional[Dict[str, Any]]:
@@ -188,6 +192,7 @@ class SafeConfluenceApi:
             )
             return None
 
+    @handle_api_errors(ConfluenceApiError)
     async def get_page_child_by_type(
         self, page_id: str, page_type: str = "page"
     ) -> List[Dict[str, Any]]:
@@ -235,6 +240,7 @@ class SafeConfluenceApi:
 
         return all_results
 
+    @handle_api_errors(ConfluenceApiError)
     async def update_page(self, page_id: str, title: str, body: str) -> bool:
         """
         Updates the content and title of a Confluence page asynchronously.
@@ -285,6 +291,7 @@ class SafeConfluenceApi:
             logger.error(f"Failed to update page {page_id}: {e}")
         return False
 
+    @handle_api_errors(ConfluenceApiError)
     async def create_page(
         self, space_key: str, title: str, body: str, parent_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
@@ -326,6 +333,7 @@ class SafeConfluenceApi:
             logger.error(f"Failed to create Confluence page '{title}': {e}")
         return None
 
+    @handle_api_errors(ConfluenceApiError)
     async def get_user_details_by_username(
         self, username: str
     ) -> Optional[Dict[str, Any]]:
@@ -347,6 +355,7 @@ class SafeConfluenceApi:
             logger.error(f"Failed to get user details for username '{username}': {e}")
             return None
 
+    @handle_api_errors(ConfluenceApiError)
     async def get_user_details_by_userkey(
         self, userkey: str
     ) -> Optional[Dict[str, Any]]:
@@ -647,6 +656,7 @@ class SafeConfluenceApi:
             f"</ac:structured-macro>"
         )
 
+    @handle_api_errors(ConfluenceApiError)
     async def get_all_spaces(self) -> List[Dict[str, Any]]:
         """
         Retrieves a list of all Confluence spaces asynchronously.
@@ -662,9 +672,5 @@ class SafeConfluenceApi:
                        if the API request fails.
         """
         url = f"{self.base_url}/rest/api/space"
-        try:
-            response_data = await self.https_helper.get(url, headers=self.headers)
-            return response_data.get("results", [])
-        except Exception as e:
-            logger.error(f"Error getting all Confluence spaces: {e}")
-            raise
+        response_data = await self.https_helper.get(url, headers=self.headers)
+        return response_data.get("results", [])
