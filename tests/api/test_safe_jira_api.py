@@ -345,3 +345,53 @@ async def test_get_issue_type_details_by_id_success_empty_response(
         "http://jira.example.com/rest/api/2/issuetype/10001",
         headers=safe_jira_api.headers,
     )
+
+
+@pytest.mark.asyncio
+async def test_assign_issue_success(safe_jira_api, mock_https_helper):
+    """Tests successful assignment of a Jira issue to a user."""
+    mock_https_helper.put.return_value = {}  # Jira typically returns 204 No Content
+
+    issue_key = "PROJ-123"
+    assignee_name = "test_user"
+    response = await safe_jira_api.assign_issue(issue_key, assignee_name)
+
+    assert response == {}
+    mock_https_helper.put.assert_awaited_once_with(
+        f"http://jira.example.com/rest/api/2/issue/{issue_key}/assignee",
+        headers=safe_jira_api.headers,
+        json_data={"name": assignee_name},
+    )
+
+
+@pytest.mark.asyncio
+async def test_assign_issue_unassign_success(safe_jira_api, mock_https_helper):
+    """Tests successful unassignment of a Jira issue."""
+    mock_https_helper.put.return_value = {}  # Jira typically returns 204 No Content
+
+    issue_key = "PROJ-456"
+    response = await safe_jira_api.assign_issue(issue_key, None)
+
+    assert response == {}
+    mock_https_helper.put.assert_awaited_once_with(
+        f"http://jira.example.com/rest/api/2/issue/{issue_key}/assignee",
+        headers=safe_jira_api.headers,
+        json_data={"name": None},
+    )
+
+
+@pytest.mark.asyncio
+async def test_assign_issue_error_handling(safe_jira_api, mock_https_helper):
+    """Tests assign_issue when https_helper.put raises an exception."""
+    mock_https_helper.put.side_effect = Exception("Permission denied")
+
+    issue_key = "PROJ-789"
+    assignee_name = "forbidden_user"
+    with pytest.raises(Exception, match="Permission denied"):
+        await safe_jira_api.assign_issue(issue_key, assignee_name)
+
+    mock_https_helper.put.assert_awaited_once_with(
+        f"http://jira.example.com/rest/api/2/issue/{issue_key}/assignee",
+        headers=safe_jira_api.headers,
+        json_data={"name": assignee_name},
+    )

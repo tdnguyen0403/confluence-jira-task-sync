@@ -54,6 +54,11 @@ class SafeJiraApiStub(SafeJiraApi):
         await self.mock.get_issue_type_details_by_id(type_id)
         return self._issue_types.get(type_id)
 
+    async def assign_issue(self, issue_key: str, assignee_name: str) -> dict:
+        """Stub for assign_issue method."""
+        await self.mock.assign_issue(issue_key, assignee_name)
+        return {}  # Jira often returns an empty dict or 204 No Content
+
     # --- Helper methods for test setup ---
     def add_issue(self, key, data):
         self._issues[key] = data
@@ -376,3 +381,37 @@ async def test_prepare_jira_task_fields_no_description(
     mock_task.context = None
     result = await service.prepare_jira_task_fields(mock_task, "PROJ-123", mock_context)
     assert result["description"] is not None
+
+
+@pytest.mark.asyncio
+async def test_assign_issue_delegates_success(jira_service):
+    """Tests successful assignment of a Jira issue through JiraService."""
+    service, api_stub = jira_service
+    issue_key = "PROJ-ASSIGN-1"
+    assignee_name = "test_user_assign"
+    result = await service.assign_issue(issue_key, assignee_name)
+    assert result is True
+    api_stub.mock.assign_issue.assert_awaited_once_with(issue_key, assignee_name)
+
+
+@pytest.mark.asyncio
+async def test_assign_issue_unassign_delegates_success(jira_service):
+    """Tests successful unassignment of a Jira issue through JiraService."""
+    service, api_stub = jira_service
+    issue_key = "PROJ-UNASSIGN-1"
+    result = await service.assign_issue(issue_key, None)
+    assert result is True
+    api_stub.mock.assign_issue.assert_awaited_once_with(issue_key, None)
+
+
+@pytest.mark.asyncio
+async def test_assign_issue_delegates_failure(jira_service):
+    """Tests error handling when assigning/unassigning an issue through JiraService."""
+    service, api_stub = jira_service
+    issue_key = "PROJ-FAIL-ASSIGN"
+    assignee_name = "error_user"
+    api_stub.mock.assign_issue.side_effect = Exception("API assignment failed")
+
+    result = await service.assign_issue(issue_key, assignee_name)
+    assert result is False
+    api_stub.mock.assign_issue.assert_awaited_once_with(issue_key, assignee_name)
