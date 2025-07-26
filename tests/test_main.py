@@ -1,28 +1,29 @@
+from unittest.mock import AsyncMock, patch
+
+import httpx
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, patch
-import httpx
 
-from src.main import app
 from src.dependencies import (
     get_api_key,
-    get_https_helper,
-    get_safe_jira_api,
-    get_safe_confluence_api,
     get_confluence_issue_updater_service,
+    get_https_helper,
+    get_safe_confluence_api,
+    get_safe_jira_api,
     get_sync_task_orchestrator,
     get_undo_sync_task_orchestrator,
 )
+from src.exceptions import (
+    InvalidInputError,
+    MissingRequiredDataError,
+    SyncError,
+    UndoError,
+)
+from src.main import app
 from src.models.data_models import (
     AutomationResult,
     ConfluenceTask,
     SyncProjectPageDetail,
-)
-from src.exceptions import (
-    InvalidInputError,
-    SyncError,
-    UndoError,
-    MissingRequiredDataError,
 )
 
 

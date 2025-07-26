@@ -1,14 +1,16 @@
+import re  # Import regex module for parsing
+from typing import Any, Dict, List, Optional
+from unittest.mock import AsyncMock
+
 import pytest
 import pytest_asyncio
-from unittest.mock import AsyncMock
-from typing import Any, Dict, List, Optional
-import re  # Import regex module for parsing
 
-# Import the service to be tested and its dependencies
-from src.services.business_logic.issue_finder_service import IssueFinderService
 from src.api.safe_jira_api import SafeJiraApi
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.models.data_models import JiraIssue
+
+# Import the service to be tested and its dependencies
+from src.services.business_logic.issue_finder_service import IssueFinderService
 
 # --- Stubs for Dependencies ---
 

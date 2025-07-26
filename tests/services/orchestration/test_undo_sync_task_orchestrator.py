@@ -2,26 +2,27 @@
 Tests for the SyncTaskOrchestrator using stubs for service dependencies.
 """
 
-import pytest
-import pytest_asyncio
+import logging
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock
-import logging
 
+import pytest
+import pytest_asyncio
+
+from src.config import config
+from src.exceptions import InvalidInputError
+from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
+from src.interfaces.issue_finder_service_interface import IssueFinderServiceInterface
+from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.models.data_models import (
+    ConfluenceTask,
+    JiraIssueStatus,
+    SyncContext,
+    UndoRequestItem,
+)
 from src.services.orchestration.undo_sync_task_orchestrator import (
     UndoSyncTaskOrchestrator,
 )
-from src.models.data_models import (
-    ConfluenceTask,
-    UndoRequestItem,
-    SyncContext,
-    JiraIssueStatus,
-)
-from src.exceptions import InvalidInputError
-from src.config import config
-from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
-from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.interfaces.issue_finder_service_interface import IssueFinderServiceInterface
 
 # Configure logging for the test file itself
 logging.basicConfig(level=logging.INFO)
@@ -39,7 +40,7 @@ def sample_synced_task_raw_json():
         "request_user": "tdnguyen",
         "confluence_page_id": "435680347",
         "confluence_page_title": "Simple Page Test",
-        "confluence_page_url": "/spaces/EUDEMHTM0589/pages/435680347/Simple+Page+Test",
+        "confluence_page_url": "/spaces/EUDEMHTM0589/pages/435680347/Simple+Page+Test",  # pragma: allowlist secret
         "confluence_task_id": "10",
         "task_summary": "Test long description",
         "status": "incomplete",
@@ -62,7 +63,7 @@ def sample_completed_synced_task_raw_json():
         "request_user": "tdnguyen",
         "confluence_page_id": "435680347",
         "confluence_page_title": "Simple Page Test",
-        "confluence_page_url": "/spaces/EUDEMHTM0589/pages/435680347/Simple+Page+Test",
+        "confluence_page_url": "/spaces/EUDEMHTM0589/pages/435680347/Simple+Page+Test",  # pragma: allowlist secret
         "confluence_task_id": "11",
         "task_summary": "Another completed task",
         "status": "complete",

@@ -1,19 +1,23 @@
-import logging
+"""Test suite for logging configuration utilities.
+This module tests the logging configuration, including custom filters and formatters."""
+
 import json
+import logging
+import os
 import sys
 from unittest.mock import MagicMock, patch
-import pytest
-import os
 
+import pytest
+
+from src.config import config
 from src.utils.logging_config import (
-    setup_logging,
     JsonFormatter,
     RequestIdFilter,
     SecretRedactingFilter,
-    request_id_var,
     endpoint_var,
+    request_id_var,
+    setup_logging,
 )
-from src.config import config
 
 
 @pytest.fixture

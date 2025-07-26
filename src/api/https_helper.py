@@ -22,18 +22,20 @@ The HTTPSHelper is intended to be a foundational component for any part of an
 application that needs to make external HTTP requests reliably.
 """
 
-import httpx
 import logging
 from typing import (
     Any,
     Dict,
     Optional,
+    cast,
 )
+
+import httpx
 from tenacity import (
     retry,
-    wait_exponential,
-    stop_after_attempt,
     retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,18 +44,24 @@ logger = logging.getLogger(__name__)
 class HTTPXCustomError(httpx.RequestError):
     """Base custom exception for errors originating from httpx_helper."""
 
-    def __init__(self, message, request=None, response=None, original_exception=None):
+    def __init__(
+        self,
+        message: str,
+        request: Optional[httpx.Request] = None,
+        response: Optional[httpx.Response] = None,
+        original_exception: Optional[Exception] = None,
+    ) -> None:
         """
         Initializes the HTTPXCustomError.
 
         Args:
             message (str): A descriptive error message.
             request (Optional[httpx.Request]): The httpx Request object that
-                                               caused the error.
+                caused the error.
             response (Optional[httpx.Response]): The httpx Response object if
-                                                 one was received.
+                one was received.
             original_exception (Optional[Exception]): The original exception that
-                                                      was caught.
+                was caught.
         """
         super().__init__(message, request=request)
         self.response = response
@@ -63,7 +71,8 @@ class HTTPXCustomError(httpx.RequestError):
 
 
 class HTTPXConnectionError(HTTPXCustomError):
-    """Custom exception for network connection errors (e.g., DNS, refused connection)."""
+    """Custom exception for network connection errors
+    (e.g., DNS, refused connection)."""
 
     pass
 
@@ -121,7 +130,8 @@ class HTTPSHelper:
         """
         if self._client is None:
             logger.warning(
-                "httpx.AsyncClient not set. Initializing a new client. Consider using FastAPI lifespan for proper management."
+                "httpx.AsyncClient not set. Initializing a new client. "
+                "Consider using FastAPI lifespan for proper management."
             )
             self._client = httpx.AsyncClient(
                 verify=self._verify_ssl, cookies=httpx.Cookies()
@@ -129,7 +139,7 @@ class HTTPSHelper:
         return self._client
 
     @client.setter
-    def client(self, value: httpx.AsyncClient):
+    def client(self, value: httpx.AsyncClient) -> None:
         """
         Allows setting the httpx.AsyncClient instance, typically from lifespan.
 
@@ -182,11 +192,16 @@ class HTTPSHelper:
         Args:
             method (str): The HTTP method (e.g., 'GET', 'POST', 'PUT', 'DELETE').
             url (str): The URL for the request.
-            headers (Optional[Dict[str, str]]): Dictionary of HTTP headers. Defaults to None.
-            json_data (Optional[Dict[str, Any]]): JSON data to send in the request body. Defaults to None.
-            params (Optional[Dict[str, str]]): Dictionary of URL parameters. Defaults to None.
+            headers (Optional[Dict[str, str]]): Dictionary of HTTP headers.
+                Defaults to None.
+            json_data (Optional[Dict[str, Any]]):
+                JSON data to send in the request body.
+                Defaults to None.
+            params (Optional[Dict[str, str]]): Dictionary of URL parameters.
+                Defaults to None.
             timeout (int): Request timeout in seconds. Defaults to 5.
-            follow_redirects (bool): Whether to automatically follow HTTP redirects. Defaults to False.
+            follow_redirects (bool): Whether to automatically follow HTTP redirects.
+                Defaults to False.
 
         Returns:
             httpx.Response: The httpx response object on success.
@@ -197,7 +212,7 @@ class HTTPSHelper:
             HTTPXConnectionError: For DNS or connection-refused errors.
             HTTPXTimeoutError: For request timeouts.
             HTTPXCustomError: For other `httpx` request-related errors or unexpected
-                              HTTP status codes.
+                HTTP status codes.
         """
         try:
             request_obj = self.client.build_request(
@@ -215,7 +230,8 @@ class HTTPSHelper:
                 response.raise_for_status()
 
             logger.info(
-                f"Successfully executed {method.upper()} request to {url}. Status: {response.status_code}"
+                f"Successfully executed {method.upper()} request to {url}. "
+                f"Status: {response.status_code}"
             )
             return response
         except httpx.ConnectError as e:
@@ -228,12 +244,17 @@ class HTTPSHelper:
         except httpx.TimeoutException as e:
             logger.error(f"Timeout Error for {method} {url}: {e}")
             raise HTTPXTimeoutError(
-                f"Request timed out for {url}", request=e.request, original_exception=e
+                f"Request timed out for {url}",
+                request=e.request,
+                original_exception=e,
             ) from e
         except httpx.HTTPStatusError as e:
             status_code = e.response.status_code
             error_details = e.response.text
-            log_message = f"HTTP Error for {method} {url} - Status: {status_code}, Details: {error_details}"
+            log_message = (
+                f"HTTP Error for {method} {url} - "
+                f"Status: {status_code}, Details: {error_details}"
+            )
             if 400 <= status_code < 500:
                 logger.warning(log_message)
                 raise HTTPXClientError(
@@ -260,7 +281,8 @@ class HTTPSHelper:
                 ) from e
         except httpx.RequestError as e:
             logger.error(
-                f"A general httpx.RequestError occurred while requesting {e.request.url!r}: {e}"
+                "A general httpx.RequestError occurred while "
+                f"requesting {e.request.url!r}: {e}"
             )
             raise HTTPXCustomError(
                 f"A general request error occurred for {url}",
@@ -269,11 +291,13 @@ class HTTPSHelper:
             ) from e
         except Exception as e:
             logger.critical(
-                f"An unexpected and critical error occurred during HTTP request to {url}: {e}",
+                "An unexpected and critical error occurred during "
+                f"HTTP request to {url}: {e}",
                 exc_info=True,
             )
             raise HTTPXCustomError(
-                f"A critical unexpected error occurred for {url}", original_exception=e
+                f"A critical unexpected error occurred for {url}",
+                original_exception=e,
             ) from e
 
     async def get(
@@ -304,7 +328,7 @@ class HTTPSHelper:
         response = await self._make_request(
             "GET", url, headers=headers, params=params, timeout=timeout
         )
-        return response.json()
+        return cast(Dict[str, Any], response.json())
 
     async def post(
         self,
@@ -410,7 +434,7 @@ class HTTPSHelper:
         )
         return response
 
-    async def close(self):
+    async def close(self) -> None:
         """
         Closes the httpx.AsyncClient if it was initialized.
 

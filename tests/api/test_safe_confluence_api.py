@@ -1,11 +1,12 @@
-import pytest
-from unittest.mock import AsyncMock, patch, call
 import logging
+from unittest.mock import AsyncMock, call, patch
+
 import httpx
+import pytest
 from bs4 import BeautifulSoup  # Added import
 
-from src.api.safe_confluence_api import SafeConfluenceApi
 from src.api.https_helper import HTTPSHelper
+from src.api.safe_confluence_api import SafeConfluenceApi
 from src.config import config
 
 # Configure logging to capture messages during tests
@@ -23,12 +24,12 @@ def mock_https_helper():
 def safe_confluence_api(mock_https_helper):
     """Provides a SafeConfluenceApi instance with a mocked HTTPSHelper."""
     # Ensure all relevant config values are patched for isolated testing
-    with patch.object(config, "CONFLUENCE_API_TOKEN", "test_token"), patch.object(
-        config, "CONFLUENCE_URL", "http://confluence.example.com"
-    ), patch.object(config, "JIRA_MACRO_SERVER_NAME", "TestJiraServer"), patch.object(
-        config, "JIRA_MACRO_SERVER_ID", "server-123"
-    ), patch.object(
-        config, "AGGREGATION_CONFLUENCE_MACRO", ["jira", "info"]
+    with (
+        patch.object(config, "CONFLUENCE_API_TOKEN", "test_token"),
+        patch.object(config, "CONFLUENCE_URL", "http://confluence.example.com"),
+        patch.object(config, "JIRA_MACRO_SERVER_NAME", "TestJiraServer"),
+        patch.object(config, "JIRA_MACRO_SERVER_ID", "server-123"),
+        patch.object(config, "AGGREGATION_CONFLUENCE_MACRO", ["jira", "info"]),
     ):  # This line is crucial
         return SafeConfluenceApi(
             base_url="http://confluence.example.com",
@@ -1103,9 +1104,9 @@ async def test_parse_single_task_missing_datetime_attr(safe_confluence_api):
     task = await safe_confluence_api._parse_single_task(task_element, page_details)
 
     assert task is not None
-    assert (
-        task.due_date is None
-    ), "Due date should be None when datetime attribute is missing"
+    assert task.due_date is None, (
+        "Due date should be None when datetime attribute is missing"
+    )
 
 
 @pytest.mark.asyncio

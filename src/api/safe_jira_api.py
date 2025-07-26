@@ -22,8 +22,8 @@ error handling, and improves the overall reliability of Jira-dependent services.
 import logging
 from typing import Any, Dict, List, Optional
 
-from src.config import config
 from src.api.https_helper import HTTPSHelper
+from src.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,8 @@ class SafeJiraApi:
             Dict[str, Any]: A dictionary representing the Jira issue.
 
         Raises:
-            Exception: Propagates exceptions from the `HTTPSHelper` if the request fails.
+            Exception: Propagates exceptions from the `HTTPSHelper`
+            if the request fails.
         """
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}"
         params = {"fields": ",".join(fields)} if fields else {}
@@ -109,7 +110,8 @@ class SafeJiraApi:
                             including its key and ID.
 
         Raises:
-            Exception: Propagates exceptions from the `HTTPSHelper` if the request fails.
+            Exception: Propagates exceptions from the `HTTPSHelper`
+            if the request fails.
         """
         url = f"{self.base_url}/rest/api/2/issue"
         payload = {"fields": fields}
@@ -136,7 +138,8 @@ class SafeJiraApi:
                                   each object contains details like `id` and `name`.
 
         Raises:
-            Exception: Propagates exceptions from the `HTTPSHelper` if the request fails.
+            Exception: Propagates exceptions from the `HTTPSHelper`
+            if the request fails.
         """
         url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
         try:
@@ -218,7 +221,8 @@ class SafeJiraApi:
             return response
         except Exception as e:
             logger.error(
-                f"Failed to transition Jira issue {issue_key} to '{transition_name}': {e}"
+                f"Failed to transition Jira issue {issue_key} "
+                f"to '{transition_name}': {e}"
             )
             raise
 
@@ -234,7 +238,8 @@ class SafeJiraApi:
                             authenticated user.
 
         Raises:
-            Exception: Propagates exceptions from the `HTTPSHelper` if the request fails.
+            Exception: Propagates exceptions from the `HTTPSHelper`
+            if the request fails.
         """
         url = f"{self.base_url}/rest/api/2/myself"
         try:
@@ -260,7 +265,8 @@ class SafeJiraApi:
                             a list of issues.
 
         Raises:
-            Exception: Propagates exceptions from the `HTTPSHelper` if the request fails.
+            Exception: Propagates exceptions from the `HTTPSHelper`
+            if the request fails.
         """
         url = f"{self.base_url}/rest/api/2/search"
         params = {"jql": jql_query}

@@ -10,20 +10,19 @@ Confluence task data, handling issue transitions, and retrieving user
 information.
 """
 
-import logging
-from datetime import datetime, date, timedelta
-from typing import Any, Dict, List, Optional
-
 import json
+import logging
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, List, Optional
 
 from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.models.data_models import (
     ConfluenceTask,
-    SyncContext,
-    JiraIssueStatus,
     JiraIssue,
+    JiraIssueStatus,
+    SyncContext,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,7 +43,7 @@ class JiraService(JiraApiServiceInterface):
 
         Args:
             safe_jira_api (SafeJiraApi): An instance of the safe, low-level
-                                         Jira API wrapper.
+                Jira API wrapper.
         """
         self._api = safe_jira_api
         self._current_user_name: Optional[str] = None
@@ -86,7 +85,8 @@ class JiraService(JiraApiServiceInterface):
         """
         issue_fields = await self.prepare_jira_task_fields(task, parent_key, context)
         logger.debug(
-            f"Attempting to create Jira issue with payload: {json.dumps(issue_fields, indent=2)}"
+            "Attempting to create Jira issue with payload: "
+            f"{json.dumps(issue_fields, indent=2)}"
         )
         new_issue = await self._api.create_issue(issue_fields)
         return new_issue.get("key") if new_issue else None
@@ -172,7 +172,8 @@ class JiraService(JiraApiServiceInterface):
 
                 if description and description.strip():
                     description_parts.append(
-                        f"Context from parent issue {context_key}:\n----\n{description}\n----"
+                        f"Context from parent issue {context_key}:"
+                        f"\n----\n{description}\n----"
                     )
                     context_found = True
                 elif summary:
@@ -183,14 +184,16 @@ class JiraService(JiraApiServiceInterface):
 
             if not context_found:
                 description_parts.append(
-                    f"Context from parent issue: {context_key} (Could not retrieve details)."
+                    f"Context from parent issue: {context_key} "
+                    "(Could not retrieve details)."
                 )
 
         elif task.context:
             description_parts.append(f"Context from Confluence:\n{task.context}")
 
         description_parts.append(
-            f"Created by {user_name} on {creation_time} requested by {context.request_user}"
+            f"Created by {user_name} on {creation_time} "
+            f"requested by {context.request_user}"
         )
 
         final_description = "\n\n".join(description_parts)
@@ -208,15 +211,17 @@ class JiraService(JiraApiServiceInterface):
         summary = task.task_summary or "No Summary Provided"
         if len(summary) > config.JIRA_SUMMARY_MAX_CHARS:
             logger.warning(
-                f"Task summary is too long ({len(summary)} > {config.JIRA_SUMMARY_MAX_CHARS}). "
-                f"Truncating summary for Confluence Task ID: {task.confluence_task_id}."
+                f"Task summary is too long ({len(summary)} > "
+                f"{config.JIRA_SUMMARY_MAX_CHARS}). Truncating summary for "
+                f"Confluence Task ID: {task.confluence_task_id}."
             )
             summary = summary[: config.JIRA_SUMMARY_MAX_CHARS - 3] + "..."
         description = final_description or "No Description Provided"
         if len(description) > config.JIRA_DESCRIPTION_MAX_CHARS:
             logger.warning(
-                f"Task description is too long ({len(description)} > {config.JIRA_DESCRIPTION_MAX_CHARS}). "
-                f"Truncating description for Confluence Task ID: {task.confluence_task_id}. "
+                f"Task description is too long ({len(description)} > "
+                f"{config.JIRA_DESCRIPTION_MAX_CHARS}). Truncating "
+                f"description for Confluence Task ID: {task.confluence_task_id}. "
             )
             description = description[: config.JIRA_DESCRIPTION_MAX_CHARS - 3] + "..."
         fields = {

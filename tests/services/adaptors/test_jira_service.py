@@ -2,14 +2,16 @@
 Tests for the high-level JiraService, using stubs and modern pytest practices.
 """
 
+from datetime import date, datetime, timedelta
+from unittest.mock import AsyncMock  # Changed to AsyncMock
+
 import pytest
 import pytest_asyncio
-from unittest.mock import AsyncMock  # Changed to AsyncMock
-from datetime import datetime, date, timedelta
+
+from src.api.safe_jira_api import SafeJiraApi
 
 # Import the code to be tested and its dependencies
 from src.config import config
-from src.api.safe_jira_api import SafeJiraApi
 from src.models.data_models import ConfluenceTask, SyncContext
 from src.services.adaptors.jira_service import JiraService
 

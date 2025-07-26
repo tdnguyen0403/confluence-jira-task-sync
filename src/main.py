@@ -7,39 +7,40 @@ for logging and request tracking, defines global exception handlers for
 consistent error responses, and registers all the API endpoints.
 """
 
-from typing import List, Callable
-from fastapi import FastAPI, Depends, status, Request
-from fastapi.responses import JSONResponse
-from contextlib import asynccontextmanager
 import logging
-import httpx
 import uuid
+from contextlib import asynccontextmanager
+from typing import Callable, List
+
+import httpx
+from fastapi import Depends, FastAPI, Request, status
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.dependencies import (
-    get_sync_task_orchestrator,
-    get_undo_sync_task_orchestrator,
-    get_https_helper,
-    get_safe_jira_api,
-    get_safe_confluence_api,
     get_api_key,
     get_confluence_issue_updater_service,
-)
-from src.models.data_models import (
-    SyncRequest,
-    UndoRequestItem,
-    ConfluenceUpdateProjectRequest,
-    SyncTaskResponse,
-    UndoSyncTaskResponse,
-    SyncProjectResponse,
+    get_https_helper,
+    get_safe_confluence_api,
+    get_safe_jira_api,
+    get_sync_task_orchestrator,
+    get_undo_sync_task_orchestrator,
 )
 from src.exceptions import (
-    SyncError,
     InvalidInputError,
-    UndoError,
     MissingRequiredDataError,
+    SyncError,
+    UndoError,
 )
-from src.utils.logging_config import setup_logging, request_id_var, endpoint_var
+from src.models.data_models import (
+    ConfluenceUpdateProjectRequest,
+    SyncProjectResponse,
+    SyncRequest,
+    SyncTaskResponse,
+    UndoRequestItem,
+    UndoSyncTaskResponse,
+)
+from src.utils.logging_config import endpoint_var, request_id_var, setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Jira-Confluence Automation API",
-    description="API for synchronizing tasks from Confluence to Jira and undoing previous runs.",
+    description="API for synchronizing tasks from Confluence to Jira",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -290,7 +291,7 @@ async def update_confluence_project(
         f"{request.root_confluence_page_url}"
     )
 
-    updated_pages_summary = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
+    updated_pages_summary = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(  # noqa: E501
         root_confluence_page_url=request.root_confluence_page_url,
         root_project_issue_key=request.root_project_issue_key,
         project_issue_type_id=request.project_issue_type_id,
@@ -313,7 +314,8 @@ async def update_confluence_project(
 async def read_root():
     """Provides a simple welcome message at the root URL."""
     return {
-        "message": "Welcome to the Jira-Confluence Automation API. Visit /docs for API documentation."
+        """message": "Welcome to the Jira-Confluence Automation API.
+        Visit /docs for API documentation."""
     }
 
 

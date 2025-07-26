@@ -1,9 +1,10 @@
-import pytest
-from unittest.mock import AsyncMock, patch
 import logging
+from unittest.mock import AsyncMock, patch
 
-from src.api.safe_jira_api import SafeJiraApi
+import pytest
+
 from src.api.https_helper import HTTPSHelper
+from src.api.safe_jira_api import SafeJiraApi
 from src.config import config  # Assuming config is used for JIRA_API_TOKEN
 
 # Configure logging to capture messages during tests
@@ -21,8 +22,9 @@ def mock_https_helper():
 def safe_jira_api(mock_https_helper):
     """Provides a SafeJiraApi instance with a mocked HTTPSHelper."""
     # Patch config.JIRA_API_TOKEN and config.JIRA_URL for testing purposes
-    with patch.object(config, "JIRA_API_TOKEN", "test_token"), patch.object(
-        config, "JIRA_URL", "http://jira.example.com"
+    with (
+        patch.object(config, "JIRA_API_TOKEN", "test_token"),
+        patch.object(config, "JIRA_URL", "http://jira.example.com"),
     ):
         return SafeJiraApi(
             base_url="http://jira.example.com", https_helper=mock_https_helper

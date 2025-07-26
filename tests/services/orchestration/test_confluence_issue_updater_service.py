@@ -1,21 +1,22 @@
-import pytest
-import pytest_asyncio
+# Mute logging during tests to keep test output clean
+import logging
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock
 
-# Mute logging during tests to keep test output clean
-import logging
+import pytest
+import pytest_asyncio
+
 from src.config import config
+from src.exceptions import InvalidInputError
+from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
+from src.interfaces.issue_finder_service_interface import IssueFinderServiceInterface
+from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.models.data_models import JiraIssue, JiraIssueStatus
 
 # Now import the service and models using the correct, updated path
 from src.services.orchestration.confluence_issue_updater_service import (
     ConfluenceIssueUpdaterService,
 )
-from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
-from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.interfaces.issue_finder_service_interface import IssueFinderServiceInterface
-from src.models.data_models import JiraIssue, JiraIssueStatus
-from src.exceptions import InvalidInputError
 
 logging.disable(logging.CRITICAL)
 # --- Stub Implementations for Dependencies ---

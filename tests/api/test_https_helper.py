@@ -1,7 +1,9 @@
-import pytest
-import httpx
-from unittest.mock import AsyncMock, patch, Mock
 import logging
+from unittest.mock import AsyncMock, Mock, patch
+
+import httpx
+import pytest
+
 from src.api.https_helper import (
     HTTPSHelper,
     HTTPXClientError,
@@ -14,18 +16,15 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def https_helper_instance():
+def https_helper_instance() -> HTTPSHelper:
     """Provides an HTTPSHelper instance for testing."""
-    # Ensure that each test starts with a fresh HTTPSHelper instance
-    # that has its _client attribute truly uninitialized (None) initially.
-    # We will manage its _client via patching in specific tests or fixtures.
     return HTTPSHelper(verify_ssl=True)
 
 
-# Modified fixture to provide a mock client object directly,
-# making it easier to control its state and methods.
 @pytest.fixture(autouse=True)
-def mock_httpx_client(https_helper_instance):
+def mock_httpx_client(
+    https_helper_instance: HTTPSHelper,
+) -> AsyncMock:
     """
     Patches the httpx.AsyncClient instance within HTTPSHelper for testing.
     Provides a mock client with mock send, build_request, and aclose methods.
@@ -35,16 +34,15 @@ def mock_httpx_client(https_helper_instance):
     mock_client.build_request = Mock(spec=httpx.AsyncClient().build_request)
     mock_client.aclose = AsyncMock(spec=httpx.AsyncClient().aclose)
 
-    # Patch the _client attribute of the HTTPSHelper instance directly.
-    # This prevents the @property client from creating a new AsyncClient.
     with patch.object(https_helper_instance, "_client", new=mock_client):
         yield mock_client
 
 
 @pytest.mark.asyncio
-async def test_make_request_success(https_helper_instance, mock_httpx_client):
+async def test_make_request_success(
+    https_helper_instance: HTTPSHelper, mock_httpx_client: AsyncMock
+) -> None:
     """Tests successful _make_request call."""
-    # Access the mocked methods from the mock_httpx_client fixture
     mock_send = mock_httpx_client.send
     mock_build_request = mock_httpx_client.build_request
 
@@ -72,7 +70,9 @@ async def test_make_request_success(https_helper_instance, mock_httpx_client):
 
 
 @pytest.mark.asyncio
-async def test_make_request_http_error(https_helper_instance, mock_httpx_client):
+async def test_make_request_http_error(
+    https_helper_instance: HTTPSHelper, mock_httpx_client: AsyncMock
+) -> None:
     """Tests _make_request handling of HTTPStatusError."""
     mock_send = mock_httpx_client.send
     mock_build_request = mock_httpx_client.build_request
@@ -102,7 +102,9 @@ async def test_make_request_http_error(https_helper_instance, mock_httpx_client)
 
 
 @pytest.mark.asyncio
-async def test_make_request_request_error(https_helper_instance, mock_httpx_client):
+async def test_make_request_request_error(
+    https_helper_instance: HTTPSHelper, mock_httpx_client: AsyncMock
+) -> None:
     """Tests _make_request handling of RequestError."""
     mock_send = mock_httpx_client.send
     mock_build_request = mock_httpx_client.build_request
@@ -127,7 +129,7 @@ async def test_make_request_request_error(https_helper_instance, mock_httpx_clie
 
 
 @pytest.mark.asyncio
-async def test_get_method(https_helper_instance):
+async def test_get_method(https_helper_instance: HTTPSHelper) -> None:
     """Tests the get method."""
     with patch.object(
         https_helper_instance, "_make_request", new_callable=AsyncMock
@@ -146,7 +148,7 @@ async def test_get_method(https_helper_instance):
 
 
 @pytest.mark.asyncio
-async def test_post_method(https_helper_instance):
+async def test_post_method(https_helper_instance: HTTPSHelper) -> None:
     """Tests the post method."""
     with patch.object(
         https_helper_instance, "_make_request", new_callable=AsyncMock
@@ -172,7 +174,7 @@ async def test_post_method(https_helper_instance):
 
 
 @pytest.mark.asyncio
-async def test_post_method_204_no_content(https_helper_instance):
+async def test_post_method_204_no_content(https_helper_instance: HTTPSHelper) -> None:
     """Tests the post method returns empty dict for 204 No Content."""
     with patch.object(
         https_helper_instance, "_make_request", new_callable=AsyncMock
@@ -198,7 +200,7 @@ async def test_post_method_204_no_content(https_helper_instance):
 
 
 @pytest.mark.asyncio
-async def test_put_method_204_no_content(https_helper_instance):
+async def test_put_method_204_no_content(https_helper_instance: HTTPSHelper) -> None:
     """Tests the put method returns empty dict for 204 No Content."""
     with patch.object(
         https_helper_instance, "_make_request", new_callable=AsyncMock
@@ -224,7 +226,7 @@ async def test_put_method_204_no_content(https_helper_instance):
 
 
 @pytest.mark.asyncio
-async def test_delete_method_success(https_helper_instance):
+async def test_delete_method_success(https_helper_instance: HTTPSHelper) -> None:
     """Tests the delete method for a successful response."""
     with patch.object(
         https_helper_instance, "_make_request", new_callable=AsyncMock
@@ -242,7 +244,9 @@ async def test_delete_method_success(https_helper_instance):
 
 
 @pytest.mark.asyncio
-async def test_make_request_with_redirects(https_helper_instance, mock_httpx_client):
+async def test_make_request_with_redirects(
+    https_helper_instance: HTTPSHelper, mock_httpx_client: AsyncMock
+) -> None:
     """Tests _make_request with follow_redirects=True."""
     mock_send = mock_httpx_client.send
     mock_build_request = mock_httpx_client.build_request
@@ -272,8 +276,8 @@ async def test_make_request_with_redirects(https_helper_instance, mock_httpx_cli
 
 @pytest.mark.asyncio
 async def test_make_request_with_headers_and_params(
-    https_helper_instance, mock_httpx_client
-):
+    https_helper_instance: HTTPSHelper, mock_httpx_client: AsyncMock
+) -> None:
     """Tests _make_request with headers and params."""
     mock_send = mock_httpx_client.send
     mock_build_request = mock_httpx_client.build_request
@@ -306,7 +310,9 @@ async def test_make_request_with_headers_and_params(
 
 
 @pytest.mark.asyncio
-async def test_get_method_with_headers_and_params(https_helper_instance):
+async def test_get_method_with_headers_and_params(
+    https_helper_instance: HTTPSHelper,
+) -> None:
     """Tests the get method with headers and params."""
     with patch.object(
         https_helper_instance, "_make_request", new_callable=AsyncMock
@@ -329,7 +335,9 @@ async def test_get_method_with_headers_and_params(https_helper_instance):
 
 
 @pytest.mark.asyncio
-async def test_post_method_with_headers_and_params(https_helper_instance):
+async def test_post_method_with_headers_and_params(
+    https_helper_instance: HTTPSHelper,
+) -> None:
     """Tests the post method with headers and params."""
     with patch.object(
         https_helper_instance, "_make_request", new_callable=AsyncMock
@@ -361,7 +369,7 @@ async def test_post_method_with_headers_and_params(https_helper_instance):
 
 
 @pytest.mark.asyncio
-async def test_set_client_property(https_helper_instance):
+async def test_set_client_property(https_helper_instance: HTTPSHelper) -> None:
     """Tests setting the httpx.AsyncClient instance via the setter."""
     new_client = httpx.AsyncClient(verify=False)
     https_helper_instance.client = new_client
@@ -369,9 +377,10 @@ async def test_set_client_property(https_helper_instance):
 
 
 @pytest.mark.asyncio
-async def test_close_method(https_helper_instance, mock_httpx_client):
+async def test_close_method(
+    https_helper_instance: HTTPSHelper, mock_httpx_client: AsyncMock
+) -> None:
     """Tests the close method and that it calls aclose on the client."""
-    # The mock_httpx_client fixture ensures https_helper_instance._client is mocked.
     with patch("logging.Logger.info") as mock_log_info:
         await https_helper_instance.close()
         mock_httpx_client.aclose.assert_awaited_once()
@@ -381,23 +390,13 @@ async def test_close_method(https_helper_instance, mock_httpx_client):
 
 
 @pytest.mark.asyncio
-async def test_close_method_no_client(https_helper_instance):
+async def test_close_method_no_client(https_helper_instance: HTTPSHelper) -> None:
     """Tests the close method when client is not initialized."""
-    # We must ensure _client is None for the instance and that the
-    # client property's auto-initialization is bypassed.
-    # The simplest way is to create a new instance and ensure its _client is None.
-    # Or, for existing instance, manually set _client to None and ensure
-    # that the client property is not triggered.
-
-    # This test needs to be completely isolated from the mock_httpx_client fixture
-    # which automatically sets a mock client.
-    # We will create a fresh instance of HTTPSHelper for this specific test.
     fresh_https_helper_instance = HTTPSHelper(verify_ssl=True)
-    fresh_https_helper_instance._client = None  # Explicitly ensure it's None
+    fresh_https_helper_instance._client = None
 
     with patch("src.api.https_helper.logger") as mock_logger:
         await fresh_https_helper_instance.close()
-        # Assert that info and warning were not called, as no client was closed/initialized
         mock_logger.info.assert_not_called()
         mock_logger.warning.assert_not_called()
         assert fresh_https_helper_instance._client is None
@@ -405,8 +404,8 @@ async def test_close_method_no_client(https_helper_instance):
 
 @pytest.mark.asyncio
 async def test_make_request_unhandled_exception(
-    https_helper_instance, mock_httpx_client
-):
+    https_helper_instance: HTTPSHelper, mock_httpx_client: AsyncMock
+) -> None:
     """Tests _make_request handling of an unhandled exception."""
     mock_send = mock_httpx_client.send
     mock_build_request = mock_httpx_client.build_request

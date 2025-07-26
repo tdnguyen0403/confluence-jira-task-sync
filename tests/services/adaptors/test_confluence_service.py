@@ -5,9 +5,10 @@ correctly delegates all of its calls to the underlying SafeConfluenceApi
 wrapper and returns the expected data.
 """
 
+from unittest.mock import AsyncMock  # <--- CHANGE THIS LINE: Import AsyncMock
+
 import pytest
 import pytest_asyncio
-from unittest.mock import AsyncMock  # <--- CHANGE THIS LINE: Import AsyncMock
 
 # Assuming your project structure allows this import path
 from src.api.safe_confluence_api import SafeConfluenceApi

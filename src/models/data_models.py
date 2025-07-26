@@ -10,6 +10,7 @@ and API request/response schemas.
 # jira_confluence_automator_/src/models/data_models.py
 
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -28,15 +29,15 @@ class ConfluenceTask(BaseModel):
         task_summary (str): The descriptive text of the task.
         status (str): The status of the task (e.g., 'complete', 'incomplete').
         assignee_name (Optional[str]): The username of the person assigned to
-                                       the task, if any.
+            the task, if any.
         due_date (str): The due date of the task in 'YYYY-MM-DD' format.
         original_page_version (int): The version number of the page when the
-                                     task was extracted.
+            task was extracted.
         original_page_version_by (str): The display name of the user who made
-                                        the last version of the page.
+            the last version of the page.
         original_page_version_when (str): The timestamp of the last version.
         context (Optional[str]): The surrounding contextual information
-                                 (e.g., parent headings) for the task.
+            (e.g., parent headings) for the task.
     """
 
     confluence_page_id: str
@@ -82,9 +83,9 @@ class AutomationResult(BaseModel):
         task_data (ConfluenceTask): The original task data that was processed.
         status_text (str): A summary of the outcome (e.g., 'SUCCESS', 'SKIPPED').
         new_jira_task_key (Optional[str]): The key of the Jira issue created from
-                                           this task, if any.
+            this task, if any.
         linked_work_package (Optional[str]): The parent work package the new
-                                             Jira issue was linked to.
+            Jira issue was linked to.
         request_user (Optional[str]): The name of the user who requested the sync.
     """
 
@@ -130,7 +131,7 @@ class SyncContext(BaseModel):
     Attributes:
         request_user (Optional[str]): The user who initiated the request.
         days_to_due_date (Optional[int]): The default number of days to set
-                                          for a task's due date if not specified.
+            for a task's due date if not specified.
     """
 
     request_user: Optional[str] = "Unknown User"
@@ -143,7 +144,7 @@ class SyncRequest(BaseModel):
 
     Attributes:
         confluence_page_urls (List[str]): A list of Confluence page URLs to be
-                                          processed.
+            processed.
         context (SyncContext): Contextual settings for the synchronization.
     """
 
@@ -167,7 +168,8 @@ class UndoRequestItem(BaseModel):
     Attributes:
         status_text (str): The status from the original automation result.
         confluence_page_id (str): The ID of the Confluence page to roll back.
-        original_page_version (int): The version to which the page should be restored.
+        original_page_version (int): The version to which the page should be
+            restored.
         new_jira_task_key (Optional[str]): The key of the Jira task to be deleted.
         linked_work_package (Optional[str]): The parent work package (for logging).
         request_user (Optional[str]): The user who requested the original sync.
@@ -215,9 +217,11 @@ class ConfluenceUpdateProjectRequest(BaseModel):
     Represents the request body for the /update-confluence-project endpoint.
 
     Attributes:
-        root_confluence_page_url (str): URL of the root Confluence page for the project.
+        root_confluence_page_url (str): URL of the root Confluence page for the
+            project.
         root_project_issue_key (str): The key of the top-level Jira project issue.
-        project_issue_type_id (Optional[str]): The ID for Jira "Project" issue types.
+        project_issue_type_id (Optional[str]): The ID for Jira "Project" issue
+            types.
         phase_issue_type_id (Optional[str]): The ID for Jira "Phase" issue types.
         request_user (Optional[str]): The user initiating the update.
     """
@@ -247,7 +251,8 @@ class SyncProjectPageDetail(BaseModel):
     Attributes:
         page_id (str): The ID of the Confluence page.
         page_title (str): The title of the Confluence page.
-        new_jira_keys (List[str]): The Jira issue keys created/updated on this page.
+        new_jira_keys (List[str]): The Jira issue keys created/updated on this
+            page.
         root_project_linked (str): The main project Jira key linked at the root.
     """
 
@@ -268,7 +273,8 @@ class JiraIssueStatus(BaseModel):
 
     Attributes:
         name (str): The name of the status (e.g., 'To Do', 'In Progress', 'Done').
-        category (str): The category of the status (e.g., 'new', 'indeterminate', 'done').
+        category (str): The category of the status (e.g., 'new', 'indeterminate',
+            'done').
     """
 
     name: str = Field(
@@ -276,7 +282,7 @@ class JiraIssueStatus(BaseModel):
     )
     category: str = Field(
         ...,
-        description="The category of the status (e.g., 'new', 'indeterminate', 'done').",
+        description="The category of the status (e.g., 'new', 'indeterminate', 'done').",  # noqa: E501
     )
 
 
@@ -321,7 +327,7 @@ class SyncTaskResponse(BaseModel):
     Attributes:
         request_id (str): A unique identifier for the synchronization request.
         results (List[Dict[str, Any]]): A list of dictionaries, each representing
-                                        an `AutomationResult`.
+            an `AutomationResult`.
     """
 
     request_id: str
@@ -334,7 +340,8 @@ class UndoSyncTaskResponse(BaseModel):
 
     Attributes:
         request_id (str): A unique identifier for the undo request.
-        message (str): A confirmation message indicating the result of the undo operation.
+        message (str): A confirmation message indicating the result of the undo
+            operation.
     """
 
     request_id: str
@@ -348,7 +355,7 @@ class SyncProjectResponse(BaseModel):
     Attributes:
         request_id (str): A unique identifier for the project sync request.
         results (List[SyncProjectPageDetail]): A list of details for each page
-                                               that was updated.
+            that was updated.
     """
 
     request_id: str

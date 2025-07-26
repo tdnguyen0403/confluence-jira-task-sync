@@ -2,18 +2,19 @@
 Tests for the SyncTaskOrchestrator using stubs for service dependencies.
 """
 
-import pytest
-import pytest_asyncio  # Added for async fixtures
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock  # Changed to AsyncMock
 
-from src.services.orchestration.sync_task_orchestrator import SyncTaskOrchestrator
-from src.models.data_models import ConfluenceTask, SyncContext
-from src.exceptions import InvalidInputError, SyncError
+import pytest
+import pytest_asyncio  # Added for async fixtures
+
 from src.config import config
+from src.exceptions import InvalidInputError, SyncError
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
-from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.interfaces.issue_finder_service_interface import IssueFinderServiceInterface
+from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.models.data_models import ConfluenceTask, SyncContext
+from src.services.orchestration.sync_task_orchestrator import SyncTaskOrchestrator
 
 # --- Test Data ---
 

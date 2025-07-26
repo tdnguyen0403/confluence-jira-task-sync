@@ -1,8 +1,9 @@
+import logging
+import uuid
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 import pytest_asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
-import uuid
-import logging
 
 from src.scripts.generate_confluence_tree import ConfluenceTreeGenerator, main_async
 from src.services.adaptors.confluence_service import ConfluenceService

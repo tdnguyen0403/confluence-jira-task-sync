@@ -10,6 +10,7 @@ project-specific constants and settings that are core to the business logic.
 import os
 from datetime import date, timedelta
 from typing import Dict, List, Optional
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,9 +26,21 @@ CONFLUENCE_URL: str = os.getenv(
     "CONFLUENCE_URL", "https://pfteamspace.pepperl-fuchs.com/"
 )
 
-JIRA_API_TOKEN: str = os.getenv("JIRA_API_TOKEN")
-CONFLUENCE_API_TOKEN: str = os.getenv("CONFLUENCE_API_TOKEN")
-API_SECRET_KEY: str = os.getenv("API_SECRET_KEY")
+# Check for required environment variables and raise an error if they are missing.
+_jira_api_token = os.getenv("JIRA_API_TOKEN")
+if not _jira_api_token:
+    raise ValueError("Missing required environment variable: JIRA_API_TOKEN")
+JIRA_API_TOKEN: str = _jira_api_token
+
+_confluence_api_token = os.getenv("CONfluence_API_TOKEN")
+if not _confluence_api_token:
+    raise ValueError("Missing required environment variable: CONFLUENCE_API_TOKEN")
+CONFLUENCE_API_TOKEN: str = _confluence_api_token
+
+_api_secret_key = os.getenv("API_SECRET_KEY")
+if not _api_secret_key:
+    raise ValueError("Missing required environment variable: API_SECRET_KEY")
+API_SECRET_KEY: str = _api_secret_key
 
 JIRA_MACRO_SERVER_NAME: str = os.getenv("JIRA_MACRO_SERVER_NAME", "P+F Jira")
 JIRA_MACRO_SERVER_ID: str = os.getenv(

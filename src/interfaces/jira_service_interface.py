@@ -13,9 +13,9 @@ from typing import Any, Dict, List, Optional
 
 from src.models.data_models import (
     ConfluenceTask,
-    SyncContext,
-    JiraIssueStatus,
     JiraIssue,
+    JiraIssueStatus,
+    SyncContext,
 )
 
 

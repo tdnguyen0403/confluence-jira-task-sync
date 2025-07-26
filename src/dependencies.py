@@ -12,15 +12,15 @@ wired together here, promoting loose coupling throughout the application.
 import logging
 from functools import lru_cache
 
-from fastapi import Depends, HTTPException, status, Security
+from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 
-from src.config import config
 from src.api.https_helper import HTTPSHelper
-from src.api.safe_jira_api import SafeJiraApi
 from src.api.safe_confluence_api import SafeConfluenceApi
-from src.services.adaptors.jira_service import JiraService
+from src.api.safe_jira_api import SafeJiraApi
+from src.config import config
 from src.services.adaptors.confluence_service import ConfluenceService
+from src.services.adaptors.jira_service import JiraService
 from src.services.business_logic.issue_finder_service import IssueFinderService
 from src.services.orchestration.confluence_issue_updater_service import (
     ConfluenceIssueUpdaterService,
@@ -151,7 +151,8 @@ def get_confluence_service(
     Provides a singleton instance of the ConfluenceService.
 
     Args:
-        safe_confluence_api (SafeConfluenceApi): The shared Confluence API client instance.
+        safe_confluence_api (SafeConfluenceApi):
+            The shared Confluence API client instance.
 
     Returns:
         ConfluenceService: The single, shared instance of the Confluence service.
@@ -213,7 +214,8 @@ def get_sync_task_orchestrator(
         confluence_service (ConfluenceService): The Confluence service instance.
         jira_service (JiraService): The Jira service instance.
         issue_finder_service (IssueFinderService): The issue finder service instance.
-        confluence_issue_updater_service (ConfluenceIssueUpdaterService): The updater service.
+        confluence_issue_updater_service (ConfluenceIssueUpdaterService):
+            The updater service.
 
     Returns:
         SyncTaskOrchestrator: The shared instance of the sync task orchestrator.

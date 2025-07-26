@@ -8,20 +8,20 @@ and validates them against specified criteria, such as issue type.
 """
 
 import logging
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 from bs4 import BeautifulSoup
 
+from src.api.safe_jira_api import SafeJiraApi
 from src.interfaces.confluence_service_interface import (
     ConfluenceApiServiceInterface,
 )
 from src.interfaces.issue_finder_service_interface import (
     IssueFinderServiceInterface,
 )
-from src.api.safe_jira_api import SafeJiraApi
 from src.models.data_models import (
-    JiraIssueMacro,
     JiraIssue,
+    JiraIssueMacro,
     JiraIssueStatus,
 )
 
@@ -101,16 +101,14 @@ class IssueFinderService(IssueFinderServiceInterface):
         ) in fetched_issues_map.items():
             if jira_issue_obj.issue_type in target_issue_type_names:
                 logger.info(
-                    f"Found matching parent issue '{issue_key}' on page "
-                    f"'{page_id}'."
+                    f"Found matching parent issue '{issue_key}' on page '{page_id}'."
                 )
                 return await self.jira_api.get_issue(
                     issue_key, fields=["key", "issuetype", "assignee", "reporter"]
                 )
 
         logger.info(
-            f"No matching parent issue found on page '{page_id}' for the "
-            "given types."
+            f"No matching parent issue found on page '{page_id}' for the given types."
         )
         return None
 

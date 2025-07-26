@@ -10,10 +10,11 @@ which is beneficial for testing and modularity.
 
 from abc import ABC, abstractmethod
 from typing import (
+    Any,
     Dict,
     Optional,
-    Any,
 )
+
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 
 

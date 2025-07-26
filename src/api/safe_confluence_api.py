@@ -19,18 +19,18 @@ By centralizing Confluence interactions, this class promotes consistency,
 improves reliability, and simplifies maintenance.
 """
 
+import asyncio
 import logging
 import re
 import uuid
-import asyncio
 from typing import Any, Dict, List, Optional
 
 from bs4 import BeautifulSoup
 
+from src.api.https_helper import HTTPSHelper
 from src.config import config
 from src.models.data_models import ConfluenceTask
 from src.utils.context_extractor import get_task_context
-from src.api.https_helper import HTTPSHelper
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,8 @@ class SafeConfluenceApi:
             if 300 <= response.status_code < 400 and response.headers.get("Location"):
                 redirect_url = response.headers["Location"]
                 logger.info(
-                    f"Received redirect status {response.status_code}. Following redirect to: {redirect_url}"
+                    f"Received redirect status {response.status_code}. "
+                    f"Following redirect to: {redirect_url}"
                 )
                 return await self.get_page_id_from_url(redirect_url)
             elif response.status_code == 200:
@@ -126,7 +127,8 @@ class SafeConfluenceApi:
                 logger.info(f"Short URL resolved to: {final_url}")
             else:
                 logger.error(
-                    f"Unexpected status code {response.status_code} when resolving short URL '{url}'."
+                    f"Unexpected status code {response.status_code} "
+                    f"when resolving short URL '{url}'."
                 )
                 return None
 
@@ -139,7 +141,7 @@ class SafeConfluenceApi:
                 return resolved_long_url_path_match.group(1)
 
             logger.error(
-                "Could not extract page ID from the final resolved URL: " f"{final_url}"
+                f"Could not extract page ID from the final resolved URL: {final_url}"
             )
             return None
         except Exception as e:
@@ -181,7 +183,8 @@ class SafeConfluenceApi:
             return await self.https_helper.get(url, headers=self.headers, params=params)
         except Exception as e:
             logger.error(
-                f"Failed to get Confluence page {page_id} (version {version if version else 'latest'}): {e}"
+                f"Failed to get Confluence page {page_id} "
+                f"(version {version if version else 'latest'}): {e}"
             )
             return None
 
@@ -258,7 +261,8 @@ class SafeConfluenceApi:
             new_version = current_page["version"]["number"] + 1
         except KeyError:
             logger.error(
-                f"Could not determine next version for page '{page_id}'. 'version' key missing."
+                f"Could not determine next version for page '{page_id}'. "
+                f"'version' key missing."
             )
             return False
 
@@ -600,7 +604,8 @@ class SafeConfluenceApi:
                 task.decompose()
                 modified = True
                 logger.info(
-                    f"Prepared task '{task_id_tag.string}' for replacement with text and "
+                    f"Prepared task '{task_id_tag.string}' "
+                    f"for replacement with text and "
                     f"Jira macro for '{jira_key}'."
                 )
 
@@ -634,8 +639,10 @@ class SafeConfluenceApi:
             f'<ac:structured-macro ac:name="jira" ac:schema-version="1" '
             f'ac:macro-id="{macro_id}">'
             f'<ac:parameter ac:name="showSummary">false</ac:parameter>'
-            f'<ac:parameter ac:name="server">{self.jira_macro_server_name}</ac:parameter>'
-            f'<ac:parameter ac:name="serverId">{self.jira_macro_server_id}</ac:parameter>'
+            f'<ac:parameter ac:name="server">{self.jira_macro_server_name}'
+            f"</ac:parameter>"
+            f'<ac:parameter ac:name="serverId">{self.jira_macro_server_id}'
+            f"</ac:parameter>"
             f'<ac:parameter ac:name="key">{jira_key}</ac:parameter>'
             f"</ac:structured-macro>"
         )

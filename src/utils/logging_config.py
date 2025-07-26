@@ -1,10 +1,10 @@
+import json
 import logging
 import logging.handlers
 import os
-import json
+from contextvars import ContextVar
 from datetime import datetime
 from typing import Optional, Set
-from contextvars import ContextVar
 
 from src.config import config
 
@@ -23,7 +23,7 @@ class RequestIdFilter(logging.Filter):
     into the log record.
     """
 
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord) -> bool:
         record.request_id = request_id_var.get()
         record.endpoint = endpoint_var.get()
         return True
@@ -35,7 +35,7 @@ class JsonFormatter(logging.Formatter):
     fields at the end for better readability.
     """
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         # The order of keys is intentional for better human readability
         log_record = {
             "timestamp": datetime.fromtimestamp(record.created).isoformat(),
@@ -59,7 +59,7 @@ class SecretRedactingFilter(logging.Filter):
         super().__init__()
         self.sensitive_patterns = sensitive_patterns
 
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord) -> bool:
         msg = record.getMessage()
         for pattern in self.sensitive_patterns:
             if pattern and pattern in msg:
@@ -68,7 +68,7 @@ class SecretRedactingFilter(logging.Filter):
         return True
 
 
-def setup_logging():
+def setup_logging() -> None:
     """
     Sets up centralized, rotating, JSON-formatted logging for the application.
     This function should be called once at application startup.

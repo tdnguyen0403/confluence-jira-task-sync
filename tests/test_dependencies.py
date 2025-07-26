@@ -1,23 +1,25 @@
+from unittest.mock import AsyncMock
+
+import httpx  # Import httpx here
 import pytest
 import pytest_asyncio
-from unittest.mock import AsyncMock
-import httpx  # Import httpx here
 
-# Import the functions to be tested
-from src.dependencies import (
-    get_https_helper,
-    get_safe_confluence_api,
-    get_safe_jira_api,
-    get_confluence_service,
-    get_jira_service,
-    get_issue_finder_service,
-    get_confluence_issue_updater_service,
-    get_sync_task_orchestrator,
-    get_undo_sync_task_orchestrator,
-)
 from src.api.https_helper import HTTPSHelper
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.api.safe_jira_api import SafeJiraApi
+
+# Import the functions to be tested
+from src.dependencies import (
+    get_confluence_issue_updater_service,
+    get_confluence_service,
+    get_https_helper,
+    get_issue_finder_service,
+    get_jira_service,
+    get_safe_confluence_api,
+    get_safe_jira_api,
+    get_sync_task_orchestrator,
+    get_undo_sync_task_orchestrator,
+)
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
 from src.services.business_logic.issue_finder_service import IssueFinderService

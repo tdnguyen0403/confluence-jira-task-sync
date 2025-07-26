@@ -1,24 +1,24 @@
 import argparse
+import asyncio
 import logging
+import sys
 import uuid
 import warnings
-import sys
-import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, List, Optional
-from contextlib import asynccontextmanager
 
 import httpx
 import requests
 
+from src.api.https_helper import HTTPSHelper
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.api.safe_jira_api import SafeJiraApi
-from src.api.https_helper import HTTPSHelper
 from src.config import config
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
 from src.services.business_logic.issue_finder_service import IssueFinderService
-from src.utils.logging_config import setup_logging, endpoint_var, request_id_var
+from src.utils.logging_config import endpoint_var, request_id_var, setup_logging
 
 # Suppress insecure request warnings for local/dev environments
 warnings.filterwarnings(
@@ -84,7 +84,8 @@ class ConfluenceTreeGenerator:
         if user_details:
             self.assignee_account_id = user_details.get("accountId")
             logger.info(
-                f"Assignee '{self.assignee_username}' account ID: {self.assignee_account_id}"
+                f"Assignee '{self.assignee_username}' account ID: "
+                f"{self.assignee_account_id}"
             )
         else:
             logger.warning(
@@ -102,30 +103,44 @@ class ConfluenceTreeGenerator:
         num_children = 1
 
         for i in range(num_children):
-            page_title = f"Test Page (Depth {current_depth}-{i}) {datetime.now().strftime('%Y%m%d%H%M%S')}"
+            page_title = (
+                f"Test Page (Depth {current_depth}-{i}) "
+                f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            )
             logger.info(f"Creating page: '{page_title}' under parent {parent_page_id}")
 
             wp_key = self.test_work_package_keys[i % len(self.test_work_package_keys)]
             jira_macro_html = (
                 f'<p><ac:structured-macro ac:name="jira" ac:schema-version="1">'
-                f'<ac:parameter ac:name="server">{config.JIRA_MACRO_SERVER_NAME}</ac:parameter>'
-                f'<ac:parameter ac:name="serverId">{config.JIRA_MACRO_SERVER_ID}</ac:parameter>'
+                f'<ac:parameter ac:name="server">'
+                f"{config.JIRA_MACRO_SERVER_NAME}</ac:parameter>"
+                f'<ac:parameter ac:name="serverId">'
+                f"{config.JIRA_MACRO_SERVER_ID}</ac:parameter>"
                 f'<ac:parameter ac:name="key">{wp_key}</ac:parameter>'
                 f"</ac:structured-macro></p>"
             )
 
             tasks_html_parts = []
             for t_idx in range(self.tasks_per_page):
-                task_summary = f"Generated Task {t_idx} for {wp_key} ({datetime.now().strftime('%H%M%S')})"
+                task_summary = (
+                    f"Generated Task {t_idx} for {wp_key} "
+                    f"({datetime.now().strftime('%H%M%S')})"
+                )
                 assignee_html = (
-                    f'<ac:task-assignee ac:account-id="{self.assignee_account_id}"></ac:task-assignee>'
+                    f'<ac:task-assignee ac:account-id="{self.assignee_account_id}">'
+                    f"</ac:task-assignee>"
                     if self.assignee_account_id
                     else ""
                 )
+                due_date_str = (config.DEFAULT_DUE_DATE_FOR_TREE_GENERATION).strftime(
+                    "%Y-%m-%d"
+                )
                 tasks_html_parts.append(
-                    f"<ac:task-list><ac:task><ac:task-id>{uuid.uuid4().hex[:8]}</ac:task-id>"
+                    f"<ac:task-list><ac:task>"
+                    f"<ac:task-id>{uuid.uuid4().hex[:8]}</ac:task-id>"
                     f"<ac:task-status>incomplete</ac:task-status>"
-                    f'<ac:task-body><span>{task_summary} {assignee_html}</span><time datetime="{(config.DEFAULT_DUE_DATE_FOR_TREE_GENERATION).strftime("%Y-%m-%d")}"></time>'
+                    f"<ac:task-body><span>{task_summary} {assignee_html}</span>"
+                    f'<time datetime="{due_date_str}"></time>'
                     f"</ac:task-body></ac:task></ac:task-list>"
                 )
 
@@ -143,9 +158,10 @@ class ConfluenceTreeGenerator:
                 self.generated_page_ids.append(new_page_id)
                 logger.info(f"Created page '{page_title}' (ID: {new_page_id})")
                 results.append({"url": new_page_url, "linked_work_package": wp_key})
-                results.extend(
-                    await self.generate_page_hierarchy(new_page_id, current_depth + 1)
+                child_results = await self.generate_page_hierarchy(
+                    new_page_id, current_depth + 1
                 )
+                results.extend(child_results)
             else:
                 logger.error(f"Failed to create page '{page_title}'.")
         return results
