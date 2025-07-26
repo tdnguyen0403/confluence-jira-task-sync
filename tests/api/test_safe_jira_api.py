@@ -326,3 +326,22 @@ async def test_update_issue_description_error_handling(
             "PROJ-UPDATE-FAIL", "New description"
         )
     mock_https_helper.put.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_issue_type_details_by_id_success_empty_response(
+    safe_jira_api, mock_https_helper
+):
+    """Tests get_issue_type_details_by_id with a successful but empty API response."""
+    # Simulate a successful call (200 OK) but with an empty dictionary
+    mock_https_helper.get.return_value = {}
+
+    # FIX HERE#
+    details = await safe_jira_api.get_issue_type_details_by_id("10001")
+
+    # The method should return the empty dict without raising an error
+    assert details == {}
+    mock_https_helper.get.assert_awaited_once_with(
+        "http://jira.example.com/rest/api/2/issuetype/10001",
+        headers=safe_jira_api.headers,
+    )

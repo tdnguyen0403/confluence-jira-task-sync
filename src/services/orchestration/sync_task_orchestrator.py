@@ -209,21 +209,72 @@ class SyncTaskOrchestrator:
             )
 
         closest_wp_key = closest_wp["key"]
+        # TODO: fix the logic below because if there is unassigned
+        # assignee for Work Package in JIRA it will failed !!
 
-        if task.assignee_name:
-            logger.info(f"Assigning task from Confluence task: {task.assignee_name}")
-        elif closest_wp and closest_wp.get("fields", {}).get("assignee", {}).get(
-            "name"
-        ):
-            task.assignee_name = closest_wp["fields"]["assignee"]["name"]
-            logger.info(
-                f"Assigning task from parent Work Package: {task.assignee_name}"
+        if not isinstance(closest_wp, dict):
+            error_msg = (
+                f"Closest Work Package (ID: {task.confluence_page_id}) "
+                f"is not a dictionary. Type: {type(closest_wp)}. Data: {closest_wp}"
             )
+            logger.error(f"CRITICAL ERROR: {error_msg}")
+            return AutomationResult(
+                task_data=task,
+                status_text="Failed - Malformed Work Package data",
+                request_user=context.request_user,
+            )
+
+        # This line should now be safe as closest_wp is guaranteed to be a dict
+        closest_wp_key = closest_wp.get("key")
+        if not closest_wp_key:
+            error_msg = (
+                f"Closest Work Package (ID: {task.confluence_page_id}) "
+                f"is missing 'key' field. Data: {closest_wp}"
+            )
+            logger.error(f"CRITICAL ERROR: {error_msg}")
+            return AutomationResult(
+                task_data=task,
+                status_text="Failed - Work Package key missing",
+                request_user=context.request_user,
+            )
+
+        # Safely determine the assignee:
+        if (
+            not task.assignee_name
+        ):  # Only try to assign if the Confluence task doesn't already have an assignee
+            assignee_from_wp = None
+
+            # Get 'fields' safely
+            fields = closest_wp.get("fields")
+            if isinstance(fields, dict):
+                # Get 'assignee' safely from 'fields'
+                assignee_data = fields.get("assignee")
+                if isinstance(assignee_data, dict):
+                    assignee_from_wp = assignee_data.get("name")
+                else:
+                    logger.info(
+                        f"Assignee is not a dictionary for task '{task.task_summary}'. "
+                        f"Actual type: {type(assignee_data)}. Data: {assignee_data}"
+                    )
+            else:
+                logger.info(
+                    f"Fields data is not a dictionary for task '{task.task_summary}'. "
+                    f"Actual type: {type(fields)}. Data: {fields}"
+                )
+
+            if assignee_from_wp:
+                task.assignee_name = assignee_from_wp
+                logger.info(
+                    f"Assigning task from parent Work Package: {task.assignee_name}"
+                )
+            else:
+                task.assignee_name = None
+                logger.info(
+                    "No assignee found in Confluence task or parent Work Package. "
+                    "Leaving unassigned."
+                )
         else:
-            logger.info(
-                "No assignee found in Confluence task or parent Work Package. "
-                "Leaving unassigned."
-            )
+            logger.info(f"Assigning task from Confluence task: {task.assignee_name}")
 
         new_issue = await self.jira_service.create_issue(task, closest_wp_key, context)
 

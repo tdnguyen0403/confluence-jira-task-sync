@@ -418,27 +418,37 @@ class SafeConfluenceApi:
         """
         all_pages = []
         processed_page_ids = set()
-        pages_to_process = [page_id]
+        queue = asyncio.Queue()
+        await queue.put(page_id)
 
-        while pages_to_process:
-            current_batch_ids = list(pages_to_process)
-            pages_to_process = []
+        async def worker():
+            while True:
+                p_id = await queue.get()
+                if p_id in processed_page_ids:
+                    queue.task_done()
+                    continue
 
-            tasks = []
-            for p_id in current_batch_ids:
-                if p_id not in processed_page_ids:
-                    processed_page_ids.add(p_id)
-                    tasks.append(self.get_page_child_by_type(p_id))
+                processed_page_ids.add(p_id)
+                try:
+                    children = await self.get_page_child_by_type(p_id)
+                    for child in children:
+                        all_pages.append(child)
+                        await queue.put(child["id"])
+                except Exception as e:
+                    logger.error(f"Error fetching children for page {p_id}: {e}")
+                finally:
+                    queue.task_done()
 
-            if tasks:
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                for res in results:
-                    if isinstance(res, Exception):
-                        logger.error(f"Error fetching a batch of child pages: {res}")
-                        continue
-                    for child_page in res:
-                        all_pages.append(child_page)
-                        pages_to_process.append(child_page["id"])
+        # Create a pool of workers to process pages from the queue concurrently
+        tasks = [
+            asyncio.create_task(worker()) for _ in range(10)
+        ]  # 10 concurrent workers
+
+        await queue.join()  # Wait for the queue to be fully processed
+
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
         return all_pages
 
