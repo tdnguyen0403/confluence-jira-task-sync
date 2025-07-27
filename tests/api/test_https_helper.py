@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import httpx
 import pytest
 
+from src.config import config
 from src.api.https_helper import (
     HTTPSHelper,
     HTTPXClientError,
@@ -54,7 +55,7 @@ async def test_make_request_success(
     mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
 
     response = await https_helper_instance._make_request(
-        "GET", "http://test.com", timeout=5
+        "GET", "http://test.com", timeout=config.API_REQUEST_TIMEOUT_SECONDS
     )
 
     mock_build_request.assert_called_once_with(
@@ -63,7 +64,7 @@ async def test_make_request_success(
         headers=None,
         json=None,
         params=None,
-        timeout=5,
+        timeout=config.API_REQUEST_TIMEOUT_SECONDS,
     )
     mock_send.assert_awaited_once_with(mock_build_request.return_value)
     assert response.status_code == 200
@@ -88,7 +89,7 @@ async def test_make_request_http_error(
     mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
 
     with pytest.raises(HTTPXClientError):
-        await https_helper_instance._make_request("GET", "http://test.com", timeout=5)
+        await https_helper_instance._make_request("GET", "http://test.com", timeout=config.API_REQUEST_TIMEOUT_SECONDS)
 
     mock_build_request.assert_called_once_with(
         method="GET",
@@ -96,7 +97,7 @@ async def test_make_request_http_error(
         headers=None,
         json=None,
         params=None,
-        timeout=5,
+        timeout=config.API_REQUEST_TIMEOUT_SECONDS,
     )
     mock_send.assert_awaited_once_with(mock_build_request.return_value)
 
@@ -115,7 +116,8 @@ async def test_make_request_request_error(
     mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
 
     with pytest.raises(httpx.RequestError):
-        await https_helper_instance._make_request("GET", "http://test.com", timeout=5)
+        await https_helper_instance._make_request("GET", "http://test.com",
+        timeout=config.API_REQUEST_TIMEOUT_SECONDS)
 
     mock_build_request.assert_called_once_with(
         method="GET",
@@ -123,7 +125,7 @@ async def test_make_request_request_error(
         headers=None,
         json=None,
         params=None,
-        timeout=5,
+        timeout=config.API_REQUEST_TIMEOUT_SECONDS,
     )
     mock_send.assert_awaited_once_with(mock_build_request.return_value)
 
@@ -142,7 +144,8 @@ async def test_get_method(https_helper_instance: HTTPSHelper) -> None:
         result = await https_helper_instance.get("http://test.com")
 
         mock_make_request.assert_awaited_once_with(
-            "GET", "http://test.com", headers=None, params=None, timeout=5
+            "GET", "http://test.com", headers=None, params=None,
+            timeout=config.API_REQUEST_TIMEOUT_SECONDS
         )
         assert result == {"data": "test"}
 
@@ -168,7 +171,7 @@ async def test_post_method(https_helper_instance: HTTPSHelper) -> None:
             headers=None,
             json_data={"key": "value"},
             params=None,
-            timeout=5,
+            timeout=config.API_REQUEST_TIMEOUT_SECONDS,
         )
         assert result == {"id": "123"}
 
@@ -194,7 +197,7 @@ async def test_post_method_204_no_content(https_helper_instance: HTTPSHelper) ->
             headers=None,
             json_data={"key": "value"},
             params=None,
-            timeout=5,
+            timeout=config.API_REQUEST_TIMEOUT_SECONDS,
         )
         assert result == {}
 
@@ -220,7 +223,7 @@ async def test_put_method_204_no_content(https_helper_instance: HTTPSHelper) -> 
             headers=None,
             json_data={"key": "value"},
             params=None,
-            timeout=5,
+            timeout=config.API_REQUEST_TIMEOUT_SECONDS,
         )
         assert result == {}
 
@@ -238,7 +241,8 @@ async def test_delete_method_success(https_helper_instance: HTTPSHelper) -> None
         response = await https_helper_instance.delete("http://test.com/123")
 
         mock_make_request.assert_awaited_once_with(
-            "DELETE", "http://test.com/123", headers=None, params=None, timeout=5
+            "DELETE", "http://test.com/123", headers=None, params=None,
+            timeout=config.API_REQUEST_TIMEOUT_SECONDS
         )
         assert response.status_code == 200
 
@@ -259,7 +263,8 @@ async def test_make_request_with_redirects(
     mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
 
     response = await https_helper_instance._make_request(
-        "GET", "http://test.com", timeout=5, follow_redirects=True
+        "GET", "http://test.com",
+        timeout=config.API_REQUEST_TIMEOUT_SECONDS, follow_redirects=True
     )
 
     mock_build_request.assert_called_once_with(
@@ -268,7 +273,7 @@ async def test_make_request_with_redirects(
         headers=None,
         json=None,
         params=None,
-        timeout=5,
+        timeout=config.API_REQUEST_TIMEOUT_SECONDS,
     )
     mock_send.assert_awaited_once_with(mock_build_request.return_value)
     assert response.status_code == 200
@@ -303,7 +308,7 @@ async def test_make_request_with_headers_and_params(
         headers=headers,
         json=None,
         params=params,
-        timeout=5,
+        timeout=config.API_REQUEST_TIMEOUT_SECONDS,
     )
     mock_send.assert_awaited_once_with(mock_build_request.return_value)
     assert response.status_code == 200
@@ -329,7 +334,8 @@ async def test_get_method_with_headers_and_params(
         )
 
         mock_make_request.assert_awaited_once_with(
-            "GET", "http://test.com/api", headers=headers, params=params, timeout=5
+            "GET", "http://test.com/api", headers=headers, params=params,
+            timeout=config.API_REQUEST_TIMEOUT_SECONDS
         )
         assert result == {"data": "more_test"}
 
@@ -363,7 +369,7 @@ async def test_post_method_with_headers_and_params(
             headers=headers,
             json_data=json_data,
             params=params,
-            timeout=5,
+            timeout=config.API_REQUEST_TIMEOUT_SECONDS,
         )
         assert result == {"status": "created"}
 

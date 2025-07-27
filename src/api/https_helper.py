@@ -184,7 +184,7 @@ class HTTPSHelper:
         headers: Optional[Dict[str, str]] = None,
         json_data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, str]] = None,
-        timeout: int = 5,
+        timeout: int = config.API_REQUEST_TIMEOUT_SECONDS,
         follow_redirects: bool = False,
     ) -> httpx.Response:
         """
@@ -205,7 +205,8 @@ class HTTPSHelper:
                 Defaults to None.
             params (Optional[Dict[str, str]]): Dictionary of URL parameters.
                 Defaults to None.
-            timeout (int): Request timeout in seconds. Defaults to 5.
+            timeout (int): Request timeout in seconds.
+                Defaults to config.API_REQUEST_TIMEOUT_SECONDS.
             follow_redirects (bool): Whether to automatically follow HTTP redirects.
                 Defaults to False.
 
@@ -315,7 +316,7 @@ class HTTPSHelper:
         url: str,
         headers: Optional[Dict[str, str]] = None,
         params: Optional[Dict[str, str]] = None,
-        timeout: int = 5,
+        timeout: int = config.API_REQUEST_TIMEOUT_SECONDS,
         follow_redirects: bool = False,
     ) -> Dict[str, Any]:
         """
@@ -329,7 +330,8 @@ class HTTPSHelper:
             url (str): The URL for the GET request.
             headers (Optional[Dict[str, str]]): HTTP headers. Defaults to None.
             params (Optional[Dict[str, str]]): URL parameters. Defaults to None.
-            timeout (int): Request timeout in seconds. Defaults to 5.
+            timeout (int): Request timeout in seconds.
+            Defaults to config.API_REQUEST_TIMEOUT_SECONDS.
             follow_redirects (bool): Whether to follow redirects. Defaults to False.
 
         Returns:
@@ -346,7 +348,7 @@ class HTTPSHelper:
         headers: Optional[Dict[str, str]] = None,
         params: Optional[Dict[str, str]] = None,
         json_data: Optional[Dict[str, Any]] = None,
-        timeout: int = 5,
+        timeout: int = config.API_REQUEST_TIMEOUT_SECONDS,
         follow_redirects: bool = False,
     ) -> Any:
         """
@@ -361,7 +363,8 @@ class HTTPSHelper:
             headers (Optional[Dict[str, str]]): HTTP headers. Defaults to None.
             params (Optional[Dict[str, str]]): URL parameters. Defaults to None.
             json_data (Optional[Dict[str, Any]]): The JSON payload. Defaults to None.
-            timeout (int): Request timeout in seconds. Defaults to 5.
+            timeout (int): Request timeout in seconds.
+            Defaults to config.API_REQUEST_TIMEOUT_SECONDS.
             follow_redirects (bool): Whether to follow redirects. Defaults to False.
 
         Returns:
@@ -385,7 +388,7 @@ class HTTPSHelper:
         headers: Optional[Dict[str, str]] = None,
         params: Optional[Dict[str, str]] = None,
         json_data: Optional[Dict[str, Any]] = None,
-        timeout: int = 5,
+        timeout: int = config.API_REQUEST_TIMEOUT_SECONDS,
         follow_redirects: bool = False,
     ) -> Any:
         """
@@ -400,7 +403,8 @@ class HTTPSHelper:
             headers (Optional[Dict[str, str]]): HTTP headers. Defaults to None.
             params (Optional[Dict[str, str]]): URL parameters. Defaults to None.
             json_data (Optional[Dict[str, Any]]): The JSON payload. Defaults to None.
-            timeout (int): Request timeout in seconds. Defaults to 5.
+            timeout (int): Request timeout in seconds.
+            Defaults to config.API_REQUEST_TIMEOUT_SECONDS.
             follow_redirects (bool): Whether to follow redirects. Defaults to False.
 
         Returns:
@@ -422,7 +426,7 @@ class HTTPSHelper:
         self,
         url: str,
         headers: Optional[Dict[str, str]] = None,
-        timeout: int = 5,
+        timeout: int = config.API_REQUEST_TIMEOUT_SECONDS,
         params: Optional[Dict[str, str]] = None,
         follow_redirects: bool = False,
     ) -> httpx.Response:
@@ -432,7 +436,8 @@ class HTTPSHelper:
         Args:
             url (str): The URL for the DELETE request.
             headers (Optional[Dict[str, str]]): HTTP headers. Defaults to None.
-            timeout (int): Request timeout in seconds. Defaults to 5.
+            timeout (int): Request timeout in seconds.
+            Defaults to config.API_REQUEST_TIMEOUT_SECONDS.
             params (Optional[Dict[str, str]]): URL parameters. Defaults to None.
             follow_redirects (bool): Whether to follow redirects. Defaults to False.
 
