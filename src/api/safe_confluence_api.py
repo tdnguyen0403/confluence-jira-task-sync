@@ -110,46 +110,43 @@ class SafeConfluenceApi:
             return long_url_path_match.group(1)
 
         logger.info(f"Attempting to resolve short URL: {url}")
-        try:
-            response = await self.https_helper._make_request(
-                "HEAD",
-                url,
-                headers=self.headers,
-                timeout=5,
-                follow_redirects=True,
+
+        response = await self.https_helper._make_request(
+            "HEAD",
+            url,
+            headers=self.headers,
+            timeout=5,
+            follow_redirects=True,
+        )
+        if 300 <= response.status_code < 400 and response.headers.get("Location"):
+            redirect_url = response.headers["Location"]
+            logger.info(
+                f"Received redirect status {response.status_code}. "
+                f"Following redirect to: {redirect_url}"
             )
-            if 300 <= response.status_code < 400 and response.headers.get("Location"):
-                redirect_url = response.headers["Location"]
-                logger.info(
-                    f"Received redirect status {response.status_code}. "
-                    f"Following redirect to: {redirect_url}"
-                )
-                return await self.get_page_id_from_url(redirect_url)
-            elif response.status_code == 200:
-                final_url = str(response.url)
-                logger.info(f"Short URL resolved to: {final_url}")
-            else:
-                logger.error(
-                    f"Unexpected status code {response.status_code} "
-                    f"when resolving short URL '{url}'."
-                )
-                return None
-
-            resolved_page_id_query_match = re.search(r"pageId=(\d+)", final_url)
-            if resolved_page_id_query_match:
-                return resolved_page_id_query_match.group(1)
-
-            resolved_long_url_path_match = re.search(r"/pages/(\d+)", final_url)
-            if resolved_long_url_path_match:
-                return resolved_long_url_path_match.group(1)
-
+            return await self.get_page_id_from_url(redirect_url)
+        elif response.status_code == 200:
+            final_url = str(response.url)
+            logger.info(f"Short URL resolved to: {final_url}")
+        else:
             logger.error(
-                f"Could not extract page ID from the final resolved URL: {final_url}"
+                f"Unexpected status code {response.status_code} "
+                f"when resolving short URL '{url}'."
             )
             return None
-        except Exception as e:
-            logger.error(f"Could not resolve the short URL '{url}'. Details: {e}")
-            return None
+
+        resolved_page_id_query_match = re.search(r"pageId=(\d+)", final_url)
+        if resolved_page_id_query_match:
+            return resolved_page_id_query_match.group(1)
+
+        resolved_long_url_path_match = re.search(r"/pages/(\d+)", final_url)
+        if resolved_long_url_path_match:
+            return resolved_long_url_path_match.group(1)
+
+        logger.error(
+            f"Could not extract page ID from the final resolved URL: {final_url}"
+        )
+        return None
 
     @handle_api_errors(ConfluenceApiError)
     async def get_page_by_id(
@@ -183,14 +180,7 @@ class SafeConfluenceApi:
             url = f"{self.base_url}/rest/api/content/{page_id}"
             params = {"expand": expand} if expand else {}
 
-        try:
-            return await self.https_helper.get(url, headers=self.headers, params=params)
-        except Exception as e:
-            logger.error(
-                f"Failed to get Confluence page {page_id} "
-                f"(version {version if version else 'latest'}): {e}"
-            )
-            return None
+        return await self.https_helper.get(url, headers=self.headers, params=params)
 
     @handle_api_errors(ConfluenceApiError)
     async def get_page_child_by_type(
@@ -221,14 +211,7 @@ class SafeConfluenceApi:
                 f"{self.base_url}/rest/api/content/{page_id}/child/{page_type}"
                 f"?start={start}&limit={limit}"
             )
-            try:
-                response_data = await self.https_helper.get(url, headers=self.headers)
-            except Exception as e:
-                logger.error(
-                    f"Failed to retrieve child pages for '{page_id}' "
-                    f"at start={start}. Returning partial results. Error: {e}"
-                )
-                break
+            response_data = await self.https_helper.get(url, headers=self.headers)
 
             current_results = response_data.get("results", [])
             all_results.extend(current_results)
@@ -319,17 +302,13 @@ class SafeConfluenceApi:
             "body": {"storage": {"value": body, "representation": "storage"}},
             "ancestors": ([{"id": parent_id}] if parent_id else []),
         }
-        try:
-            response = await self.https_helper.post(
-                url,
-                headers=self.headers,
-                json_data=payload,
-            )
-            if response:
-                return response
-        except Exception as e:
-            logger.error(f"Failed to create Confluence page '{title}': {e}")
-        return None
+        response = await self.https_helper.post(
+            url,
+            headers=self.headers,
+            json_data=payload,
+        )
+        if response:
+            return response
 
     @handle_api_errors(ConfluenceApiError)
     async def get_user_details_by_username(
@@ -347,11 +326,8 @@ class SafeConfluenceApi:
                                       or an error occurs.
         """
         url = f"{self.base_url}/rest/api/user?username={username}"
-        try:
-            return await self.https_helper.get(url, headers=self.headers)
-        except Exception as e:
-            logger.error(f"Failed to get user details for username '{username}': {e}")
-            return None
+
+        return await self.https_helper.get(url, headers=self.headers)
 
     @handle_api_errors(ConfluenceApiError)
     async def get_user_details_by_userkey(
@@ -369,11 +345,8 @@ class SafeConfluenceApi:
                                       or an error occurs.
         """
         url = f"{self.base_url}/rest/api/user?key={userkey}"
-        try:
-            return await self.https_helper.get(url, headers=self.headers)
-        except Exception as e:
-            logger.error(f"Failed to get user details for userkey '{userkey}': {e}")
-            return None
+
+        return await self.https_helper.get(url, headers=self.headers)
 
     async def get_all_descendants(self, page_id: str) -> List[str]:
         """

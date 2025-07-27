@@ -5,7 +5,7 @@ import httpx
 import pytest
 from bs4 import BeautifulSoup  # Added import
 
-from src.api.https_helper import HTTPSHelper, HTTPXClientError, HTTPXCustomError
+from src.api.https_helper import HTTPSHelper, HTTPXClientError, HTTPXServerError, HTTPXCustomError
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.config import config
 from src.exceptions import ConfluenceApiError
@@ -299,14 +299,17 @@ async def test_get_page_id_from_url_short_url_http_error(
 ):
     """Tests get_page_id_from_url when _make_request raises an HTTP error."""
     short_url = "http://confluence.example.com/x/error"
-    mock_https_helper._make_request.side_effect = httpx.HTTPStatusError(
+    mock_https_helper._make_request.side_effect = HTTPXClientError(
         "Not Found",
         request=httpx.Request("HEAD", short_url),
         response=httpx.Response(404),
     )
 
-    page_id = await safe_confluence_api.get_page_id_from_url(short_url)
-    assert page_id is None
+    with pytest.raises(ConfluenceApiError) as excinfo: # Expect ConfluenceApiError
+        await safe_confluence_api.get_page_id_from_url(short_url)
+
+    assert "API call failed in SafeConfluenceApi.get_page_id_from_url" in str(excinfo.value)
+    assert excinfo.value.status_code == 404
     mock_https_helper._make_request.assert_awaited_once()
 
 
@@ -330,12 +333,15 @@ async def test_get_page_id_from_url_short_url_unexpected_status(
 async def test_get_page_by_id_http_error(safe_confluence_api, mock_https_helper):
     """Tests get_page_by_id when https_helper.get raises an HTTP error."""
     page_id = "999"
-    mock_https_helper.get.side_effect = httpx.HTTPStatusError(
+    mock_https_helper.get.side_effect = HTTPXClientError(
         "Not Found", request=httpx.Request("GET", "url"), response=httpx.Response(404)
     )
 
-    page = await safe_confluence_api.get_page_by_id(page_id)
-    assert page is None
+    with pytest.raises(ConfluenceApiError) as excinfo: # Expect ConfluenceApiError
+        await safe_confluence_api.get_page_by_id(page_id)
+
+    assert "API call failed in SafeConfluenceApi.get_page_by_id" in str(excinfo.value)
+    assert excinfo.value.status_code == 404
     mock_https_helper.get.assert_awaited_once()
 
 
@@ -369,12 +375,14 @@ async def test_get_page_child_by_type_http_error(
     safe_confluence_api, mock_https_helper
 ):
     """Tests get_page_child_by_type when https_helper.get raises an error."""
-    mock_https_helper.get.side_effect = httpx.RequestError(
+    mock_https_helper.get.side_effect = HTTPXCustomError(
         "Connection error", request=httpx.Request("GET", "url")
     )
 
-    children = await safe_confluence_api.get_page_child_by_type("parent123")
-    assert children == []
+    with pytest.raises(ConfluenceApiError) as excinfo: # Expect ConfluenceApiError
+        await safe_confluence_api.get_page_child_by_type("parent123")
+
+    assert "API call failed in SafeConfluenceApi.get_page_child_by_type" in str(excinfo.value)
     mock_https_helper.get.assert_awaited_once()
 
 
@@ -414,6 +422,10 @@ async def test_update_page_http_error(safe_confluence_api, mock_https_helper):
     mock_https_helper.put.side_effect = HTTPXCustomError(
         "Connection error", request=httpx.Request("PUT", "url")
     )
+    mock_https_helper.put.side_effect = HTTPXCustomError(
+        "Connection error", request=httpx.Request("PUT", "url"),
+        response=httpx.Response(500, request=httpx.Request("PUT", "url"))
+    )
     with pytest.raises(ConfluenceApiError):
         await safe_confluence_api.update_page("123", "New Title", "New Body")
     mock_https_helper.get.assert_awaited_once()
@@ -444,14 +456,14 @@ async def test_create_page_with_parent_id_success(
 @pytest.mark.asyncio
 async def test_create_page_http_error(safe_confluence_api, mock_https_helper):
     """Tests create_page when https_helper.post raises an error."""
-    mock_https_helper.post.side_effect = httpx.RequestError(
+    mock_https_helper.post.side_effect = HTTPXCustomError(
         "Connection error", request=httpx.Request("POST", "url")
     )
 
-    new_page = await safe_confluence_api.create_page(
-        space_key="SPACE", title="Failing Page", body="Content"
-    )
-    assert new_page is None
+    with pytest.raises(ConfluenceApiError):
+        await safe_confluence_api.create_page(
+            space_key="SPACE", title="Failing Page", body="Content"
+        )
     mock_https_helper.post.assert_awaited_once()
 
 
@@ -460,14 +472,14 @@ async def test_get_user_details_by_username_http_error(
     safe_confluence_api, mock_https_helper
 ):
     """Tests get_user_details_by_username when https_helper.get raises an error."""
-    mock_https_helper.get.side_effect = httpx.RequestError(
+    mock_https_helper.get.side_effect = HTTPXCustomError(
         "Connection error", request=httpx.Request("GET", "url")
     )
 
-    user_details = await safe_confluence_api.get_user_details_by_username(
-        "nonexistent_user"
-    )
-    assert user_details is None
+    with pytest.raises(ConfluenceApiError):
+        await safe_confluence_api.get_user_details_by_username(
+            "nonexistent_user"
+        )
     mock_https_helper.get.assert_awaited_once()
 
 
@@ -476,14 +488,14 @@ async def test_get_user_details_by_userkey_http_error(
     safe_confluence_api, mock_https_helper
 ):
     """Tests get_user_details_by_userkey when https_helper.get raises an error."""
-    mock_https_helper.get.side_effect = httpx.RequestError(
+    mock_https_helper.get.side_effect = HTTPXCustomError(
         "Connection error", request=httpx.Request("GET", "url")
     )
 
-    user_details = await safe_confluence_api.get_user_details_by_userkey(
-        "nonexistent_key"
-    )
-    assert user_details is None
+    with pytest.raises(ConfluenceApiError):
+        await safe_confluence_api.get_user_details_by_userkey(
+            "nonexistent_key"
+        )
     mock_https_helper.get.assert_awaited_once()
 
 
@@ -505,7 +517,7 @@ async def test_get_all_descendants_concurrently_error_handling(
             "size": 2,
         },
         # Call 2: for page_id "2". This simulates an error. get_page_child_by_type will return [].
-        httpx.RequestError(
+        HTTPXCustomError(
             "Simulated connection error for page 2",
             request=httpx.Request("GET", "url_page_2"),
         ),
@@ -830,11 +842,11 @@ async def test_update_page_with_jira_links_empty_task_list_cleanup(
 @pytest.mark.asyncio
 async def test_get_all_spaces_http_error(safe_confluence_api, mock_https_helper):
     """Tests get_all_spaces when https_helper.get raises an error."""
-    mock_https_helper.get.side_effect = httpx.RequestError(
+    mock_https_helper.get.side_effect = HTTPXCustomError(
         "Connection error", request=httpx.Request("GET", "url")
     )
 
-    with pytest.raises(httpx.RequestError):
+    with pytest.raises(ConfluenceApiError):
         await safe_confluence_api.get_all_spaces()
     mock_https_helper.get.assert_awaited_once()
 
@@ -1227,7 +1239,7 @@ async def test_get_page_child_by_type_fails_on_second_page(
     # First page of results is successful
     first_page_results = {"results": [{"id": f"c{i}"} for i in range(50)], "size": 51}
     # Second call fails
-    second_page_error = httpx.RequestError(
+    second_page_error = HTTPXCustomError(
         "Connection failed", request=httpx.Request("GET", "url")
     )
 
@@ -1236,12 +1248,11 @@ async def test_get_page_child_by_type_fails_on_second_page(
         second_page_error,
     ]
 
-    children = await safe_confluence_api.get_page_child_by_type("parent123")
+    with pytest.raises(ConfluenceApiError) as excinfo:
+        await safe_confluence_api.get_page_child_by_type("parent123")
 
-    # Assert that only the results from the first successful page are returned
-    assert len(children) == 50
-    assert children[0]["id"] == "c0"
-    assert mock_https_helper.get.call_count == 2
+    assert "API call failed in SafeConfluenceApi.get_page_child_by_type" in str(excinfo.value)
+    assert mock_https_helper.get.call_count == 2 # First successful call + second failing call
 
 
 @pytest.mark.asyncio
@@ -1276,7 +1287,7 @@ async def test_update_page_with_jira_links_fails_on_final_update(
 
     with pytest.raises(ConfluenceApiError): # Expect ConfluenceApiError
         await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
-    assert "API call failed in SafeConfluenceApi.update_page: Forbidden" in caplog.text # Corrected log message
+    assert "API call failed in SafeConfluenceApi.update_page" in caplog.text
 
     # The first GET is for the initial fetch, the second is inside the `update_page` call
     assert mock_https_helper.get.call_count == 2
