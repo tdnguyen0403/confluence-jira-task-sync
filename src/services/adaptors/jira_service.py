@@ -19,11 +19,11 @@ from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
 from src.exceptions import JiraApiError
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.models.api_models import SyncTaskContext
 from src.models.data_models import (
     ConfluenceTask,
     JiraIssue,
     JiraIssueStatus,
-    SyncContext,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ class JiraService(JiraApiServiceInterface):
         self,
         task: ConfluenceTask,
         parent_key: str,
-        context: SyncContext,
+        context: SyncTaskContext,
     ) -> Optional[str]:
         """
         Creates a new Jira issue from a Confluence task asynchronously.
@@ -79,7 +79,7 @@ class JiraService(JiraApiServiceInterface):
         Args:
             task (ConfluenceTask): The task data from Confluence.
             parent_key (str): The key of the parent issue (e.g., Work Package).
-            context (SyncContext): Contextual information for the sync operation.
+            context (SyncTaskContext): Contextual information for the sync operation.
 
         Returns:
             Optional[str]: The key of the newly created issue, or None on failure.
@@ -135,7 +135,7 @@ class JiraService(JiraApiServiceInterface):
         self,
         task: ConfluenceTask,
         parent_key: str,
-        context: SyncContext,
+        context: SyncTaskContext,
     ) -> Dict[str, Any]:
         """
         Prepares the field structure for creating a new Jira issue.
@@ -147,7 +147,7 @@ class JiraService(JiraApiServiceInterface):
         Args:
             task (ConfluenceTask): The source Confluence task.
             parent_key (str): The key of the parent Jira issue (e.g., 'WP-1').
-            context (SyncContext): Contextual information for the sync operation.
+            context (SyncTaskContext): Contextual information for the sync operation.
 
         Returns:
             Dict[str, Any]: A dictionary of fields ready for the API.

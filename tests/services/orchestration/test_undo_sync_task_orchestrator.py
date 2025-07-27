@@ -14,11 +14,10 @@ from src.exceptions import InvalidInputError
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.issue_finder_service_interface import IssueFinderServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.models.api_models import SyncTaskContext, UndoSyncTaskRequest
 from src.models.data_models import (
     ConfluenceTask,
     JiraIssueStatus,
-    SyncContext,
-    UndoRequestItem,
 )
 from src.services.orchestration.undo_sync_task_orchestrator import (
     UndoSyncTaskOrchestrator,
@@ -79,8 +78,8 @@ def sample_completed_synced_task_raw_json():
 # Pydantic model instances derived from the raw JSON dictionaries for type-safe access in tests
 @pytest.fixture
 def sample_synced_item(sample_synced_task_raw_json):
-    """A Pydantic UndoRequestItem instance for a synced task."""
-    item = UndoRequestItem(**sample_synced_task_raw_json)
+    """A Pydantic UndoSyncTaskRequest instance for a synced task."""
+    item = UndoSyncTaskRequest(**sample_synced_task_raw_json)
     logger.info(
         f"Fixture sample_synced_item created. new_jira_task_key: {item.new_jira_task_key}"
     )
@@ -89,8 +88,8 @@ def sample_synced_item(sample_synced_task_raw_json):
 
 @pytest.fixture
 def sample_completed_item(sample_completed_synced_task_raw_json):
-    """A Pydantic UndoRequestItem instance for a completed synced task."""
-    item = UndoRequestItem(**sample_completed_synced_task_raw_json)
+    """A Pydantic UndoSyncTaskRequest instance for a completed synced task."""
+    item = UndoSyncTaskRequest(**sample_completed_synced_task_raw_json)
     logger.info(
         f"Fixture sample_completed_item created. new_jira_task_key: {item.new_jira_task_key}"
     )
@@ -99,7 +98,7 @@ def sample_completed_item(sample_completed_synced_task_raw_json):
 
 @pytest.fixture
 def sync_context():
-    return SyncContext(request_user="test_undo_orchestrator", days_to_due_date=0)
+    return SyncTaskContext(request_user="test_undo_orchestrator", days_to_due_date=0)
 
 
 # --- Stubs for Service Dependencies ---
@@ -193,7 +192,7 @@ class JiraServiceStub(JiraApiServiceInterface):
         self._search_issues_results = {}
 
     async def create_issue(
-        self, task: ConfluenceTask, parent_key: str, context: SyncContext
+        self, task: ConfluenceTask, parent_key: str, context: SyncTaskContext
     ) -> Optional[str]:
         pass
 
@@ -219,7 +218,7 @@ class JiraServiceStub(JiraApiServiceInterface):
         return {"key": issue_key, "fields": {"summary": "Issue Summary"}}
 
     async def prepare_jira_task_fields(
-        self, task: ConfluenceTask, parent_key: str, context: SyncContext
+        self, task: ConfluenceTask, parent_key: str, context: SyncTaskContext
     ) -> dict:
         pass
 
@@ -442,7 +441,7 @@ async def test_undo_run_empty_json_data(undo_orchestrator):
     ):
         await undo_orchestrator.run(
             [{}]
-        )  # An empty dict will fail UndoRequestItem validation
+        )  # An empty dict will fail UndoSyncTaskRequest validation
 
 
 @pytest.mark.asyncio

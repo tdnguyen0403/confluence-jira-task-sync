@@ -6,8 +6,8 @@ from src.config import config
 from src.exceptions import InvalidInputError
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.models.data_models import (
-    UndoRequestItem,
+from src.models.api_models import (
+    UndoSyncTaskRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -121,7 +121,7 @@ class UndoSyncTaskOrchestrator:
 
         for item_data in results_data:
             try:
-                item = UndoRequestItem(**item_data)
+                item = UndoSyncTaskRequest(**item_data)
                 if (
                     item.status_text
                     and item.status_text.startswith("Success")

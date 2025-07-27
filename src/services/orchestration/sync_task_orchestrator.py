@@ -12,7 +12,8 @@ from src.interfaces.issue_finder_service_interface import (
     IssueFinderServiceInterface,
 )
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.models.data_models import AutomationResult, ConfluenceTask, SyncContext
+from src.models.api_models import SyncTaskContext, SyncTaskResult
+from src.models.data_models import ConfluenceTask
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +49,15 @@ class SyncTaskOrchestrator:
         self.confluence_issue_updater_service = confluence_issue_updater_service
         self.request_user: Optional[str] = None
 
-    async def run(self, json_input: Dict[str, Any], context: SyncContext) -> None:
+    async def run(self, json_input: Dict[str, Any], context: SyncTaskContext) -> None:
         """
         The main entry point for executing the automation workflow asynchronously.
 
         Args:
             json_input (Dict[str, Any]): A JSON object containing
                 'confluence_page_urls' (list of URLs) and 'context'
-                (SyncContext object).
-            context (SyncContext): Contextual information for the sync operation.
+                (SyncTaskContext object).
+            context (SyncTaskContext): Contextual information for the sync operation.
         Raises:
             InvalidInputError: If required input data is missing or malformed.
             SyncError: For general errors during the synchronization process.
@@ -77,7 +78,7 @@ class SyncTaskOrchestrator:
                 "No 'confluence_page_urls' found in the input for sync operation."
             )
 
-        current_run_results: List[AutomationResult] = []
+        current_run_results: List[SyncTaskResult] = []
 
         for url in page_urls:
             current_run_results = await self.process_page_hierarchy(url, context)
@@ -86,14 +87,14 @@ class SyncTaskOrchestrator:
         logging.info("\n--- Script Finished ---")
 
     async def process_page_hierarchy(
-        self, root_page_url: str, context: SyncContext
+        self, root_page_url: str, context: SyncTaskContext
     ) -> None:
         """
         Processes a root Confluence page and all of its descendants asynchronously.
 
         Args:
             root_page_url (str): The URL of the top-level page to start from.
-            context (SyncContext): Contextual information for the sync operation.
+            context (SyncTaskContext): Contextual information for the sync operation.
         Raises:
             SyncError: If the root page ID cannot be found.
         """
@@ -134,7 +135,7 @@ class SyncTaskOrchestrator:
         return tasks
 
     async def _process_tasks(
-        self, tasks: List[ConfluenceTask], context: SyncContext
+        self, tasks: List[ConfluenceTask], context: SyncTaskContext
     ) -> None:
         """
         Processes a list of tasks, creates Jira issues, and tracks results.
@@ -171,8 +172,8 @@ class SyncTaskOrchestrator:
         return results_for_this_process_call
 
     async def _process_single_task(
-        self, task: ConfluenceTask, context: SyncContext
-    ) -> AutomationResult:
+        self, task: ConfluenceTask, context: SyncTaskContext
+    ) -> SyncTaskResult:
         """Helper method to process a single Confluence task."""
         logging.info(
             f"\nProcessing task: '{task.task_summary}' from page ID: "
@@ -183,7 +184,7 @@ class SyncTaskOrchestrator:
             logger.warning(
                 "Skipping empty task on page ID: %s.", task.confluence_page_id
             )
-            return AutomationResult(
+            return SyncTaskResult(
                 task_data=task,
                 status_text="Skipped - Empty Task",
                 request_user=context.request_user,
@@ -202,7 +203,7 @@ class SyncTaskOrchestrator:
                 f"on page ID: {task.confluence_page_id} - No Work Package found."
             )
             logger.error(f"ERROR: {error_msg}")
-            return AutomationResult(
+            return SyncTaskResult(
                 task_data=task,
                 status_text="Skipped - No Work Package found",
                 request_user=context.request_user,
@@ -219,7 +220,7 @@ class SyncTaskOrchestrator:
                 f"is not a dictionary. Type: {type(closest_wp)}. Data: {closest_wp}"
             )
             logger.error(f"CRITICAL ERROR: {error_msg}")
-            return AutomationResult(
+            return SyncTaskResult(
                 task_data=task,
                 status_text="Failed - Malformed Work Package data",
                 request_user=context.request_user,
@@ -233,7 +234,7 @@ class SyncTaskOrchestrator:
                 f"is missing 'key' field. Data: {closest_wp}"
             )
             logger.error(f"CRITICAL ERROR: {error_msg}")
-            return AutomationResult(
+            return SyncTaskResult(
                 task_data=task,
                 status_text="Failed - Work Package key missing",
                 request_user=context.request_user,
@@ -311,7 +312,7 @@ class SyncTaskOrchestrator:
                     f"Issue {new_issue_key} created with assignee from Work Package: "
                     f"{assignee_from_wp}."
                 )
-            return AutomationResult(
+            return SyncTaskResult(
                 task_data=task,
                 status_text=status_text,
                 new_jira_task_key=new_issue_key,
@@ -326,7 +327,7 @@ class SyncTaskOrchestrator:
                 "Skipping further processing for this task."
             )
             logger.error(f"ERROR: {error_msg}")
-            return AutomationResult(
+            return SyncTaskResult(
                 task_data=task,
                 status_text="Failed - Jira task creation",
                 linked_work_package=closest_wp_key,

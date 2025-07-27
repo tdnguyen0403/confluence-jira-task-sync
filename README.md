@@ -36,7 +36,7 @@ The tool is designed with a clear separation of concerns, making it easy to unde
 -   **API Wrappers**: The tool uses low-level, resilient API wrappers for Jira and Confluence around a helper function. The helper function uses asynchronous method from `httpx` library to directly communicate to Jira & Confluence server asynchronously to improve future ascalability.
 -   **Services**: Low-level services include API wrapper & business logic is implemented in services for Confluence, Jira, and for finding issues on a page. There are also high-level orchestration services to coordinate all lower services.
 -   **Interface**: The application uses interfaces to ensure high level services does not depend on lower level service implementation. It helps to achieve Dependency Inversion for better scalability in the future.
--   **Data Models**: The application uses `pydantic` to represent the core entities, such as `ConfluenceTask` and `AutomationResult`.
+-   **Data Models**: The application uses `pydantic` to represent the core entities, such as `ConfluenceTask` and `SyncTaskResult`.
 -   **Utilities**: The tool includes utility functions for common tasks like logging and extracting the context of a task from a Confluence page.
 
 ### Execution Flow
@@ -99,7 +99,7 @@ This tool uses environment variables to store sensitive API credentials.
     JIRA_API_TOKEN="YOUR_JIRA_API_TOKEN"
     CONFLUENCE_URL="[https://your-confluence-instance.atlassian.net](https://your-confluence-instance.atlassian.net)"
     CONFLUENCE_API_TOKEN="YOUR_CONFLUENCE_API_TOKEN"
-    API_SECRET_KEY="your_secure_api_key_for_fastapi"
+    API_SECRET_KEY="your_secure_api_key_for_fastapi" #pragma: allowlist secret
     # ... fill in other variables as needed from .env.example
     ```
 
@@ -221,8 +221,8 @@ curl -X POST "http://localhost:8000/sync_project" \
 -H "X-API-Key: YOUR_API_KEY" \
 -H "Content-Type: application/json" \
 -d '{
-    "root_confluence_page_url": "[https://project-root-page-in-confluence.com](https://project-root-page-in-confluence.com)",
-    "root_project_issue_key": "PROJ-100",
+    "project_page_url": "[https://project-root-page-in-confluence.com](https://project-root-page-in-confluence.com)",
+    "project_key": "PROJ-100",
     "request_user": "user"
 }'
 ```

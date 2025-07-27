@@ -266,7 +266,7 @@ async def test_update_confluence_hierarchy_success(
     old_issue_data = {
         "key": "OLDPROJ-1",
         "fields": {
-            "summary": "Old Project Summary",
+            "summary": "Project Summary",  # Changed from "Old Project Summary"
             "issuetype": {"id": config.JIRA_PROJECT_ISSUE_TYPE_ID, "name": "Project"},
             "status": {"name": "Old Status", "statusCategory": {"key": "new"}},
         },
@@ -276,11 +276,12 @@ async def test_update_confluence_hierarchy_success(
     candidate_new_issue_project = {
         "key": root_project_key,
         "fields": {
-            "summary": "New Project Summary",
+            "summary": "Project Summary",  # Changed from "New Project Summary"
             "issuetype": {"id": config.JIRA_PROJECT_ISSUE_TYPE_ID, "name": "Project"},
             "status": {"name": "New Status", "statusCategory": {"key": "new"}},
         },
     }
+
     candidate_new_issue_phase = {
         "key": "NEWPROJ-PHASE-1",
         "fields": {
@@ -317,13 +318,13 @@ async def test_update_confluence_hierarchy_success(
     )
 
     results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
-        root_confluence_page_url=root_url, root_project_issue_key=root_project_key
+        project_page_url=root_url, project_key=root_project_key
     )
 
     assert len(results) == 1
     assert results[0].page_id == root_page_id
     assert results[0].page_title == f"Page {root_page_id}"
-    assert results[0].root_project_linked == root_project_key
+    assert results[0].project_linked == root_project_key
     assert root_page_id in confluence_updater_stub._updated_pages
     updated_body = confluence_updater_stub._updated_pages[root_page_id]["body"]
     assert root_project_key in updated_body
@@ -341,7 +342,7 @@ async def test_update_confluence_hierarchy_no_root_page_id(
 
     with pytest.raises(InvalidInputError, match="Could not find page ID for URL"):
         await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
-            root_confluence_page_url=root_url, root_project_issue_key=root_project_key
+            project_page_url=root_url, project_key=root_project_key
         )
 
 
@@ -395,7 +396,7 @@ async def test_update_confluence_hierarchy_no_candidate_issues(
     jira_updater_stub.add_jql_result(jql_query_for_candidates, {"issues": []})
 
     results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
-        root_confluence_page_url=root_url, root_project_issue_key=root_project_key
+        project_page_url=root_url, project_key=root_project_key
     )
 
     assert len(results) == 0
@@ -471,7 +472,7 @@ async def test_update_confluence_hierarchy_no_macros_on_page(
     )
 
     results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
-        root_confluence_page_url=root_url, root_project_issue_key=root_project_key
+        project_page_url=root_url, project_key=root_project_key
     )
 
     assert len(results) == 0
@@ -559,7 +560,7 @@ async def test_update_confluence_hierarchy_macro_no_match(
     )
 
     results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
-        root_confluence_page_url=root_url, root_project_issue_key=root_project_key
+        project_page_url=root_url, project_key=root_project_key
     )
 
     assert len(results) == 0
@@ -643,7 +644,7 @@ async def test_update_confluence_hierarchy_update_page_fails(
     )
 
     results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
-        root_confluence_page_url=root_url, root_project_issue_key=root_project_key
+        project_page_url=root_url, project_key=root_project_key
     )
 
     assert len(results) == 0
@@ -771,7 +772,7 @@ async def test_update_confluence_hierarchy_page_details_none(
     jira_updater_stub.add_jql_result(jql_query_for_candidates, {"issues": []})
 
     results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
-        root_confluence_page_url=root_url, root_project_issue_key=root_project_key
+        project_page_url=root_url, project_key=root_project_key
     )
     assert results == []
 
@@ -820,7 +821,7 @@ async def test_update_confluence_hierarchy_page_content_empty(
     jira_updater_stub.add_jql_result(jql_query_for_candidates, {"issues": []})
 
     results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
-        root_confluence_page_url=root_url, root_project_issue_key=root_project_key
+        project_page_url=root_url, project_key=root_project_key
     )
     assert results == []
 
@@ -1129,6 +1130,6 @@ async def test_update_confluence_hierarchy_with_empty_candidates(
     )
     jira_updater_stub.add_jql_result(jql_query_for_candidates, {"issues": []})
     results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
-        root_confluence_page_url=root_url, root_project_issue_key=root_project_key
+        project_page_url=root_url, project_key=root_project_key
     )
     assert results == []

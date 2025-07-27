@@ -11,11 +11,11 @@ the application more modular and testable.
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
+from src.models.api_models import SyncTaskContext
 from src.models.data_models import (
     ConfluenceTask,
     JiraIssue,
     JiraIssueStatus,
-    SyncContext,
 )
 
 
@@ -50,7 +50,7 @@ class JiraApiServiceInterface(ABC):
         self,
         task: ConfluenceTask,
         parent_key: str,
-        context: SyncContext,
+        context: SyncTaskContext,
     ) -> Optional[str]:
         """
         Creates a new Jira issue from a Confluence task asynchronously.
@@ -58,7 +58,7 @@ class JiraApiServiceInterface(ABC):
         Args:
             task (ConfluenceTask): The structured task data from Confluence.
             parent_key (str): The key of the parent issue (e.g., a Work Package).
-            context (SyncContext): Contextual information for the sync operation,
+            context (SyncTaskContext): Contextual information for the sync operation,
                                    such as the requesting user.
 
         Returns:
@@ -86,7 +86,7 @@ class JiraApiServiceInterface(ABC):
         self,
         task: ConfluenceTask,
         parent_key: str,
-        context: SyncContext,
+        context: SyncTaskContext,
     ) -> Dict[str, Any]:
         """
         Prepares the field structure for creating a Jira task.
@@ -98,7 +98,7 @@ class JiraApiServiceInterface(ABC):
         Args:
             task (ConfluenceTask): The source Confluence task object.
             parent_key (str): The key of the parent Jira issue.
-            context (SyncContext): The context for the synchronization operation.
+            context (SyncTaskContext): The context for the synchronization operation.
 
         Returns:
             Dict[str, Any]: A dictionary of fields ready to be sent to the Jira API.

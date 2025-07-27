@@ -16,9 +16,7 @@ from src.config import config
 from src.exceptions import InvalidInputError
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.models.data_models import (
-    SyncProjectPageDetail,
-)
+from src.models.api_models import SyncProjectResult
 
 logger = logging.getLogger(__name__)
 
@@ -40,26 +38,20 @@ class ConfluenceIssueUpdaterService:
 
     async def update_confluence_hierarchy_with_new_jira_project(
         self,
-        root_confluence_page_url: str,
-        root_project_issue_key: str,
-        project_issue_type_id: Optional[str] = None,
-        phase_issue_type_id: Optional[str] = None,
-    ) -> List[SyncProjectPageDetail]:
+        project_page_url: str,
+        project_key: str,
+    ) -> List[SyncProjectResult]:
         """
         Updates Jira issue macros on a Confluence page hierarchy concurrently.
         """
         logger.info(
-            f"Starting Confluence issue update for hierarchy from: "
-            f"{root_confluence_page_url}"
+            f"Starting Confluence issue update for hierarchy from: {project_page_url}"
         )
 
-        root_page_id = await self.confluence_api.get_page_id_from_url(
-            root_confluence_page_url
-        )
+        root_page_id = await self.confluence_api.get_page_id_from_url(project_page_url)
         if not root_page_id:
             raise InvalidInputError(
-                f"Could not find page ID for URL: {root_confluence_page_url}. "
-                f"Aborting update."
+                f"Could not find page ID for URL: {project_page_url}. Aborting update."
             )
 
         all_page_ids = [root_page_id] + await self.confluence_api.get_all_descendants(
@@ -70,19 +62,19 @@ class ConfluenceIssueUpdaterService:
         )
 
         target_issue_type_ids = {
-            project_issue_type_id or config.JIRA_PROJECT_ISSUE_TYPE_ID,
-            phase_issue_type_id or config.JIRA_PHASE_ISSUE_TYPE_ID,
+            config.JIRA_PROJECT_ISSUE_TYPE_ID,
+            config.JIRA_PHASE_ISSUE_TYPE_ID,
             config.JIRA_WORK_PACKAGE_ISSUE_TYPE_ID,
         }
 
         candidate_new_issues = await self._get_relevant_jira_issues_under_root(
-            root_project_issue_key, target_issue_type_ids
+            project_key, target_issue_type_ids
         )
 
         if not candidate_new_issues:
             logger.warning(
                 f"No suitable candidate issues found under root project '"
-                f"{root_project_issue_key}'. No replacements can be made."
+                f"{project_key}'. No replacements can be made."
             )
             return []
 
@@ -92,7 +84,7 @@ class ConfluenceIssueUpdaterService:
                 page_id,
                 candidate_new_issues,
                 target_issue_type_ids,
-                root_project_issue_key,
+                project_key,
             )
             for page_id in all_page_ids
         ]
@@ -103,7 +95,7 @@ class ConfluenceIssueUpdaterService:
         # Filter out None results and log any exceptions
         updated_pages_summary = []
         for result in results:
-            if isinstance(result, SyncProjectPageDetail):
+            if isinstance(result, SyncProjectResult):
                 updated_pages_summary.append(result)
             elif isinstance(result, Exception):
                 logger.error(
@@ -119,8 +111,8 @@ class ConfluenceIssueUpdaterService:
         page_id: str,
         candidate_new_issues: List[Dict[str, Any]],
         target_issue_type_ids: Set[str],
-        root_project_issue_key: str,
-    ) -> Optional[SyncProjectPageDetail]:
+        project_key: str,
+    ) -> Optional[SyncProjectResult]:
         """
         Processes a single Confluence page to find and replace Jira macros.
         Returns a summary object if the page was successfully updated.
@@ -155,7 +147,7 @@ class ConfluenceIssueUpdaterService:
                 page_id, page_details["title"], modified_html
             )
             if success:
-                return SyncProjectPageDetail(
+                return SyncProjectResult(
                     page_id=page_id,
                     page_title=page_details.get("title", "N/A"),
                     new_jira_keys=[
@@ -163,7 +155,7 @@ class ConfluenceIssueUpdaterService:
                         for issue in candidate_new_issues
                         if issue.get("key") in modified_html
                     ],
-                    root_project_linked=root_project_issue_key,
+                    project_linked=project_key,
                 )
             else:
                 logger.error(

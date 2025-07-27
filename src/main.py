@@ -35,12 +35,12 @@ from src.exceptions import (
     SyncError,
     UndoError,
 )
-from src.models.data_models import (
-    ConfluenceUpdateProjectRequest,
+from src.models.api_models import (
+    SyncProjectRequest,
     SyncProjectResponse,
-    SyncRequest,
+    SyncTaskRequest,
     SyncTaskResponse,
-    UndoRequestItem,
+    UndoSyncTaskRequest,
     UndoSyncTaskResponse,
 )
 from src.utils.logging_config import endpoint_var, request_id_var, setup_logging
@@ -223,7 +223,7 @@ async def general_automation_error_handler(request: Request, exc: AutomationErro
     dependencies=[Depends(get_api_key)],
 )
 async def sync_task(
-    request: SyncRequest,
+    request: SyncTaskRequest,
     sync_orchestrator=Depends(get_sync_task_orchestrator),
 ):
     """
@@ -234,7 +234,7 @@ async def sync_task(
     corresponding tasks in Jira.
 
     Args:
-        request (SyncRequest): The request body containing the URLs and context.
+        request (SyncTaskRequest): The request body containing the URLs and context.
         sync_orchestrator: The dependency-injected orchestrator service.
 
     Returns:
@@ -247,8 +247,7 @@ async def sync_task(
     )
 
     sync_input = request.model_dump()
-    response_results_objects = await sync_orchestrator.run(sync_input, request.context)
-    response_results = [res.to_dict() for res in response_results_objects]
+    response_results = await sync_orchestrator.run(sync_input, request.context)
 
     if response_results:
         logger.info(f"Sync run completed. Processed {len(response_results)} tasks.")
@@ -265,7 +264,7 @@ async def sync_task(
     dependencies=[Depends(get_api_key)],
 )
 async def undo_sync_task(
-    undo_data: List[UndoRequestItem],
+    undo_data: List[UndoSyncTaskRequest],
     undo_orchestrator=Depends(get_undo_sync_task_orchestrator),
 ):
     """
@@ -276,7 +275,7 @@ async def undo_sync_task(
     Confluence pages to their original state.
 
     Args:
-        undo_data (List[UndoRequestItem]): A list of result items from a
+        undo_data (List[UndoSyncTaskRequest]): A list of result items from a
                                             previous sync operation.
         undo_orchestrator: The dependency-injected undo orchestrator service.
 
@@ -304,7 +303,7 @@ async def undo_sync_task(
     dependencies=[Depends(get_api_key)],
 )
 async def update_confluence_project(
-    request: ConfluenceUpdateProjectRequest,
+    request: SyncProjectRequest,
     confluence_issue_updater_service=Depends(get_confluence_issue_updater_service),
 ):
     """
@@ -314,7 +313,7 @@ async def update_confluence_project(
     Jira issue down through a tree of Confluence pages.
 
     Args:
-        request (ConfluenceUpdateProjectRequest): The request details.
+        request (SyncProjectRequest): The request details.
         confluence_issue_updater_service: The injected updater service.
 
     Returns:
@@ -322,14 +321,12 @@ async def update_confluence_project(
     """
     logger.info(
         f"Received /sync_project request for user {request.request_user} on root URL: "
-        f"{request.root_confluence_page_url}"
+        f"{request.project_page_url}"
     )
 
     updated_pages_summary = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(  # noqa: E501
-        root_confluence_page_url=request.root_confluence_page_url,
-        root_project_issue_key=request.root_project_issue_key,
-        project_issue_type_id=request.project_issue_type_id,
-        phase_issue_type_id=request.phase_issue_type_id,
+        project_page_url=request.project_page_url,
+        project_key=request.project_key,
     )
 
     if updated_pages_summary:

@@ -20,11 +20,11 @@ from src.exceptions import (
     UndoError,
 )
 from src.main import app
-from src.models.data_models import (
-    AutomationResult,
-    ConfluenceTask,
-    SyncProjectPageDetail,
+from src.models.api_models import (
+    SyncProjectResult,
+    SyncTaskResult,
 )
+from src.models.data_models import ConfluenceTask
 
 
 # --- Fixtures for common mocks ---
@@ -33,7 +33,7 @@ def mock_sync_orchestrator():
     """Mocks the SyncTaskOrchestrator."""
     mock_orch = AsyncMock()
     mock_orch.run.return_value = [
-        AutomationResult(
+        SyncTaskResult(
             task_data=ConfluenceTask(
                 confluence_page_id="p1",
                 confluence_page_title="P1 Title",
@@ -66,11 +66,11 @@ def mock_confluence_issue_updater_service():
     """Mocks the ConfluenceIssueUpdaterService."""
     mock_service = AsyncMock()
     mock_service.update_confluence_hierarchy_with_new_jira_project.return_value = [
-        SyncProjectPageDetail(
+        SyncProjectResult(
             page_id="123",
             page_title="sample title",
             new_jira_keys=["JIRA-100", "JIRA-200"],
-            root_project_linked="PROJ-123",
+            project_linked="PROJ-123",
         )
     ]
     return mock_service
@@ -202,11 +202,9 @@ async def test_undo_sync_task_success(mock_undo_orchestrator, client):
 async def test_sync_project_success(mock_confluence_issue_updater_service, client):
     """Verify /sync_project succeeds."""
     request_body = {
-        "root_confluence_page_url": "http://example.com/project_root",
-        "root_project_issue_key": "PROJ-123",
+        "project_page_url": "http://example.com/project_root",
+        "project_key": "PROJ-123",
         "request_user": "test_user",
-        "project_issue_type_id": "100",
-        "phase_issue_type_id": "101",
     }
     response = client.post(
         "/sync_project", json=request_body, headers={"X-API-Key": "valid_key"}

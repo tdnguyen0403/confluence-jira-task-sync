@@ -82,8 +82,8 @@ async def run_end_to_end_test():
         # 3. Sync Project
         logger.info("\n--- Testing /sync_project endpoint ---")
         sync_project_payload = {
-            "root_confluence_page_url": "https://pfteamspace.pepperl-fuchs.com/x/OTBhGg",
-            "root_project_issue_key": "SFSEA-1720",
+            "project_page_url": "https://pfteamspace.pepperl-fuchs.com/x/OTBhGg",
+            "project_key": "SFSEA-1720",
             "request_user": TEST_USER,
         }
         try:
@@ -163,8 +163,8 @@ async def run_end_to_end_test():
                     "new_jira_task_key" in result
                     and result["new_jira_task_key"] is not None
                 )
-                assert "confluence_page_id" in result
-                assert "original_page_version" in result
+                assert "confluence_page_id" in result["task_data"]
+                assert "original_page_version" in result["task_data"]
                 logger.info(
                     f"Successfully processed task: {result.get('task_summary', 'N/A')} "
                     f"-> {result.get('new_jira_task_key', 'N/A')}"
@@ -209,9 +209,38 @@ async def run_end_to_end_test():
             )
             return
 
-        # The API expects a list of UndoRequestItem,
-        # which is a flattened version of AutomationResult
-        undo_payload = sync_task_results_for_undo
+        # The API expects a list of UndoSyncTaskRequest,
+        # which is a flattened version of SyncTaskResult
+        undo_payload = []
+        for result_item in sync_task_results_for_undo:
+            flattened_item = {
+                "status_text": result_item["status_text"],
+                "new_jira_task_key": result_item["new_jira_task_key"],
+                "linked_work_package": result_item["linked_work_package"],
+                "request_user": result_item["request_user"],
+                # Flatten task_data fields
+                "confluence_page_id": result_item["task_data"]["confluence_page_id"],  # noqa: E501
+                "confluence_page_title": result_item["task_data"][
+                    "confluence_page_title"
+                ],
+                "confluence_page_url": result_item["task_data"]["confluence_page_url"],  # noqa: E501
+                "confluence_task_id": result_item["task_data"]["confluence_task_id"],  # noqa: E501
+                "task_summary": result_item["task_data"]["task_summary"],
+                "status": result_item["task_data"]["status"],
+                "assignee_name": result_item["task_data"]["assignee_name"],  # noqa: E501
+                "due_date": result_item["task_data"]["due_date"],
+                "original_page_version": result_item["task_data"][
+                    "original_page_version"
+                ],
+                "original_page_version_by": result_item["task_data"][
+                    "original_page_version_by"
+                ],
+                "original_page_version_when": result_item["task_data"][
+                    "original_page_version_when"
+                ],
+                "context": result_item["task_data"]["context"],
+            }
+            undo_payload.append(flattened_item)
 
         try:
             response = await client.post(

@@ -13,7 +13,8 @@ from src.exceptions import InvalidInputError, SyncError
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.issue_finder_service_interface import IssueFinderServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.models.data_models import ConfluenceTask, SyncContext
+from src.models.api_models import SyncTaskContext
+from src.models.data_models import ConfluenceTask
 from src.services.orchestration.sync_task_orchestrator import SyncTaskOrchestrator
 
 # --- Test Data ---
@@ -103,7 +104,7 @@ class JiraServiceStub(JiraApiServiceInterface):
         self,
         task: ConfluenceTask,
         parent_key: str,
-        context: SyncContext,
+        context: SyncTaskContext,
     ) -> Optional[str]:
         return self.created_issue_key
 
@@ -132,7 +133,7 @@ class JiraServiceStub(JiraApiServiceInterface):
         self,
         task: ConfluenceTask,
         parent_key: str,
-        context: SyncContext,  # Changed request_user to context
+        context: SyncTaskContext,  # Changed request_user to context
     ) -> dict:
         # Simplified for testing, return minimal fields
         return {"fields": {"summary": task.task_summary, "duedate": "2025-01-01"}}
@@ -231,7 +232,7 @@ class ConfluenceIssueUpdaterServiceStub:
 # --- Pytest Fixtures ---
 @pytest.fixture
 def sync_context():
-    return SyncContext(request_user="test_orchestrator", days_to_due_date=5)
+    return SyncTaskContext(request_user="test_orchestrator", days_to_due_date=5)
 
 
 @pytest_asyncio.fixture  # Changed to pytest_asyncio.fixture

@@ -13,7 +13,8 @@ from src.api.safe_jira_api import SafeJiraApi
 # Import the code to be tested and its dependencies
 from src.config import config
 from src.exceptions import JiraApiError
-from src.models.data_models import ConfluenceTask, SyncContext
+from src.models.api_models import SyncTaskContext
+from src.models.data_models import ConfluenceTask
 from src.services.adaptors.jira_service import JiraService
 
 
@@ -108,8 +109,8 @@ async def jira_service(monkeypatch):
 
 @pytest.fixture
 def mock_context():
-    """Provides a default SyncContext object for tests."""
-    return SyncContext(request_user="default_user", days_to_due_date=7)
+    """Provides a default SyncTaskContext object for tests."""
+    return SyncTaskContext(request_user="default_user", days_to_due_date=7)
 
 
 @pytest.mark.asyncio
@@ -243,7 +244,7 @@ async def test_prepare_jira_task_fields_trims_long_summary(jira_service, mock_ta
     """Verify that a summary exceeding the character limit is truncated."""
     service, _ = jira_service
     mock_task.task_summary = "A" * (config.JIRA_SUMMARY_MAX_CHARS + 100)
-    mock_context = SyncContext(request_user="test_user", days_to_due_date=7)
+    mock_context = SyncTaskContext(request_user="test_user", days_to_due_date=7)
     result = await service.prepare_jira_task_fields(mock_task, "PROJ-123", mock_context)
 
     assert result is not None
@@ -256,7 +257,7 @@ async def test_prepare_jira_task_fields_trims_long_description(jira_service, moc
     """Verify that a description exceeding the character limit is truncated."""
     service, _ = jira_service
     mock_task.context = "B" * (config.JIRA_DESCRIPTION_MAX_CHARS + 100)
-    mock_context = SyncContext(request_user="test_user", days_to_due_date=7)
+    mock_context = SyncTaskContext(request_user="test_user", days_to_due_date=7)
     result = await service.prepare_jira_task_fields(mock_task, "PROJ-123", mock_context)
 
     assert result is not None
