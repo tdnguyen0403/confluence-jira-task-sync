@@ -22,6 +22,7 @@ The HTTPSHelper is intended to be a foundational component for any part of an
 application that needs to make external HTTP requests reliably.
 """
 
+import asyncio
 import logging
 from typing import (
     Any,
@@ -37,6 +38,8 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
 )
+
+from src.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +105,7 @@ class HTTPSHelper:
     """
 
     _client: Optional[httpx.AsyncClient] = None
+    _semaphore: Optional[asyncio.Semaphore] = None
 
     def __init__(self, verify_ssl: bool = True):
         """
@@ -115,6 +119,8 @@ class HTTPSHelper:
             verify_ssl (bool): Whether to verify the SSL certificate. Defaults to True.
         """
         self._verify_ssl = verify_ssl
+        if HTTPSHelper._semaphore is None:
+            HTTPSHelper._semaphore = asyncio.Semaphore(config.MAX_CONCURRENT_API_CALLS)  # noqa: E501
 
     @property
     def client(self) -> httpx.AsyncClient:
@@ -214,91 +220,95 @@ class HTTPSHelper:
             HTTPXCustomError: For other `httpx` request-related errors or unexpected
                 HTTP status codes.
         """
-        try:
-            request_obj = self.client.build_request(
-                method=method.upper(),
-                url=url,
-                headers=headers,
-                json=json_data,
-                params=params,
-                timeout=timeout,
+        async with HTTPSHelper._semaphore:
+            current_timeout = (
+                timeout if timeout is not None else config.API_REQUEST_TIMEOUT_SECONDS  # noqa: E501
             )
+            try:
+                request_obj = self.client.build_request(
+                    method=method.upper(),
+                    url=url,
+                    headers=headers,
+                    json=json_data,
+                    params=params,
+                    timeout=current_timeout,
+                )
 
-            response = await self.client.send(request_obj)
+                response = await self.client.send(request_obj)
 
-            if 400 <= response.status_code < 600:
-                response.raise_for_status()
+                if 400 <= response.status_code < 600:
+                    response.raise_for_status()
 
-            logger.info(
-                f"Successfully executed {method.upper()} request to {url}. "
-                f"Status: {response.status_code}"
-            )
-            return response
-        except httpx.ConnectError as e:
-            logger.error(f"Connection Error for {method} {url}: {e}")
-            raise HTTPXConnectionError(
-                f"Network connection failed to {url}",
-                request=e.request,
-                original_exception=e,
-            ) from e
-        except httpx.TimeoutException as e:
-            logger.error(f"Timeout Error for {method} {url}: {e}")
-            raise HTTPXTimeoutError(
-                f"Request timed out for {url}",
-                request=e.request,
-                original_exception=e,
-            ) from e
-        except httpx.HTTPStatusError as e:
-            status_code = e.response.status_code
-            error_details = e.response.text
-            log_message = (
-                f"HTTP Error for {method} {url} - "
-                f"Status: {status_code}, Details: {error_details}"
-            )
-            if 400 <= status_code < 500:
-                logger.warning(log_message)
-                raise HTTPXClientError(
-                    f"Client error from API ({status_code}) for {url}",
+                logger.info(
+                    f"Successfully executed {method.upper()} request to {url}. "
+                    f"Status: {response.status_code}"
+                )
+                return response
+            except httpx.ConnectError as e:
+                logger.error(f"Connection Error for {method} {url}: {e}")
+                raise HTTPXConnectionError(
+                    f"Network connection failed to {url}",
                     request=e.request,
-                    response=e.response,
                     original_exception=e,
                 ) from e
-            elif 500 <= status_code < 600:
-                logger.error(log_message)
-                raise HTTPXServerError(
-                    f"Server error from API ({status_code}) for {url}",
+            except httpx.TimeoutException as e:
+                logger.error(f"Timeout Error for {method} {url}: {e}")
+                raise HTTPXTimeoutError(
+                    f"Request timed out for {url}",
                     request=e.request,
-                    response=e.response,
                     original_exception=e,
                 ) from e
-            else:
-                logger.error(log_message)
+            except httpx.HTTPStatusError as e:
+                status_code = e.response.status_code
+                error_details = e.response.text
+                log_message = (
+                    f"HTTP Error for {method} {url} - "
+                    f"Status: {status_code}, Details: {error_details}"
+                )
+                if 400 <= status_code < 500:
+                    logger.warning(log_message)
+                    raise HTTPXClientError(
+                        f"Client error from API ({status_code}) for {url}",
+                        request=e.request,
+                        response=e.response,
+                        original_exception=e,
+                    ) from e
+                elif 500 <= status_code < 600:
+                    logger.error(log_message)
+                    raise HTTPXServerError(
+                        f"Server error from API ({status_code}) for {url}",
+                        request=e.request,
+                        response=e.response,
+                        original_exception=e,
+                    ) from e
+                else:
+                    logger.error(log_message)
+                    raise HTTPXCustomError(
+                        f"Unexpected HTTP error ({status_code}) from API for {url}",
+                        request=e.request,
+                        response=e.response,
+                        original_exception=e,
+                    ) from e
+            except httpx.RequestError as e:
+                logger.error(
+                    "A general httpx.RequestError occurred while "
+                    f"requesting {e.request.url!r}: {e}"
+                )
                 raise HTTPXCustomError(
-                    f"Unexpected HTTP error ({status_code}) from API for {url}",
+                    f"A general request error occurred for {url}",
                     request=e.request,
-                    response=e.response,
                     original_exception=e,
                 ) from e
-        except httpx.RequestError as e:
-            logger.error(
-                "A general httpx.RequestError occurred while "
-                f"requesting {e.request.url!r}: {e}"
-            )
-            raise HTTPXCustomError(
-                f"A general request error occurred for {url}",
-                request=e.request,
-                original_exception=e,
-            ) from e
-        except Exception as e:
-            logger.critical(
-                "An unexpected and critical error occurred during "
-                f"HTTP request to {url}: {e}",
-                exc_info=True,
-            )
-            raise HTTPXCustomError(
-                f"A critical unexpected error occurred for {url}",
-                original_exception=e,
-            ) from e
+            except Exception as e:
+                logger.critical(
+                    "An unexpected and critical error occurred during "
+                    f"HTTP request to {url}: {e}",
+                    exc_info=True,
+                )
+                raise HTTPXCustomError(
+                    f"A critical unexpected error occurred for {url}",
+                    original_exception=e,
+                ) from e
 
     async def get(
         self,

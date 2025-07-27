@@ -80,8 +80,7 @@ async def run_end_to_end_test():
         logger.info("\n--- Testing /sync_task endpoint ---")
         sync_task_payload = {
             "confluence_page_urls": [
-                "https://pfteamspace.pepperl-fuchs.com/x/NgVPGg",
-                "https://pfteamspace.pepperl-fuchs.com/spaces/EUDEMHTM0589/pages/452595342/Test+Page+Depth+0-0+20250727163656",
+                "https://pfteamspace.pepperl-fuchs.com/x/RjHsGg"
             ],
             "context": {"request_user": TEST_USER, "days_to_due_date": 7},
         }
