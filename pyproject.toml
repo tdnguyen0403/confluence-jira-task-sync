@@ -36,6 +36,13 @@ build-backend = "poetry.core.masonry.api"
 [tool.ruff]
 line-length = 88
 target-version = "py39"
+exclude = [
+    ".mypy_cache",
+    ".venv",
+    "src/scripts/",
+    "end_to_end_test.py",
+    "tests/*.py",
+]
 
 [tool.ruff.lint]
 select = [

@@ -5,9 +5,10 @@ import httpx
 import pytest
 from bs4 import BeautifulSoup  # Added import
 
-from src.api.https_helper import HTTPSHelper
+from src.api.https_helper import HTTPSHelper, HTTPXClientError, HTTPXCustomError
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.config import config
+from src.exceptions import ConfluenceApiError
 
 # Configure logging to capture messages during tests
 logging.basicConfig(level=logging.INFO)
@@ -410,12 +411,11 @@ async def test_update_page_http_error(safe_confluence_api, mock_https_helper):
         "title": "Old Title",
         "version": {"number": 1},
     }
-    mock_https_helper.put.side_effect = httpx.RequestError(
+    mock_https_helper.put.side_effect = HTTPXCustomError(
         "Connection error", request=httpx.Request("PUT", "url")
     )
-
-    success = await safe_confluence_api.update_page("123", "New Title", "New Body")
-    assert success is False
+    with pytest.raises(ConfluenceApiError):
+        await safe_confluence_api.update_page("123", "New Title", "New Body")
     mock_https_helper.get.assert_awaited_once()
     mock_https_helper.put.assert_awaited_once()
 
@@ -1270,19 +1270,17 @@ async def test_update_page_with_jira_links_fails_on_final_update(
     mock_https_helper.get.return_value = page_data
 
     # Mock the final PUT call to fail
-    mock_https_helper.put.side_effect = httpx.HTTPStatusError(
+    mock_https_helper.put.side_effect = HTTPXClientError(
         "Forbidden", request=httpx.Request("PUT", "url"), response=httpx.Response(403)
     )
 
-    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+    with pytest.raises(ConfluenceApiError): # Expect ConfluenceApiError
+        await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+    assert "API call failed in SafeConfluenceApi.update_page: Forbidden" in caplog.text # Corrected log message
 
     # The first GET is for the initial fetch, the second is inside the `update_page` call
     assert mock_https_helper.get.call_count == 2
     mock_https_helper.put.assert_awaited_once()
-
-    # Check that the failure was logged correctly from the `update_page` method
-    assert "Failed to update page 123" in caplog.text
-
 
 @pytest.mark.asyncio
 async def test_get_page_by_id_no_version_no_expand(

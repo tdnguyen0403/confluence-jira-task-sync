@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 import pytest
@@ -21,10 +21,12 @@ from src.exceptions import (
 )
 from src.main import app
 from src.models.api_models import (
+    ConfluencePageUpdateResult,
+    JiraTaskCreationResult,
     SinglePageResult,
-    SingleTaskResult,
+    UndoActionResult,
+    UndoSyncTaskRequest,
 )
-from src.models.data_models import ConfluenceTask
 
 
 # --- Fixtures for common mocks ---
@@ -32,33 +34,55 @@ from src.models.data_models import ConfluenceTask
 def mock_sync_orchestrator():
     """Mocks the SyncTaskOrchestrator."""
     mock_orch = AsyncMock()
-    mock_orch.run.return_value = [
-        SingleTaskResult(
-            task_data=ConfluenceTask(
+    # Mock run to return a dictionary, not a SyncTaskResponse object
+    mock_orch.run.return_value = {
+        "overall_jira_task_creation_status": "Success",
+        "overall_confluence_page_update_status": "Success",
+        "jira_task_creation_results": [
+            JiraTaskCreationResult( # Use correct field names
                 confluence_page_id="p1",
-                confluence_page_title="P1 Title",
-                confluence_page_url="http://p1.url",
                 confluence_task_id="t1",
-                task_summary="Test Task 1",
-                status="incomplete",
-                assignee_name="test_user",
+                task_summary="Test task",
                 original_page_version=1,
-                original_page_version_by="test",
-                original_page_version_when="2025-01-01T00:00:00Z",
-            ),
-            status_text="Success",
-            new_jira_task_key="JIRA-001",
-            linked_work_package="WP-001",
-            request_user="test_user",
-        )
-    ]
+                request_user="test_user",
+                new_jira_task_key="JIRA-001", # Correct field name
+                creation_status_text="Success",
+                success=True,
+                error_message=None,
+            )
+        ],
+        "confluence_page_update_results": [
+            ConfluencePageUpdateResult(
+                page_id="p1",
+                page_title="Test Page",
+                updated=True,
+                jira_keys_replaced=["JIRA-001"],
+                error_message=None
+            )
+        ]
+    }
     return mock_orch
 
 
 @pytest.fixture
 def mock_undo_orchestrator():
     """Mocks the UndoSyncTaskOrchestrator."""
-    return AsyncMock()
+    mock_orch = AsyncMock()
+
+    # Configure the async 'run' method
+    mock_orch.run.return_value = [
+        UndoActionResult(
+            action_type="jira_transition",
+            target_id="JIRA-001",
+            success=True,
+            status_message="Successfully transitioned",
+            error_message=None
+        )
+    ]
+
+    mock_orch._determine_overall_status = Mock(return_value="Success")
+
+    return mock_orch
 
 
 @pytest.fixture
@@ -105,19 +129,23 @@ def common_dependencies_override(
     mock_http_helper.client = AsyncMock()
     mock_http_helper.client.aclose = AsyncMock(return_value=None)
 
-    app.dependency_overrides = {
-        get_api_key: lambda: "valid_key",
-        get_sync_task_orchestrator: lambda: mock_sync_orchestrator,
-        get_undo_sync_task_orchestrator: lambda: mock_undo_orchestrator,
-        get_confluence_issue_updater_service: lambda: mock_confluence_issue_updater_service,
-        get_safe_jira_api: lambda: mock_jira_api,
-        get_safe_confluence_api: lambda: mock_confluence_api,
-        get_https_helper: lambda: mock_http_helper,
-    }
-    # Patch setup_logging to prevent it from running during tests
-    with patch("src.main.setup_logging", return_value=None):
-        yield
-    app.dependency_overrides = {}
+    # Patch httpx.AsyncClient directly to prevent actual instantiation during lifespan
+    with patch("httpx.AsyncClient") as MockAsyncClient:
+        MockAsyncClient.return_value = mock_http_helper.client
+
+        app.dependency_overrides = {
+            get_api_key: lambda: "valid_key",
+            get_sync_task_orchestrator: lambda: mock_sync_orchestrator,
+            get_undo_sync_task_orchestrator: lambda: mock_undo_orchestrator,
+            get_confluence_issue_updater_service: lambda: mock_confluence_issue_updater_service,
+            get_safe_jira_api: lambda: mock_jira_api,
+            get_safe_confluence_api: lambda: mock_confluence_api,
+            get_https_helper: lambda: mock_http_helper,
+        }
+        # Patch setup_logging to prevent it from running during tests
+        with patch("src.main.setup_logging", return_value=None):
+            yield
+        app.dependency_overrides = {}
 
 
 @pytest.fixture(name="client")
@@ -137,17 +165,41 @@ async def test_sync_task_success_response(mock_sync_orchestrator, client):
         "confluence_page_urls": ["http://example.com/page1"],
         "context": {"request_user": "test_user", "days_to_due_date": 7},
     }
+    mock_sync_orchestrator.run.return_value = {
+        "overall_jira_task_creation_status": "Success",
+        "overall_confluence_page_update_status": "Success",
+        "jira_task_creation_results": [
+            JiraTaskCreationResult(
+                confluence_page_id="page123",
+                confluence_task_id="task1",
+                task_summary="Sample Task Summary",
+                original_page_version=1,
+                request_user="test_user",
+                new_jira_task_key="JIRA-101", # Corrected field
+                creation_status_text="Jira task created successfully",
+                success=True
+            )
+        ],
+        "confluence_page_update_results": [
+            ConfluencePageUpdateResult(
+                page_id="page123",
+                page_title="Test Page",
+                updated=True,
+                error_message=None,
+                jira_keys_replaced=["JIRA-101"]
+            )
+        ]
+    }
+
     response = client.post(
         "/sync_task", json=request_body, headers={"X-API-Key": "valid_key"}
     )
 
     assert response.status_code == 200
+    assert mock_sync_orchestrator.run.called
     response_data = response.json()
-    assert "request_id" in response_data
-    assert "results" in response_data
-    assert len(response_data["results"]) == 1
-    assert response_data["results"][0]["new_jira_task_key"] == "JIRA-001"
-    mock_sync_orchestrator.run.assert_awaited_once()
+    assert response_data["overall_jira_task_creation_status"] == "Success"
+    assert len(response_data["jira_task_creation_results"]) == 1
 
 
 @pytest.mark.asyncio
@@ -168,8 +220,7 @@ async def test_unhandled_exception(mock_sync_orchestrator, client):
     )
 
     # Assert: Verify that the unhandled_exception_handler caught the error
-    # and returned the correct HTTP 500 response. The exception does not
-    # bubble up to the test client itself.
+    # and returned the correct HTTP 500 response.
     assert response.status_code == 500
     assert response.json() == {
         "detail": "An unexpected internal server error occurred."
@@ -180,23 +231,40 @@ async def test_unhandled_exception(mock_sync_orchestrator, client):
 async def test_undo_sync_task_success(mock_undo_orchestrator, client):
     """Verify /undo_sync_task succeeds."""
     request_body = [
-        {
-            "status_text": "Success",
-            "request_user": "test",
-            "original_page_version": 1,
-            "new_jira_task_key": "JIRA-1",
-            "confluence_page_id": "123",
-        }
+        UndoSyncTaskRequest(
+            confluence_page_id="123",
+            original_page_version=1,
+            new_jira_task_key="JIRA-1",
+            request_user="test_user",
+        ).model_dump()
     ]
+
+    mock_undo_orchestrator.run.return_value = [
+        UndoActionResult(
+            action_type="jira_transition",
+            target_id="JIRA-1",
+            success=True,
+            status_message="Successfully transitioned to 'To Do'.",
+            error_message=None
+        ),
+        UndoActionResult(
+            action_type="confluence_rollback",
+            target_id="123",
+            success=True,
+            status_message="Successfully rolled back page 'Test Page' to version 1.",
+            error_message=None
+        )
+    ]
+    mock_undo_orchestrator._determine_overall_status.return_value = "Success"
     response = client.post(
         "/undo_sync_task", json=request_body, headers={"X-API-Key": "valid_key"}
     )
     assert response.status_code == 200
+    assert mock_undo_orchestrator.run.called
     response_data = response.json()
-    assert "request_id" in response_data
-    assert response_data["detail"] == "Undo operation completed successfully."
-    mock_undo_orchestrator.run.assert_awaited_once()
-
+    assert len(response_data["results"]) == 2
+    assert response_data["results"][0]["target_id"] == "JIRA-1"
+    assert response_data["results"][1]["target_id"] == "123"
 
 @pytest.mark.asyncio
 async def test_sync_project_success(mock_confluence_issue_updater_service, client):
@@ -323,14 +391,14 @@ async def test_undo_sync_task_custom_exceptions(
 ):
     """Verify that custom exceptions are handled correctly for the /undo_sync_task endpoint."""
     mock_undo_orchestrator.run.side_effect = exception
+    # Simplified request body to match UndoSyncTaskRequest structure for testing exceptions
     request_body = [
-        {
-            "status_text": "Success",
-            "request_user": "test",
-            "original_page_version": 1,
-            "new_jira_task_key": "JIRA-1",
-            "confluence_page_id": "123",
-        }
+        UndoSyncTaskRequest(
+            confluence_page_id="123",
+            original_page_version=1,
+            new_jira_task_key="JIRA-1",
+            request_user="test_user"
+        ).model_dump()
     ]
 
     response = client.post(

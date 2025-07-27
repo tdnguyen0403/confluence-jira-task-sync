@@ -5,7 +5,7 @@ and clear, self-documenting code. The models cover synchronization tasks,
 project updates, and undo operations for Confluence and Jira integration.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -55,56 +55,22 @@ class SyncTaskRequest(BaseModel):
 class UndoSyncTaskRequest(BaseModel):
     """
     Represents an item in the request body for the /undo_sync_task endpoint.
-
-    This model is used to parse the results from a previous sync operation
-    to identify Jira tasks that need to be deleted and Confluence pages that
-    should be rolled back to a previous version.
+    Simplified to contain only information necessary for the undo operation.
 
     Attributes:
-        status_text (str): The status from the original automation result.
         confluence_page_id (str): The ID of the Confluence page to roll back.
         original_page_version (int): The version to which the page should be
             restored.
         new_jira_task_key (Optional[str]): The key of the Jira task to be deleted.
-        linked_work_package (Optional[str]): The parent work package (for logging).
         request_user (Optional[str]): The user who requested the original sync.
-        (and other fields from the flattened SingleTaskResult)
     """
 
-    status_text: str
-    confluence_page_id: str
-    original_page_version: int
+    confluence_page_id: Optional[str] = None
+    original_page_version: Optional[int] = None
     new_jira_task_key: Optional[str] = Field(
         None, json_schema_extra={"example": "JIRA-123"}
     )
-    linked_work_package: Optional[str] = Field(
-        None, json_schema_extra={"example": "WP-456"}
-    )
     request_user: Optional[str] = Field(None, json_schema_extra={"example": "username"})
-    confluence_page_title: Optional[str] = Field(
-        None, json_schema_extra={"example": "My Confluence Page"}
-    )
-    confluence_page_url: Optional[str] = Field(
-        None, json_schema_extra={"example": "https://confluence.example.com/page/123"}
-    )
-    confluence_task_id: Optional[str] = Field(
-        None, json_schema_extra={"example": "task-abc"}
-    )
-    task_summary: Optional[str] = Field(
-        None, json_schema_extra={"example": "Complete this task"}
-    )
-    status: Optional[str] = Field(None, json_schema_extra={"example": "Success"})
-    assignee_name: Optional[str] = Field(None, json_schema_extra={"example": "jdoe"})
-    due_date: Optional[str] = Field(None, json_schema_extra={"example": "2025-12-31"})
-    original_page_version_by: Optional[str] = Field(
-        None, json_schema_extra={"example": "jdoe"}
-    )
-    original_page_version_when: Optional[str] = Field(
-        None, json_schema_extra={"example": "2024-07-05T10:00:00.000Z"}
-    )
-    context: Optional[str] = Field(
-        None, json_schema_extra={"example": "Task within Section A"}
-    )
 
 
 class SyncProjectRequest(BaseModel):
@@ -130,25 +96,14 @@ class SyncProjectRequest(BaseModel):
     )
 
 
-# ---API Response Models---#
+# ---Internal Orchestrator Result (not direct API response model for /sync_task)---#
 
 
-class SingleTaskResult(BaseModel):
+class SingleTaskResult(BaseModel):  # Renamed from SyncTaskResult
     """
-    Represents the final outcome of processing a single Confluence task.
-
-    This class encapsulates the original task data along with the results of
-    the automation, such as the status of the operation and the key of any
-    newly created Jira issue.
-
-    Attributes:
-        task_data (ConfluenceTask): The original task data that was processed.
-        status_text (str): A summary of the outcome (e.g., 'SUCCESS', 'SKIPPED').
-        new_jira_task_key (Optional[str]): The key of the Jira issue created from
-            this task, if any.
-        linked_work_package (Optional[str]): The parent work package the new
-            Jira issue was linked to.
-        request_user (Optional[str]): The name of the user who requested the sync.
+    Represents the internal outcome of processing a single Confluence task
+    within the orchestrator. This model is primarily used to aggregate data
+    before constructing the final JiraTaskCreationResult for the API response.
     """
 
     task_data: ConfluenceTask
@@ -157,56 +112,110 @@ class SingleTaskResult(BaseModel):
     linked_work_package: Optional[str] = None
     request_user: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Converts the automation result into a dictionary for reporting.
 
-        This method flattens the nested `ConfluenceTask` data into the main
-        dictionary, making it suitable for logging or generating reports.
+# ---API Response Models---#
 
-        Returns:
-            Dict[str, Any]: A dictionary representing the flattened result.
-        """
-        result_dict = {
-            "status_text": self.status_text,
-            "new_jira_task_key": self.new_jira_task_key,
-            "linked_work_package": self.linked_work_package,
-            "request_user": self.request_user,
-        }
 
-        task_data_dict = self.task_data.model_dump()
+class JiraTaskCreationResult(BaseModel):
+    """
+    Represents the outcome of attempting to create a single Jira task.
+    This model will now be the direct response item for the /sync_task endpoint.
+    """
 
-        result_dict.update(task_data_dict)
+    confluence_page_id: str
+    confluence_task_id: str
+    task_summary: str
+    original_page_version: int  # Crucial for page undo
+    request_user: Optional[str] = None  # For undo context and audit
 
-        return result_dict
+    new_jira_task_key: Optional[str] = None
+    creation_status_text: str = Field(
+        ...,
+        description="""The outcome message of the Jira task creation attempt
+        (e.g., 'Success', 'Failed - No Work Package found').""",
+    )
+    success: bool
+    error_message: Optional[str] = None
+
+
+class ConfluencePageUpdateResult(BaseModel):
+    """
+    Represents the outcome of attempting to update a single Confluence page
+    with new Jira links. This is an internal result from the orchestrator
+    that is no longer returned directly in
+    SyncTaskResponse (which is now List[JiraTaskCreationResult]).
+    Its info might be logged or handled separately if needed by client.
+    """
+
+    page_id: str
+    page_title: str
+    updated: bool
+    error_message: Optional[str] = None
+    jira_keys_replaced: List[str] = Field(default_factory=list)
 
 
 class SyncTaskResponse(BaseModel):
     """
-    Defines the response model for the /sync_task endpoint.
-
-    Attributes:
-        request_id (str): A unique identifier for the synchronization request.
-        results (List[Dict[str, Any]]): A list of dictionaries, each representing
-            an `SingleTaskResult`.
+    Defines the comprehensive response model for the /sync_task endpoint,
+    combining Jira task creation and Confluence page update results.
     """
 
-    request_id: str
-    results: List[SingleTaskResult]
+    request_id: str = Field(
+        ..., description="A unique identifier for the synchronization request."
+    )
+    overall_jira_task_creation_status: str = Field(
+        ...,
+        description="""Overall status of Jira task creation
+        (Success, Partial Success, Failed, Skipped - No tasks processed).""",
+    )
+    overall_confluence_page_update_status: str = Field(
+        ...,
+        description="""Overall status of Confluence page updates
+            (Success, Partial Success, Failed, Skipped - No updates needed).""",
+    )
+    jira_task_creation_results: List[JiraTaskCreationResult] = Field(
+        default_factory=list,
+        description="Detailed results for each Jira task creation attempt.",
+    )
+    confluence_page_update_results: List[ConfluencePageUpdateResult] = Field(
+        default_factory=list,
+        description="Detailed results for each Confluence page update attempt.",
+    )
+
+
+class UndoActionResult(BaseModel):
+    """
+    Represents the outcome of a single undo action
+    (Jira transition or Confluence rollback).
+    """
+
+    action_type: str = Field(
+        ...,
+        description="Type of undo action ('jira_transition', 'confluence_rollback').",
+    )
+    target_id: str = Field(
+        ..., description="ID of item targeted (Jira Key or Confluence Page ID)."
+    )
+    success: bool
+    status_message: str = Field(
+        ..., description="A message describing the outcome of the action."
+    )
+    error_message: Optional[str] = None
 
 
 class UndoSyncTaskResponse(BaseModel):
     """
-    Defines the response model for the /undo_sync_task endpoint.
-
-    Attributes:
-        request_id (str): A unique identifier for the undo request.
-        detail (str): A confirmation detail indicating the result of the undo
-            operation.
+    Defines the response model for the /undo_sync_task endpoint,
+    containing individual results for each undo action.
     """
 
     request_id: str
-    detail: str
+    results: List[UndoActionResult] = Field(default_factory=list)
+    overall_status: str = Field(
+        ...,
+        description="""Overall status of the undo operation
+        (Success, Partial Success, Failed).""",
+    )
 
 
 class SinglePageResult(BaseModel):

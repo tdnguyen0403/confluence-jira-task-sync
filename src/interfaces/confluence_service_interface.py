@@ -90,7 +90,7 @@ class ConfluenceApiServiceInterface(ABC):
     @abstractmethod
     async def update_page_with_jira_links(
         self, page_id: str, jira_task_mappings: List[Dict[str, str]]
-    ) -> None:
+    ) -> bool:
         """
         Updates a Confluence page by replacing completed tasks with Jira links.
 

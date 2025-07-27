@@ -266,7 +266,7 @@ async def test_update_confluence_hierarchy_success(
     old_issue_data = {
         "key": "OLDPROJ-1",
         "fields": {
-            "summary": "Project Summary",  # Changed from "Old Project Summary"
+            "summary": "Project Summary",  # Changed
             "issuetype": {"id": config.JIRA_PROJECT_ISSUE_TYPE_ID, "name": "Project"},
             "status": {"name": "Old Status", "statusCategory": {"key": "new"}},
         },
@@ -276,12 +276,11 @@ async def test_update_confluence_hierarchy_success(
     candidate_new_issue_project = {
         "key": root_project_key,
         "fields": {
-            "summary": "Project Summary",  # Changed from "New Project Summary"
+            "summary": "Project Summary",  # Changed
             "issuetype": {"id": config.JIRA_PROJECT_ISSUE_TYPE_ID, "name": "Project"},
             "status": {"name": "New Status", "statusCategory": {"key": "new"}},
         },
     }
-
     candidate_new_issue_phase = {
         "key": "NEWPROJ-PHASE-1",
         "fields": {
@@ -604,7 +603,7 @@ async def test_update_confluence_hierarchy_update_page_fails(
     old_issue_data = {
         "key": "OLDPROJ-TO-FAIL",
         "fields": {
-            "summary": "Old Project To Fail Test",
+            "summary": "Project For Failure Test",  # Changed
             "issuetype": {"id": config.JIRA_PROJECT_ISSUE_TYPE_ID, "name": "Project"},
             "status": {"name": "Old Status", "statusCategory": {"key": "new"}},
         },
@@ -614,7 +613,7 @@ async def test_update_confluence_hierarchy_update_page_fails(
     candidate_new_issue_project = {
         "key": root_project_key,
         "fields": {
-            "summary": "New Project For Failure Test",
+            "summary": "Project For Failure Test",  # Changed
             "issuetype": {"id": config.JIRA_PROJECT_ISSUE_TYPE_ID, "name": "Project"},
             "status": {"name": "New Status", "statusCategory": {"key": "new"}},
         },

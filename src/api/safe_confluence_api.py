@@ -278,18 +278,16 @@ class SafeConfluenceApi:
             "title": title,
             "body": {"storage": {"value": body, "representation": "storage"}},
         }
-        try:
-            response = await self.https_helper.put(
-                url,
-                headers=self.headers,
-                json_data=payload,
-            )
-            if response:
-                logger.info(f"Successfully updated page {page_id} via REST call.")
-                return True
-        except Exception as e:
-            logger.error(f"Failed to update page {page_id}: {e}")
-        return False
+
+        await self.https_helper.put(
+            url,
+            headers=self.headers,
+            json_data=payload,
+        )
+
+        # If we reach here, the update was successful
+        logger.info(f"Successfully updated page {page_id} via REST call.")
+        return True  # Only reached if no exception was raised (i.e., 2xx status)
 
     @handle_api_errors(ConfluenceApiError)
     async def create_page(
@@ -561,28 +559,28 @@ class SafeConfluenceApi:
             context=context,
         )
 
+    @handle_api_errors(ConfluenceApiError)
     async def update_page_with_jira_links(
         self, page_id: str, mappings: List[Dict[str, str]]
-    ) -> None:
+    ) -> bool:
         """
-        Replaces specified Confluence tasks on a page with their plain text
-        summary and a corresponding Jira issue macro.
-
-        This method retrieves a page, finds tasks based on the provided mappings,
-        replaces the task element with a paragraph containing a Jira macro and
-        the task's text, and then updates the page. It skips tasks found
-        within configured aggregation macros.
-
+        Updates a Confluence page by replacing completed tasks with Jira links.
+        This method scans the page for tasks that have been completed and
+        replaces them with links to their corresponding Jira issues.
         Args:
             page_id (str): The ID of the Confluence page to update.
-            mappings (List[Dict[str, str]]): A list of dictionaries, where each
-                                             maps a `confluence_task_id` to a
-                                             `jira_key`.
+            mappings (List[Dict[str, str]]): A list of dictionaries, each mapping
+                                             a 'confluence_task_id' to its new
+                                             'jira_key'.
+        Returns:
+            bool: True if the page was successfully updated, False otherwise.
         """
         page = await self.get_page_by_id(page_id, expand="body.storage,version")
         if not page:
-            logger.error(f"Could not retrieve page {page_id} to update.")
-            return
+            logger.error(
+                f"Could not retrieve page {page_id} to update with Jira links."
+            )
+            return False
 
         soup = BeautifulSoup(page["body"]["storage"]["value"], "html.parser")
         modified = False
@@ -632,12 +630,12 @@ class SafeConfluenceApi:
             for tl in soup.find_all("ac:task-list"):
                 if not tl.find("ac:task"):
                     tl.decompose()
-
-            await self.update_page(page_id, page["title"], str(soup))
+            return await self.update_page(page_id, page["title"], str(soup))
         else:
             logger.warning(
                 f"No tasks were replaced on page {page_id}. Skipping update."
             )
+            return False  # Indicate no update was performed
 
     def _generate_jira_macro_html(self, jira_key: str) -> str:
         """

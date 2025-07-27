@@ -1,3 +1,5 @@
+# File: test_dependencies.py
+
 from unittest.mock import AsyncMock
 
 import httpx  # Import httpx here
@@ -210,35 +212,31 @@ async def test_get_sync_task_orchestrator(mock_https_helper):
     issue_finder_service = get_issue_finder_service(
         safe_jira_api=get_safe_jira_api(https_helper=get_https_helper())
     )
-    confluence_issue_updater_service = get_confluence_issue_updater_service(
-        safe_confluence_api=get_safe_confluence_api(https_helper=get_https_helper()),
-        safe_jira_api=get_safe_jira_api(https_helper=get_https_helper()),
-        issue_finder_service=get_issue_finder_service(
-            safe_jira_api=get_safe_jira_api(https_helper=get_https_helper())
-        ),
-    )
+    # Note: confluence_issue_updater_service is no longer a direct dependency of SyncTaskOrchestrator's __init__
+    # if you followed the previous refactoring steps to remove it.
+    # If it's still there in your actual SyncTaskOrchestrator's __init__,
+    # you'll need to uncomment the lines in dependencies.py and here.
+    # Assuming it's removed for brevity and focus as per prior discussion.
+    # confluence_issue_updater_service = get_confluence_issue_updater_service(...)
 
     orchestrator = get_sync_task_orchestrator(
         confluence_service=confluence_service,
         jira_service=jira_service,
         issue_finder_service=issue_finder_service,
-        confluence_issue_updater_service=confluence_issue_updater_service,
+        # confluence_issue_updater_service=confluence_issue_updater_service, # Removed
     )
     assert isinstance(orchestrator, SyncTaskOrchestrator)
     # Check dependencies
     assert orchestrator.confluence_service is confluence_service
     assert orchestrator.jira_service is jira_service
     assert orchestrator.issue_finder_service is issue_finder_service
-    assert (
-        orchestrator.confluence_issue_updater_service
-        is confluence_issue_updater_service
-    )
+    # assert orchestrator.confluence_issue_updater_service is confluence_issue_updater_service # Removed assertion
     # Test caching
     orchestrator2 = get_sync_task_orchestrator(
         confluence_service=confluence_service,
         jira_service=jira_service,
         issue_finder_service=issue_finder_service,
-        confluence_issue_updater_service=confluence_issue_updater_service,
+        # confluence_issue_updater_service=confluence_issue_updater_service, # Removed
     )
     assert orchestrator is orchestrator2
 

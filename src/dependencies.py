@@ -204,9 +204,6 @@ def get_sync_task_orchestrator(
     confluence_service: ConfluenceService = Depends(get_confluence_service),
     jira_service: JiraService = Depends(get_jira_service),
     issue_finder_service: IssueFinderService = Depends(get_issue_finder_service),
-    confluence_issue_updater_service: ConfluenceIssueUpdaterService = Depends(
-        get_confluence_issue_updater_service
-    ),
 ) -> SyncTaskOrchestrator:
     """
     Provides a singleton instance of the SyncTaskOrchestrator.
@@ -215,8 +212,6 @@ def get_sync_task_orchestrator(
         confluence_service (ConfluenceService): The Confluence service instance.
         jira_service (JiraService): The Jira service instance.
         issue_finder_service (IssueFinderService): The issue finder service instance.
-        confluence_issue_updater_service (ConfluenceIssueUpdaterService):
-            The updater service.
 
     Returns:
         SyncTaskOrchestrator: The shared instance of the sync task orchestrator.
@@ -225,7 +220,6 @@ def get_sync_task_orchestrator(
         confluence_service,
         jira_service,
         issue_finder_service,
-        confluence_issue_updater_service,
     )
 
 

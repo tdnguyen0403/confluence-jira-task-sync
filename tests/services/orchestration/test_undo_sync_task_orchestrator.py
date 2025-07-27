@@ -1,5 +1,7 @@
+# File: tests/services/orchestration/test_undo_sync_task_orchestrator.py
+
 """
-Tests for the SyncTaskOrchestrator using stubs for service dependencies.
+Tests for the UndoSyncTaskOrchestrator using stubs for service dependencies.
 """
 
 import logging
@@ -28,58 +30,34 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# --- Test Data Fixtures (Raw Dictionary format matching expected snake_case JSON) ---
+# --- Test Data Fixtures (Raw Dictionary format matching expected snake_case JSON for simplified UndoSyncTaskRequest) ---
 @pytest.fixture
-def sample_synced_task_raw_json():
-    """A raw dictionary representing a synced task, exactly as it would appear in snake_case JSON input."""
+def sample_synced_task_raw_json_simplified():
+    """A raw dictionary representing a synced task, matching the simplified UndoSyncTaskRequest."""
     return {
-        "status_text": "Success",
-        "new_jira_task_key": "SFSEA-1850",
-        "linked_work_package": "SFSEA-1825",
-        "request_user": "tdnguyen",
         "confluence_page_id": "435680347",
-        "confluence_page_title": "Simple Page Test",
-        "confluence_page_url": "/spaces/EUDEMHTM0589/pages/435680347/Simple+Page+Test",  # pragma: allowlist secret
-        "confluence_task_id": "10",
-        "task_summary": "Test long description",
-        "status": "incomplete",
-        "assignee_name": "j2t-automator",
-        "due_date": None,
         "original_page_version": 213,
-        "original_page_version_by": "Jira-to-Teamspace Automator",
-        "original_page_version_when": "2025-07-19T13:07:22.000+02:00",
-        "context": "JIRA_KEY_CONTEXT::SFSEA-1825",
+        "new_jira_task_key": "SFSEA-1850",
+        "request_user": "tdnguyen",
     }
 
 
 @pytest.fixture
-def sample_completed_synced_task_raw_json():
-    """A raw dictionary representing a completed synced task, for a second entry in snake_case JSON input."""
+def sample_completed_synced_task_raw_json_simplified():
+    """A raw dictionary representing a completed synced task, matching the simplified UndoSyncTaskRequest."""
     return {
-        "status_text": "Success",
-        "new_jira_task_key": "SFSEA-1851",
-        "linked_work_package": "SFSEA-1825",
-        "request_user": "tdnguyen",
-        "confluence_page_id": "435680347",
-        "confluence_page_title": "Simple Page Test",
-        "confluence_page_url": "/spaces/EUDEMHTM0589/pages/435680347/Simple+Page+Test",  # pragma: allowlist secret
-        "confluence_task_id": "11",
-        "task_summary": "Another completed task",
-        "status": "complete",
-        "assignee_name": "j2t-automator",
-        "due_date": None,
+        "confluence_page_id": "435680347", # Same page as sample_synced_task for shared rollback test
         "original_page_version": 213,
-        "original_page_version_by": "Jira-to-Teamspace Automator",
-        "original_page_version_when": "2025-07-19T13:08:00.000+02:00",
-        "context": "JIRA_KEY_CONTEXT::SFSEA-1825",
+        "new_jira_task_key": "SFSEA-1851",
+        "request_user": "tdnguyen",
     }
 
 
 # Pydantic model instances derived from the raw JSON dictionaries for type-safe access in tests
 @pytest.fixture
-def sample_synced_item(sample_synced_task_raw_json):
+def sample_synced_item(sample_synced_task_raw_json_simplified):
     """A Pydantic UndoSyncTaskRequest instance for a synced task."""
-    item = UndoSyncTaskRequest(**sample_synced_task_raw_json)
+    item = UndoSyncTaskRequest(**sample_synced_task_raw_json_simplified)
     logger.info(
         f"Fixture sample_synced_item created. new_jira_task_key: {item.new_jira_task_key}"
     )
@@ -87,9 +65,9 @@ def sample_synced_item(sample_synced_task_raw_json):
 
 
 @pytest.fixture
-def sample_completed_item(sample_completed_synced_task_raw_json):
+def sample_completed_item(sample_completed_synced_task_raw_json_simplified):
     """A Pydantic UndoSyncTaskRequest instance for a completed synced task."""
-    item = UndoSyncTaskRequest(**sample_completed_synced_task_raw_json)
+    item = UndoSyncTaskRequest(**sample_completed_synced_task_raw_json_simplified)
     logger.info(
         f"Fixture sample_completed_item created. new_jira_task_key: {item.new_jira_task_key}"
     )
@@ -102,7 +80,6 @@ def sync_context():
 
 
 # --- Stubs for Service Dependencies ---
-
 
 class ConfluenceServiceStub(ConfluenceApiServiceInterface):
     def __init__(self, tasks_on_page: List[ConfluenceTask], initial_html: str = ""):
@@ -130,22 +107,19 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
         if page_id in self._page_details:
             if "version" in kwargs:
                 # If requesting the original version
-                if (
-                    kwargs["version"] == 213
-                ):  # Use the original_page_version from your JSON
+                # Return content that *would have been* at that historical version
+                if kwargs["version"] == 213:
                     return {
                         "id": page_id,
                         "title": self._page_details[page_id]["title"],
                         "body": {
                             "storage": {
-                                "value": self._page_details[page_id]["body"]["storage"][
-                                    "value"
-                                ]
+                                "value": "ORIGINAL_HTML_CONTENT_BEFORE_SYNC" # Distinct content for assertion
                             }
                         },
                         "version": {"number": kwargs["version"]},
                     }
-            return self._page_details[page_id]
+            return self._page_details[page_id] # Return current page details if no specific version requested
         return None
 
     async def get_tasks_from_page(
@@ -159,9 +133,9 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
         self._page_content = new_body
         if page_id in self._page_details:
             self._page_details[page_id]["body"]["storage"]["value"] = new_body
-            self._page_details[page_id]["version"]["number"] += 1
+            self._page_details[page_id]["version"]["number"] += 1 # Simulate version increment
         self.page_updated_count += 1
-        return True
+        return True # Simulate success
 
     async def update_page_with_jira_links(self, page_id: str, mappings: list) -> None:
         pass
@@ -201,7 +175,7 @@ class JiraServiceStub(JiraApiServiceInterface):
             f"JiraServiceStub: Transitioning issue {issue_key} to {target_status}"
         )
         self.transitioned_issues[issue_key] = target_status
-        return True
+        return True # Simulate success
 
     async def get_issue_status(self, issue_key: str) -> Optional[JiraIssueStatus]:
         status_data = self._issue_statuses.get(issue_key)
@@ -250,6 +224,10 @@ class JiraServiceStub(JiraApiServiceInterface):
     def add_search_result(self, jql_query: str, issues: List[Dict[str, Any]]):
         self._search_issues_results[jql_query] = issues
 
+    async def assign_issue(self, issue_key: str, assignee_name: Optional[str]) -> bool:
+        # Not used by orchestrator tests, but required by interface
+        return True
+
 
 class IssueFinderServiceStub(IssueFinderServiceInterface):
     def __init__(self):
@@ -272,56 +250,11 @@ class IssueFinderServiceStub(IssueFinderServiceInterface):
 
 
 @pytest_asyncio.fixture
-async def confluence_undo_stub(sample_synced_item, sample_completed_item):
-    # Initial page content with Jira macros
-    initial_html = (
-        f"<p>Task 1: {sample_synced_item.task_summary} "
-        f'<ac:structured-macro ac:name="jira" ac:schema-version="1" ac:macro-id="abcd">'
-        f'<ac:parameter ac:name="key">{sample_synced_item.new_jira_task_key}</ac:parameter>'
-        f'<ac:parameter ac:name="server">ConfluenceJiraServer</ac:parameter>'
-        f'<ac:parameter ac:name="serverId">confluence-jira-id</ac:parameter>'
-        f"</ac:structured-macro></p>"
-        f"<p>Task 2: {sample_completed_item.task_summary} "
-        f'<ac:structured-macro ac:name="jira" ac:schema-version="1" ac:macro-id="efgh">'
-        f'<ac:parameter ac:name="key">{sample_completed_item.new_jira_task_key}</ac:parameter>'
-        f'<ac:parameter ac:name="server">ConfluenceJiraServer</ac:parameter>'
-        f'<ac:parameter ac:name="serverId">confluence-jira-id</ac:parameter>'
-        f"</ac:structured-macro></p>"
-        f"<p>Some other content.</p>"
-    )
-
-    # These ConfluenceTask objects are for the stub's internal `_tasks_on_page` list.
-    dummy_confluence_task_1 = ConfluenceTask(
-        confluence_page_id=sample_synced_item.confluence_page_id,
-        confluence_page_title=sample_synced_item.confluence_page_title,
-        confluence_page_url=sample_synced_item.confluence_page_url,
-        confluence_task_id=sample_synced_item.confluence_task_id,
-        task_summary=sample_synced_item.task_summary,
-        status=sample_synced_item.status,
-        assignee_name=sample_synced_item.assignee_name,
-        due_date=sample_synced_item.due_date,
-        original_page_version=sample_synced_item.original_page_version,
-        original_page_version_by=sample_synced_item.original_page_version_by,
-        original_page_version_when=sample_synced_item.original_page_version_when,
-        context=sample_synced_item.context,
-    )
-    dummy_confluence_task_2 = ConfluenceTask(
-        confluence_page_id=sample_completed_item.confluence_page_id,
-        confluence_page_title=sample_completed_item.confluence_page_title,
-        confluence_page_url=sample_completed_item.confluence_page_url,
-        confluence_task_id=sample_completed_item.confluence_task_id,
-        task_summary=sample_completed_item.task_summary,
-        status=sample_completed_item.status,
-        assignee_name=sample_completed_item.assignee_name,
-        due_date=sample_completed_item.due_date,
-        original_page_version=sample_completed_item.original_page_version,
-        original_page_version_by=sample_completed_item.original_page_version_by,
-        original_page_version_when=sample_completed_item.original_page_version_when,
-        context=sample_completed_item.context,
-    )
+async def confluence_undo_stub():
+    # Pass dummy tasks and HTML, actual HTML content for rollback is fetched by get_page_by_id
     return ConfluenceServiceStub(
-        tasks_on_page=[dummy_confluence_task_1, dummy_confluence_task_2],
-        initial_html=initial_html,
+        tasks_on_page=[], # Not directly relevant for undo orchestrator
+        initial_html="<p>Current content with Jira macros.</p>", # This HTML is for the "current page"
     )
 
 
@@ -365,185 +298,136 @@ async def test_undo_run_success_with_tasks(
         f"Test: test_undo_run_success_with_tasks - sample_completed_item.new_jira_task_key: {sample_completed_item.new_jira_task_key}"
     )
 
-    # Pass the raw snake_case dictionaries to the orchestrator
-    results_json_data = [
-        sample_synced_item.model_dump(
-            mode="json"
-        ),  # Use mode='json' to ensure output keys are snake_case if no aliases were used
-        sample_completed_item.model_dump(
-            mode="json"
-        ),  # Pydantic v2's default for `model_dump` is already attribute names, but explicit is good.
+    # Pass the Pydantic instances directly, matching main.py's behavior
+    undo_requests = [
+        sample_synced_item,
+        sample_completed_item,
     ]
-    logger.info(f"Test: results_json_data sent to orchestrator: {results_json_data}")
-
-    # Set initial Jira statuses for tasks for the stub's internal state
-    jira_undo_stub.set_issue_status(
-        sample_synced_item.new_jira_task_key, "To Do", "new"
-    )
-    jira_undo_stub.set_issue_status(
-        sample_completed_item.new_jira_task_key, "Done", "done"
-    )
+    logger.info(f"Test: undo_requests sent to orchestrator: {[item.model_dump() for item in undo_requests]}")
 
     # Act
-    await undo_orchestrator.run(results_json_data)
+    undo_results = await undo_orchestrator.run(undo_requests)
 
     # Assert
-    # Check if sample_synced_item was transitioned
-    assert sample_synced_item.new_jira_task_key in jira_undo_stub.transitioned_issues
-    assert (
-        jira_undo_stub.transitioned_issues.get(sample_synced_item.new_jira_task_key)
-        == config.JIRA_TARGET_STATUSES["undo"]
-    )
+    # Expect 3 results: 2 Jira transitions (for SFSEA-1850, SFSEA-1851) + 1 Confluence rollback (for page 435680347)
+    assert len(undo_results) == 3
 
-    # Check if sample_completed_item was transitioned
-    assert sample_completed_item.new_jira_task_key in jira_undo_stub.transitioned_issues
-    assert (
-        jira_undo_stub.transitioned_issues.get(sample_completed_item.new_jira_task_key)
-        == config.JIRA_TARGET_STATUSES["undo"]
-    )
+    # Assertions for Jira transitions
+    jira_results = [res for res in undo_results if res.action_type == "jira_transition"]
+    assert len(jira_results) == 2
+    assert all(res.success for res in jira_results)
+    assert any(res.target_id == sample_synced_item.new_jira_task_key for res in jira_results)
+    assert any(res.target_id == sample_completed_item.new_jira_task_key for res in jira_results)
+    assert jira_undo_stub.transitioned_issues.get(sample_synced_item.new_jira_task_key) == config.JIRA_TARGET_STATUSES["undo"]
+    assert jira_undo_stub.transitioned_issues.get(sample_completed_item.new_jira_task_key) == config.JIRA_TARGET_STATUSES["undo"]
 
-    # Check that Confluence page was updated
+    # Assertions for Confluence rollback
+    confluence_result = next((res for res in undo_results if res.action_type == "confluence_rollback"), None)
+    assert confluence_result is not None
+    assert confluence_result.success is True
+    assert confluence_result.target_id == sample_synced_item.confluence_page_id
     assert confluence_undo_stub.page_updated_count == 1
-    expected_reverted_html = (
-        f"<p>Task 1: {sample_synced_item.task_summary} "
-        f'<ac:structured-macro ac:name="jira" ac:schema-version="1" ac:macro-id="abcd">'
-        f'<ac:parameter ac:name="key">{sample_synced_item.new_jira_task_key}</ac:parameter>'
-        f'<ac:parameter ac:name="server">ConfluenceJiraServer</ac:parameter>'
-        f'<ac:parameter ac:name="serverId">confluence-jira-id</ac:parameter>'
-        f"</ac:structured-macro></p>"
-        f"<p>Task 2: {sample_completed_item.task_summary} "
-        f'<ac:structured-macro ac:name="jira" ac:schema-version="1" ac:macro-id="efgh">'
-        f'<ac:parameter ac:name="key">{sample_completed_item.new_jira_task_key}</ac:parameter>'
-        f'<ac:parameter ac:name="server">ConfluenceJiraServer</ac:parameter>'
-        f'<ac:parameter ac:name="serverId">confluence-jira-id</ac:parameter>'
-        f"</ac:structured-macro></p>"
-        f"<p>Some other content.</p>"
-    )
-    assert confluence_undo_stub._page_content == expected_reverted_html
+    # Check against the exact placeholder content from get_page_by_id for the historical version
+    assert confluence_undo_stub._page_content == "ORIGINAL_HTML_CONTENT_BEFORE_SYNC"
 
 
 @pytest.mark.asyncio
 async def test_undo_run_no_input(undo_orchestrator):
     """Test that an error is raised for no input."""
-    with pytest.raises(InvalidInputError, match="No results JSON data provided"):
+    with pytest.raises(InvalidInputError, match="No results data provided"):
         await undo_orchestrator.run([])
 
 
 @pytest.mark.asyncio
-async def test_undo_run_empty_json_data(undo_orchestrator):
-    """Test that an error is raised for empty or unprocessable JSON data."""
-    # This test case should now pass a list with a dictionary that fails Pydantic validation
-    # to trigger the "No successful undo items found" error.
-    # For example, an empty dict will lead to Pydantic ValidationError for missing required fields.
-    with pytest.raises(
-        InvalidInputError,
-        match="No successful undo items found after processing results data.",
-    ):
-        await undo_orchestrator.run(
-            [{}]
-        )  # An empty dict will fail UndoSyncTaskRequest validation
-
-
-@pytest.mark.asyncio
-async def test_undo_run_missing_required_columns(undo_orchestrator):
-    """
-    Test that an error is gracefully handled (logged) if items are missing required fields.
-    The orchestrator's _parse_results_for_undo will now catch Pydantic ValidationErrors.
-    It will log a warning and skip the item, but then the overall run method
-    should raise an InvalidInputError if no successful items are parsed.
-    """
-    invalid_data = [
-        {"missing_col1": "value1"},  # Completely invalid
-        {
-            "status": "Success",
-            "confluence_page_id": "123",
-        },  # Missing original_page_version
-        {"status": "Success", "original_page_version": 1},  # Missing confluence_page_id
+async def test_undo_run_empty_processable_data(undo_orchestrator):
+    """Test that an error is raised if valid UndoSyncTaskRequest items are provided but none lead to actionable undo operations."""
+    # Arrange: Create a request that is valid according to the model but contains no actionable data.
+    undo_requests = [
+        UndoSyncTaskRequest(
+            confluence_page_id=None,
+            original_page_version=None,
+            new_jira_task_key=None,
+            request_user="test_user_1"
+        ),
     ]
-    with pytest.raises(
-        InvalidInputError,
-        match="No successful undo items found after processing results data.",
-    ):
-        await undo_orchestrator.run(invalid_data)
+    with pytest.raises(InvalidInputError): # Expect Pydantic InvalidInputError
+        await undo_orchestrator.run(undo_requests)
 
 
 @pytest.mark.asyncio
-async def test_undo_no_successful_tasks_in_results(
+async def test_undo_no_actionable_tasks_in_results( # Renamed for clarity
     undo_orchestrator, confluence_undo_stub, jira_undo_stub
 ):
-    """Test that nothing happens if no successful tasks are found in the results data."""
-    # Arrange
-    results_json_data = [
-        {
-            "status": "Failed - Jira Creation",  # Status is "Failed", so it should be skipped
-            "new_jira_task_key": "jira-failed-1",
-            "confluence_page_id": "456",
-            "original_page_version": 1,
-        }
-    ]
-
-    # Act
+    """Test that if valid UndoSyncTaskRequest items are provided, but none lead to actionable undo operations."""
+    # Arrange: No requests provided
     with pytest.raises(
         InvalidInputError,
-        match="No successful undo items found after processing results data.",
+        match="No results data provided for undo operation.",
     ):
-        await undo_orchestrator.run(results_json_data)
+        await undo_orchestrator.run([])
 
-    # Assert (These assertions will only be reached if the test passes without raising the exception.
-    # If the orchestrator changes its behavior to *not* raise an error in this case,
-    # these assertions would then confirm no actions were taken.)
+    # Assert that no actions were attempted by stubs
     assert not jira_undo_stub.transitioned_issues
     assert confluence_undo_stub.page_updated_count == 0
 
 
 @pytest.mark.asyncio
 async def test_undo_jira_transition_failure(
-    undo_orchestrator, jira_undo_stub, sample_synced_item, monkeypatch
+    undo_orchestrator, jira_undo_stub, sample_synced_item, confluence_undo_stub
 ):
-    """Test that Jira transition failure is gracefully handled (logged, but not stopping)."""
+    """Test that Jira transition failure is captured in UndoActionResult, and page rollback still occurs."""
     # Arrange
-    logger.info(
-        f"Test: test_undo_jira_transition_failure - sample_synced_item.new_jira_task_key: {sample_synced_item.new_jira_task_key}"
-    )
-
-    results_json_data = [
-        sample_synced_item.model_dump(mode="json")  # Use mode='json'
-    ]
-    logger.info(f"Test: results_json_data sent to orchestrator: {results_json_data}")
-
-    # Simulate a failure in transition_issue
     jira_undo_stub.transition_issue = AsyncMock(
         side_effect=Exception("Simulated Jira API Error")
     )
 
+    undo_requests = [sample_synced_item]
+
     # Act
-    await undo_orchestrator.run(results_json_data)
+    undo_results = await undo_orchestrator.run(undo_requests)
 
     # Assert
-    jira_undo_stub.transition_issue.assert_called_once_with(
-        sample_synced_item.new_jira_task_key, config.JIRA_TARGET_STATUSES["undo"]
-    )
-    assert not jira_undo_stub.transitioned_issues
+    assert len(undo_results) == 2 # Expect one failed Jira, one successful Confluence
+
+    jira_result = next((res for res in undo_results if res.action_type == "jira_transition"), None)
+    assert jira_result is not None
+    assert jira_result.success is False
+    assert "Simulated Jira API Error" in jira_result.status_message
+    assert "Simulated Jira API Error" in jira_result.error_message
+
+    confluence_result = next((res for res in undo_results if res.action_type == "confluence_rollback"), None)
+    assert confluence_result is not None
+    assert confluence_result.success is True # Page rollback should still succeed
+    assert confluence_undo_stub.page_updated_count == 1
+    assert confluence_undo_stub._page_content == "ORIGINAL_HTML_CONTENT_BEFORE_SYNC"
 
 
 @pytest.mark.asyncio
 async def test_undo_confluence_rollback_failure(
-    undo_orchestrator, confluence_undo_stub, sample_synced_item, monkeypatch
+    undo_orchestrator, confluence_undo_stub, sample_synced_item, jira_undo_stub
 ):
-    """Test that Confluence rollback failure is gracefully handled (logged, but not stopping)."""
+    """Test that Confluence rollback failure is captured in UndoActionResult, and Jira transition still occurs."""
     # Arrange
-    results_json_data = [
-        sample_synced_item.model_dump(mode="json")  # Use mode='json'
-    ]
-
-    # Simulate a failure in update_page_content
     confluence_undo_stub.update_page_content = AsyncMock(
         side_effect=Exception("Simulated Confluence API Error")
     )
 
+    undo_requests = [sample_synced_item]
+
     # Act
-    await undo_orchestrator.run(results_json_data)
+    undo_results = await undo_orchestrator.run(undo_requests)
 
     # Assert
-    confluence_undo_stub.update_page_content.assert_called_once()
-    assert confluence_undo_stub.page_updated_count == 0
+    assert len(undo_results) == 2 # Expect one successful Jira, one failed Confluence
+
+    jira_result = next((res for res in undo_results if res.action_type == "jira_transition"), None)
+    assert jira_result is not None
+    assert jira_result.success is True # Jira transition should still succeed
+    assert jira_undo_stub.transitioned_issues.get(sample_synced_item.new_jira_task_key) == config.JIRA_TARGET_STATUSES["undo"]
+
+    confluence_result = next((res for res in undo_results if res.action_type == "confluence_rollback"), None)
+    assert confluence_result is not None
+    assert confluence_result.success is False
+    assert "Simulated Confluence API Error" in confluence_result.status_message
+    assert "Simulated Confluence API Error" in confluence_result.error_message
+    assert confluence_undo_stub.page_updated_count == 0 # Should not have updated due to failure

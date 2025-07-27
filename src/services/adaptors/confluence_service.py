@@ -108,15 +108,17 @@ class ConfluenceService(ConfluenceApiServiceInterface):
 
     async def update_page_with_jira_links(
         self, page_id: str, mappings: List[Dict]
-    ) -> None:
+    ) -> bool:
         """
         Delegates updating a page with Jira links to the API layer.
 
         Args:
             page_id (str): The ID of the page to update.
             mappings (List[Dict]): A list mapping Confluence task IDs to Jira keys.
+        Returns:
+            bool: True if the update was successful, False otherwise.
         """
-        await self._api.update_page_with_jira_links(page_id, mappings)
+        return await self._api.update_page_with_jira_links(page_id, mappings)
 
     async def create_page(self, **kwargs) -> Optional[Dict[str, Any]]:
         """
