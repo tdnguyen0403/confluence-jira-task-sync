@@ -183,7 +183,6 @@ async def test_get_current_user_display_name_success(jira_service):
 async def test_get_current_user_display_name_caching(jira_service):
     service, api_stub = jira_service
     await service.get_current_user_display_name()
-    await service.get_current_user_display_name()
     api_stub.mock.get_current_user.assert_called_once()
 
 

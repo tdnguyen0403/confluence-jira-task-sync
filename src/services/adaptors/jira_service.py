@@ -47,7 +47,6 @@ class JiraService(JiraApiServiceInterface):
                 Jira API wrapper.
         """
         self._api = safe_jira_api
-        self._current_user_name: Optional[str] = None
 
     async def get_issue(
         self, issue_key: str, fields: str = "*all"
@@ -123,13 +122,11 @@ class JiraService(JiraApiServiceInterface):
         Returns:
             str: The user's display name, or 'Unknown User' as a fallback.
         """
-        if self._current_user_name is None:
-            user_details = await self._api.get_current_user()
-            if user_details and "displayName" in user_details:
-                self._current_user_name = user_details["displayName"]
-            else:
-                self._current_user_name = "Unknown User"
-        return self._current_user_name
+        user_details = await self._api.get_current_user()
+        if user_details and "displayName" in user_details:
+            return user_details["displayName"]
+        else:
+            return "Unknown User"
 
     async def prepare_jira_task_fields(
         self,
