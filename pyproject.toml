@@ -69,8 +69,8 @@ addopts = "--cov=. --cov-branch --cov-report=term-missing --cov-report=html:html
 omit = [
     "*/__init__.py", # Excludes all __init__.py files
     "tests/*",       # Excludes all tests
-    "venv/*",        # Example: Exclude virtual environment files
-    "src/end_to_end_test.py" #Exclude the end-to-end test
+    "venv/*",        # Exclude virtual environment files
+    "scripts/*"      # exclude all scripts
 ]
 
 [tool.coverage.report]

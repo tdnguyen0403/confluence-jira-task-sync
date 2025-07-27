@@ -1,4 +1,6 @@
-# File: end_to_end_test.py
+# To test the end-to-end functionality
+# of the Jira and Confluence integration,
+# including syncing projects, tasks, and undoing syncs.
 
 import asyncio
 import json
