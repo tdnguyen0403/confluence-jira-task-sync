@@ -21,8 +21,8 @@ from src.exceptions import (
 )
 from src.main import app
 from src.models.api_models import (
-    SyncProjectResult,
-    SyncTaskResult,
+    SinglePageResult,
+    SingleTaskResult,
 )
 from src.models.data_models import ConfluenceTask
 
@@ -33,7 +33,7 @@ def mock_sync_orchestrator():
     """Mocks the SyncTaskOrchestrator."""
     mock_orch = AsyncMock()
     mock_orch.run.return_value = [
-        SyncTaskResult(
+        SingleTaskResult(
             task_data=ConfluenceTask(
                 confluence_page_id="p1",
                 confluence_page_title="P1 Title",
@@ -66,7 +66,7 @@ def mock_confluence_issue_updater_service():
     """Mocks the ConfluenceIssueUpdaterService."""
     mock_service = AsyncMock()
     mock_service.update_confluence_hierarchy_with_new_jira_project.return_value = [
-        SyncProjectResult(
+        SinglePageResult(
             page_id="123",
             page_title="sample title",
             new_jira_keys=["JIRA-100", "JIRA-200"],

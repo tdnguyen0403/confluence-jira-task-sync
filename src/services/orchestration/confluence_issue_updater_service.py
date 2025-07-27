@@ -16,7 +16,7 @@ from src.config import config
 from src.exceptions import InvalidInputError
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.models.api_models import SyncProjectResult
+from src.models.api_models import SinglePageResult
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class ConfluenceIssueUpdaterService:
         self,
         project_page_url: str,
         project_key: str,
-    ) -> List[SyncProjectResult]:
+    ) -> List[SinglePageResult]:
         """
         Updates Jira issue macros on a Confluence page hierarchy concurrently.
         """
@@ -95,7 +95,7 @@ class ConfluenceIssueUpdaterService:
         # Filter out None results and log any exceptions
         updated_pages_summary = []
         for result in results:
-            if isinstance(result, SyncProjectResult):
+            if isinstance(result, SinglePageResult):
                 updated_pages_summary.append(result)
             elif isinstance(result, Exception):
                 logger.error(
@@ -112,7 +112,7 @@ class ConfluenceIssueUpdaterService:
         candidate_new_issues: List[Dict[str, Any]],
         target_issue_type_ids: Set[str],
         project_key: str,
-    ) -> Optional[SyncProjectResult]:
+    ) -> Optional[SinglePageResult]:
         """
         Processes a single Confluence page to find and replace Jira macros.
         Returns a summary object if the page was successfully updated.
@@ -147,7 +147,7 @@ class ConfluenceIssueUpdaterService:
                 page_id, page_details["title"], modified_html
             )
             if success:
-                return SyncProjectResult(
+                return SinglePageResult(
                     page_id=page_id,
                     page_title=page_details.get("title", "N/A"),
                     new_jira_keys=[

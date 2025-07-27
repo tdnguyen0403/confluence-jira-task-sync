@@ -210,7 +210,7 @@ async def run_end_to_end_test():
             return
 
         # The API expects a list of UndoSyncTaskRequest,
-        # which is a flattened version of SyncTaskResult
+        # which is a flattened version of SingleTaskResult
         undo_payload = []
         for result_item in sync_task_results_for_undo:
             flattened_item = {

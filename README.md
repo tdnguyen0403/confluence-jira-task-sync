@@ -36,7 +36,7 @@ The tool is designed with a clear separation of concerns, making it easy to unde
 -   **API Wrappers**: The tool uses low-level, resilient API wrappers for Jira and Confluence around a helper function. The helper function uses asynchronous method from `httpx` library to directly communicate to Jira & Confluence server asynchronously to improve future ascalability.
 -   **Services**: Low-level services include API wrapper & business logic is implemented in services for Confluence, Jira, and for finding issues on a page. There are also high-level orchestration services to coordinate all lower services.
 -   **Interface**: The application uses interfaces to ensure high level services does not depend on lower level service implementation. It helps to achieve Dependency Inversion for better scalability in the future.
--   **Data Models**: The application uses `pydantic` to represent the core entities, such as `ConfluenceTask` and `SyncTaskResult`.
+-   **Data Models**: The application uses `pydantic` to represent the core entities, such as `ConfluenceTask` and `SingleTaskResult`.
 -   **Utilities**: The tool includes utility functions for common tasks like logging and extracting the context of a task from a Confluence page.
 
 ### Execution Flow

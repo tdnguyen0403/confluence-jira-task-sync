@@ -68,7 +68,7 @@ class UndoSyncTaskRequest(BaseModel):
         new_jira_task_key (Optional[str]): The key of the Jira task to be deleted.
         linked_work_package (Optional[str]): The parent work package (for logging).
         request_user (Optional[str]): The user who requested the original sync.
-        (and other fields from the flattened SyncTaskResult)
+        (and other fields from the flattened SingleTaskResult)
     """
 
     status_text: str
@@ -133,7 +133,7 @@ class SyncProjectRequest(BaseModel):
 # ---API Response Models---#
 
 
-class SyncTaskResult(BaseModel):
+class SingleTaskResult(BaseModel):
     """
     Represents the final outcome of processing a single Confluence task.
 
@@ -188,11 +188,11 @@ class SyncTaskResponse(BaseModel):
     Attributes:
         request_id (str): A unique identifier for the synchronization request.
         results (List[Dict[str, Any]]): A list of dictionaries, each representing
-            an `SyncTaskResult`.
+            an `SingleTaskResult`.
     """
 
     request_id: str
-    results: List[SyncTaskResult]
+    results: List[SingleTaskResult]
 
 
 class UndoSyncTaskResponse(BaseModel):
@@ -209,7 +209,7 @@ class UndoSyncTaskResponse(BaseModel):
     detail: str
 
 
-class SyncProjectResult(BaseModel):
+class SinglePageResult(BaseModel):
     """
     Represents the result of updating a single Confluence page during a project sync.
 
@@ -238,9 +238,9 @@ class SyncProjectResponse(BaseModel):
 
     Attributes:
         request_id (str): A unique identifier for the project sync request.
-        results (List[SyncProjectResult]): A list of details for each page
+        results (List[SinglePageResult]): A list of details for each page
             that was updated.
     """
 
     request_id: str
-    results: List[SyncProjectResult]
+    results: List[SinglePageResult]

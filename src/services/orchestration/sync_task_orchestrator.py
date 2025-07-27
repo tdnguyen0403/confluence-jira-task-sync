@@ -12,7 +12,7 @@ from src.interfaces.issue_finder_service_interface import (
     IssueFinderServiceInterface,
 )
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
-from src.models.api_models import SyncTaskContext, SyncTaskResult
+from src.models.api_models import SingleTaskResult, SyncTaskContext
 from src.models.data_models import ConfluenceTask
 
 logger = logging.getLogger(__name__)
@@ -78,7 +78,7 @@ class SyncTaskOrchestrator:
                 "No 'confluence_page_urls' found in the input for sync operation."
             )
 
-        current_run_results: List[SyncTaskResult] = []
+        current_run_results: List[SingleTaskResult] = []
 
         for url in page_urls:
             current_run_results = await self.process_page_hierarchy(url, context)
@@ -173,7 +173,7 @@ class SyncTaskOrchestrator:
 
     async def _process_single_task(
         self, task: ConfluenceTask, context: SyncTaskContext
-    ) -> SyncTaskResult:
+    ) -> SingleTaskResult:
         """Helper method to process a single Confluence task."""
         logging.info(
             f"\nProcessing task: '{task.task_summary}' from page ID: "
@@ -184,7 +184,7 @@ class SyncTaskOrchestrator:
             logger.warning(
                 "Skipping empty task on page ID: %s.", task.confluence_page_id
             )
-            return SyncTaskResult(
+            return SingleTaskResult(
                 task_data=task,
                 status_text="Skipped - Empty Task",
                 request_user=context.request_user,
@@ -203,7 +203,7 @@ class SyncTaskOrchestrator:
                 f"on page ID: {task.confluence_page_id} - No Work Package found."
             )
             logger.error(f"ERROR: {error_msg}")
-            return SyncTaskResult(
+            return SingleTaskResult(
                 task_data=task,
                 status_text="Skipped - No Work Package found",
                 request_user=context.request_user,
@@ -220,7 +220,7 @@ class SyncTaskOrchestrator:
                 f"is not a dictionary. Type: {type(closest_wp)}. Data: {closest_wp}"
             )
             logger.error(f"CRITICAL ERROR: {error_msg}")
-            return SyncTaskResult(
+            return SingleTaskResult(
                 task_data=task,
                 status_text="Failed - Malformed Work Package data",
                 request_user=context.request_user,
@@ -234,7 +234,7 @@ class SyncTaskOrchestrator:
                 f"is missing 'key' field. Data: {closest_wp}"
             )
             logger.error(f"CRITICAL ERROR: {error_msg}")
-            return SyncTaskResult(
+            return SingleTaskResult(
                 task_data=task,
                 status_text="Failed - Work Package key missing",
                 request_user=context.request_user,
@@ -312,7 +312,7 @@ class SyncTaskOrchestrator:
                     f"Issue {new_issue_key} created with assignee from Work Package: "
                     f"{assignee_from_wp}."
                 )
-            return SyncTaskResult(
+            return SingleTaskResult(
                 task_data=task,
                 status_text=status_text,
                 new_jira_task_key=new_issue_key,
@@ -327,7 +327,7 @@ class SyncTaskOrchestrator:
                 "Skipping further processing for this task."
             )
             logger.error(f"ERROR: {error_msg}")
-            return SyncTaskResult(
+            return SingleTaskResult(
                 task_data=task,
                 status_text="Failed - Jira task creation",
                 linked_work_package=closest_wp_key,
