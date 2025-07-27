@@ -140,16 +140,27 @@ class SyncTaskOrchestrator:
         return jira_creation_results, page_update_results
 
     async def _collect_tasks(self, page_ids: List[str]) -> List[ConfluenceTask]:
-        """Collects all tasks from a list of Confluence page IDs asynchronously."""
+        """Collects all tasks from a list of Confluence page IDs concurrently."""
         tasks: List[ConfluenceTask] = []
-        for page_id in page_ids:
-            page_details = await self.confluence_service.get_page_by_id(
+
+        # Create a list of coroutines to fetch all page details concurrently
+        page_detail_coroutines = [
+            self.confluence_service.get_page_by_id(
                 page_id, expand="body.storage,version"
             )
+            for page_id in page_ids
+        ]
+
+        # Execute all coroutines in parallel
+        all_page_details = await asyncio.gather(*page_detail_coroutines)
+
+        # Now, process the results
+        for page_details in all_page_details:
             if page_details:
                 tasks.extend(
                     await self.confluence_service.get_tasks_from_page(page_details)
                 )
+
         return tasks
 
     async def _process_tasks(

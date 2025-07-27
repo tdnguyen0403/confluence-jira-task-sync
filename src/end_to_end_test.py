@@ -80,14 +80,19 @@ async def run_end_to_end_test():
 
         # 3. Sync Project (unchanged)
         logger.info("\n--- Testing /sync_project endpoint ---")
-        sync_project_payload = {
+        sync_project_payload_1 = {
             "project_page_url": "https://pfteamspace.pepperl-fuchs.com/x/OTBhGg",
             "project_key": "SFSEA-1720",
             "request_user": TEST_USER,
         }
+        sync_project_payload_2 = {
+            "project_page_url": "https://pfteamspace.pepperl-fuchs.com/x/OTBhGg",
+            "project_key": "SFSEA-1721",
+            "request_user": TEST_USER,
+        }
         try:
             response = await client.post(
-                "/sync_project", headers=headers, json=sync_project_payload
+                "/sync_project", headers=headers, json=sync_project_payload_1
             )
             response.raise_for_status()
             sync_project_response = response.json()
@@ -99,6 +104,21 @@ async def run_end_to_end_test():
             assert "results" in sync_project_response
             assert isinstance(sync_project_response["results"], list) # Correct for SyncProjectResponse
             logger.info("Sync Project call successful. Verify pages manually.")
+
+            response = await client.post(
+                "/sync_project", headers=headers, json=sync_project_payload_2
+            )
+            response.raise_for_status()
+            sync_project_response = response.json()
+            logger.info(
+                f"Sync Project Response: {json.dumps(sync_project_response, indent=2)}"
+            )
+
+            assert "request_id" in sync_project_response
+            assert "results" in sync_project_response
+            assert isinstance(sync_project_response["results"], list) # Correct for SyncProjectResponse
+            logger.info("Sync Project call successful. Verify pages manually.")
+
         except httpx.HTTPStatusError as e:
             logger.error(
                 f"Request failed with HTTP error: "
@@ -131,7 +151,10 @@ async def run_end_to_end_test():
         # 4. Sync Task
         logger.info("\n--- Testing /sync_task endpoint ---")
         sync_task_payload = {
-            "confluence_page_urls": ["https://pfteamspace.pepperl-fuchs.com/x/W-T3GQ"],
+            "confluence_page_urls": [
+                "https://pfteamspace.pepperl-fuchs.com/x/W-T3GQ",
+                "https://pfteamspace.pepperl-fuchs.com/x/cDDsGg"
+            ],
             "context": {"request_user": TEST_USER, "days_to_due_date": 7},
         }
         try:
