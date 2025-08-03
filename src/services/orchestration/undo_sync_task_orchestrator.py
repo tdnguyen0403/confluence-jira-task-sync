@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Any, Callable, Dict, List, Set, Tuple
+from typing import Any, Callable, Coroutine, Dict, List, Set, Tuple
 
 from src.config import config
 from src.exceptions import InvalidInputError
@@ -37,8 +37,7 @@ class UndoSyncTaskOrchestrator:
         self, undo_requests: List[UndoSyncTaskRequest], request_id: str
     ) -> UndoSyncTaskResponse:
         """
-        Main entry point for the undo workflow. Returns a complete
-        UndoSyncTaskResponse object with the overall status and detailed results.
+        Main entry point for the undo workflow.
         """
         logging.info("\n--- Starting Concurrent Undo Automation Script ---")
 
@@ -46,34 +45,15 @@ class UndoSyncTaskOrchestrator:
             raise InvalidInputError("No data provided for undo operation.")
 
         jira_keys, pages = self._parse_undo_requests(undo_requests)
-
-        action_coroutines = []
-        for key in jira_keys:
-            action_coroutines.append(self._transition_jira_task(key))
-        for page_id, version in pages.items():
-            action_coroutines.append(self._rollback_confluence_page(page_id, version))
+        action_coroutines = self._gather_undo_actions(jira_keys, pages)
 
         if not action_coroutines:
             raise InvalidInputError("No valid undo actions could be parsed.")
 
-        # Execute all operations in parallel and collect individual results
-        results = await asyncio.gather(*action_coroutines, return_exceptions=True)
-
-        processed_results: List[UndoActionResult] = []
-        for res in results:
-            if isinstance(res, UndoActionResult):
-                processed_results.append(res)
-            elif isinstance(res, Exception):
-                logger.error(f"Error during undo action: {res}", exc_info=res)
-                processed_results.append(
-                    UndoActionResult(
-                        action_type="unknown_error",
-                        target_id="N/A",
-                        success=False,
-                        status_message=f"An unexpected error occurred: {res}",
-                        error_message=str(res),
-                    )
-                )
+        gathered_results = await asyncio.gather(
+            *action_coroutines, return_exceptions=True
+        )
+        processed_results = self._process_gathered_results(gathered_results)
 
         overall_status = self._determine_overall_status(
             processed_results, lambda r: r.success
@@ -86,11 +66,41 @@ class UndoSyncTaskOrchestrator:
             results=processed_results,
         )
 
+    def _gather_undo_actions(
+        self, jira_keys: Set[str], pages: Dict[str, int]
+    ) -> List[Coroutine]:
+        """Creates a list of coroutines for all undo actions."""
+        coroutines = []
+        for key in jira_keys:
+            coroutines.append(self._transition_jira_task(key))
+        for page_id, version in pages.items():
+            coroutines.append(self._rollback_confluence_page(page_id, version))
+        return coroutines
+
+    def _process_gathered_results(self, results: List[Any]) -> List[UndoActionResult]:
+        """Processes raw results from asyncio.gather into UndoActionResult list."""
+        processed = []
+        for res in results:
+            if isinstance(res, UndoActionResult):
+                processed.append(res)
+            elif isinstance(res, Exception):
+                logger.error(f"Error during undo action: {res}", exc_info=res)
+                processed.append(
+                    UndoActionResult(
+                        action_type="unknown_error",
+                        target_id="N/A",
+                        success=False,
+                        status_message=f"An unexpected error occurred: {res}",
+                        error_message=str(res),
+                    )
+                )
+        return processed
+
     async def _transition_jira_task(self, jira_key: str) -> UndoActionResult:
         """Transitions a single Jira task back to the 'undo' status."""
         target_status = config.JIRA_TARGET_STATUSES["undo"]
         try:
-            logging.info(f"Transitioning Jira issue '{jira_key}' to '{target_status}'.")
+            logging.info(f"Transitioning '{jira_key}' to '{target_status}'.")
             success = await self.jira_service.transition_issue(jira_key, target_status)
             if success:
                 return UndoActionResult(
