@@ -32,9 +32,6 @@ class SyncTaskOrchestrator:
         jira_service: JiraApiServiceInterface,
         issue_finder_service: IssueFinderServiceInterface,
     ):
-        """
-        Initializes the SyncTaskOrchestrator with dependency-injected services.
-        """
         self.confluence_service = confluence_service
         self.jira_service = jira_service
         self.issue_finder_service = issue_finder_service
@@ -47,9 +44,7 @@ class SyncTaskOrchestrator:
         request_id: str,
     ) -> SyncTaskResponse:
         """
-        The main entry point for executing the automation workflow asynchronously.
-        Returns a SyncTaskResponse object containing overall statuses and detailed
-        results for both Jira task creation and Confluence page updates.
+        Main entry point for the automation workflow.
         """
         logging.info("--- Starting Jira/Confluence Automation Script ---")
 
@@ -78,7 +73,6 @@ class SyncTaskOrchestrator:
         confluence_status = self._determine_overall_status(
             all_confluence_results, lambda r: r.updated
         )
-
         overall_status = self._get_final_status(jira_status, confluence_status)
 
         logging.info("\n--- Script Finished ---")
@@ -95,7 +89,7 @@ class SyncTaskOrchestrator:
         self, root_page_url: str, context: SyncTaskContext
     ) -> Tuple[List[JiraTaskCreationResult], List[ConfluencePageUpdateResult]]:
         """
-        Processes a root Confluence page and all of its descendants.
+        Processes a root Confluence page and all its descendants.
         """
         logging.info(f"\nProcessing hierarchy starting from: {root_page_url}")
         root_page_id = await self.confluence_service.get_page_id_from_url(root_page_url)
@@ -224,109 +218,102 @@ class SyncTaskOrchestrator:
     async def _process_single_task(
         self, task: ConfluenceTask, context: SyncTaskContext
     ) -> SingleTaskResult:
-        """Processes a single Confluence task into a Jira issue."""
+        """
+        Orchestrates the processing of a single Confluence task.
+        """
         logging.info(
-            f"\nProcessing task: '{task.task_summary}' from page ID: "
-            f"{task.confluence_page_id}"
+            f"Processing task: '{task.task_summary}' "
+            f"from page ID: {task.confluence_page_id}"
         )
-
         if not task.task_summary or not task.task_summary.strip():
-            logger.warning(
-                "Skipping empty task on page ID: %s.", task.confluence_page_id
-            )
             return SingleTaskResult(
                 task_data=task,
                 status_text="Skipped - Empty Task",
                 request_user=context.request_user,
             )
 
-        closest_wp = await self.issue_finder_service.find_issue_on_page(
+        parent_wp = await self.issue_finder_service.find_issue_on_page(
             task.confluence_page_id,
             config.PARENT_ISSUES_TYPE_ID,
             self.confluence_service,
         )
 
-        if not closest_wp:
-            error_msg = (
-                f"Skipped task '{task.task_summary}' on page ID: "
-                f"{task.confluence_page_id} - No Work Package found."
-            )
-            logger.error(f"ERROR: {error_msg}")
+        if not parent_wp or not parent_wp.get("key"):
             return SingleTaskResult(
                 task_data=task,
                 status_text="Failed - No Work Package found",
                 request_user=context.request_user,
             )
 
-        closest_wp_key = closest_wp.get("key")
-        if not closest_wp_key:
-            logger.error(f"CRITICAL ERROR: WP missing 'key': {closest_wp}")
-            return SingleTaskResult(
-                task_data=task,
-                status_text="Failed - Work Package key missing",
-                request_user=context.request_user,
-            )
+        parent_wp_key = parent_wp["key"]
+        self._determine_task_assignee(task, parent_wp)
 
-        assignee_from_wp = None
-        fields = closest_wp.get("fields")
-        if isinstance(fields, dict):
-            assignee_data = fields.get("assignee")
-            if isinstance(assignee_data, dict):
-                assignee_from_wp = assignee_data.get("name")
-
-        if not task.assignee_name:
-            if assignee_from_wp:
-                task.assignee_name = assignee_from_wp
-                logger.info(f"Assigning task from parent WP: {task.assignee_name}")
-            else:
-                logger.info("Task has no assignee in Confluence or parent WP.")
-        else:
-            logger.info(f"Assigning task from Confluence: {task.assignee_name}")
-
-        new_issue_key = None
-        status_text = "Failed - Jira task creation"
         try:
-            new_issue_key = await self.jira_service.create_issue(
-                task, closest_wp_key, context
+            new_key, status_text = await self._create_and_transition_issue(
+                task, parent_wp_key, context
             )
-
-            if new_issue_key:
-                status_text = "Success"
-                if task.status == "complete":
-                    target = config.JIRA_TARGET_STATUSES["completed_task"]
-                    if await self.jira_service.transition_issue(new_issue_key, target):
-                        status_text = "Success - Completed Task Created"
-                    else:
-                        status_text = "Success - Task Created (Transition Failed)"
-                elif config.DEV_ENVIRONMENT:
-                    target = config.JIRA_TARGET_STATUSES["new_task_dev"]
-                    if not await self.jira_service.transition_issue(
-                        new_issue_key, target
-                    ):
-                        status_text = "Success - Task Created (Dev Transition Failed)"
-
-                if assignee_from_wp is None and task.assignee_name is None:
-                    if not await self.jira_service.assign_issue(new_issue_key, None):
-                        logger.warning(
-                            f"Failed to explicitly unassign issue {new_issue_key}."
-                        )
-            else:
-                logger.error(f"Jira API returned no key for task '{task.task_summary}'")
-                status_text = "Failed - Jira API (No Key)"
-
         except JiraApiError as e:
             logger.error(
                 f"Jira API error for '{task.task_summary}': {e}", exc_info=True
             )
-            status_text = f"Failed - JiraApiError: {str(e)}"
+            new_key, status_text = None, f"Failed - JiraApiError: {str(e)}"
 
         return SingleTaskResult(
             task_data=task,
             status_text=status_text,
-            new_jira_task_key=new_issue_key,
-            linked_work_package=closest_wp_key,
+            new_jira_task_key=new_key,
+            linked_work_package=parent_wp_key,
             request_user=context.request_user,
         )
+
+    def _determine_task_assignee(
+        self, task: ConfluenceTask, parent_wp: Dict[str, Any]
+    ) -> None:
+        """
+        Determines and sets the assignee on the task object, prioritizing the
+        Confluence task's assignee over the parent Work Package's.
+        """
+        if task.assignee_name:
+            logger.info(f"Assigning from Confluence task: {task.assignee_name}")
+            return
+
+        assignee_data = parent_wp.get("fields", {}).get("assignee")
+        if isinstance(assignee_data, dict) and assignee_data.get("name"):
+            task.assignee_name = assignee_data["name"]
+            logger.info(f"Assigning from parent WP: {task.assignee_name}")
+        else:
+            logger.info("Task has no assignee in Confluence or parent WP.")
+            task.assignee_name = None
+
+    async def _create_and_transition_issue(
+        self, task: ConfluenceTask, parent_key: str, context: SyncTaskContext
+    ) -> Tuple[Optional[str], str]:
+        """
+        Creates a Jira issue, then transitions it based on its status.
+        Returns the new issue key and a status message.
+        """
+        new_key = await self.jira_service.create_issue(task, parent_key, context)
+        if not new_key:
+            logger.error(f"Jira API returned no key for task '{task.task_summary}'")
+            return None, "Failed - Jira API (No Key)"
+
+        status_text = "Success"
+        if task.status == "complete":
+            target = config.JIRA_TARGET_STATUSES["completed_task"]
+            if await self.jira_service.transition_issue(new_key, target):
+                status_text = "Success - Completed Task Created"
+            else:
+                status_text = "Success - Task Created (Transition Failed)"
+        elif config.DEV_ENVIRONMENT:
+            target = config.JIRA_TARGET_STATUSES["new_task_dev"]
+            if not await self.jira_service.transition_issue(new_key, target):
+                status_text = "Success - Task Created (Dev Transition Failed)"
+
+        if task.assignee_name is None:
+            if not await self.jira_service.assign_issue(new_key, None):
+                logger.warning(f"Failed to explicitly unassign issue {new_key}.")
+
+        return new_key, status_text
 
     def _get_final_status(self, jira_status: str, confluence_status: str) -> str:
         """Determine the single overall status from the two sub-statuses."""

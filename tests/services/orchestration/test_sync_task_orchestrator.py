@@ -1,3 +1,5 @@
+# File: tests/services/orchestration/test_sync_task_orchestrator.py
+
 import logging
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock
@@ -77,7 +79,6 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
 
 
 class JiraServiceStub(JiraApiServiceInterface):
-    # FIX: Implemented all abstract methods to prevent TypeError
     def __init__(self):
         self.created_issue_key: Optional[str] = None
         self.transitioned_issue_key = None
@@ -362,7 +363,12 @@ async def test_prod_mode_new_task_no_transition(
 
 @pytest.mark.asyncio
 async def test_assign_jira_task_from_work_package_when_confluence_task_unassigned(
-    sync_orchestrator, confluence_stub, jira_stub, issue_finder_stub, sample_task, sync_context
+    sync_orchestrator,
+    confluence_stub,
+    jira_stub,
+    issue_finder_stub,
+    sample_task,
+    sync_context,
 ):
     """
     Test that a Jira task is assigned from the Work Package
@@ -381,7 +387,12 @@ async def test_assign_jira_task_from_work_package_when_confluence_task_unassigne
 
 @pytest.mark.asyncio
 async def test_jira_task_retains_confluence_assignee_even_if_work_package_has_assignee(
-    sync_orchestrator, confluence_stub, jira_stub, issue_finder_stub, sample_task, sync_context
+    sync_orchestrator,
+    confluence_stub,
+    jira_stub,
+    issue_finder_stub,
+    sample_task,
+    sync_context,
 ):
     """
     Test that a Jira task retains the assignee from the Confluence task
@@ -400,7 +411,12 @@ async def test_jira_task_retains_confluence_assignee_even_if_work_package_has_as
 
 @pytest.mark.asyncio
 async def test_jira_task_retains_confluence_assignee_when_work_package_unassigned(
-    sync_orchestrator, confluence_stub, jira_stub, issue_finder_stub, sample_task, sync_context
+    sync_orchestrator,
+    confluence_stub,
+    jira_stub,
+    issue_finder_stub,
+    sample_task,
+    sync_context,
 ):
     """
     Test that a Jira task retains the assignee from the Confluence task
@@ -419,7 +435,12 @@ async def test_jira_task_retains_confluence_assignee_when_work_package_unassigne
 
 @pytest.mark.asyncio
 async def test_unassign_jira_task_when_both_confluence_task_and_work_package_unassigned(
-    sync_orchestrator, confluence_stub, jira_stub, issue_finder_stub, sample_task, sync_context
+    sync_orchestrator,
+    confluence_stub,
+    jira_stub,
+    issue_finder_stub,
+    sample_task,
+    sync_context,
 ):
     """
     Test that a newly created Jira task is explicitly unassigned
