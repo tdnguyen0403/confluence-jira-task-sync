@@ -122,35 +122,13 @@ async def sync_task(
         f"with {len(request.confluence_page_urls)} URLs."
     )
 
-    orchestrator_results = await sync_orchestrator.run(
-        request.model_dump(), request.context
+    # Orchestrator now returns the fully formed response object
+    response = await sync_orchestrator.run(
+        request.model_dump(), request.context, request_id=request_id_var.get()
     )
 
-    overall_jira_status = orchestrator_results["overall_jira_task_creation_status"]
-    overall_confluence_status = orchestrator_results[
-        "overall_confluence_page_update_status"
-    ]
-    jira_creation_results = orchestrator_results["jira_task_creation_results"]
-    confluence_page_update_results = orchestrator_results[
-        "confluence_page_update_results"
-    ]
-
-    logger.info(
-        f"Sync run completed. Jira Status: {overall_jira_status}, "
-        f"Confluence Status: {overall_confluence_status}"
-    )
-    logger.debug(f"Jira Task Creation Results: {len(jira_creation_results)} items")
-    logger.debug(
-        f"Confluence Page Update Results: {len(confluence_page_update_results)} items"
-    )
-
-    return SyncTaskResponse(
-        request_id=request_id_var.get(),
-        overall_jira_task_creation_status=overall_jira_status,
-        overall_confluence_page_update_status=overall_confluence_status,
-        jira_task_creation_results=jira_creation_results,
-        confluence_page_update_results=confluence_page_update_results,
-    )
+    logger.info(f"Sync run completed with overall status: {response.overall_status}")
+    return response
 
 
 @app.post(
@@ -164,27 +142,16 @@ async def undo_sync_task(
     undo_orchestrator=Depends(get_undo_sync_task_orchestrator),
 ):
     """Reverts the actions from a previous synchronization run."""
-    if undo_data and undo_data[0].request_user:
-        user = undo_data[0].request_user
-    else:
-        user = "unknown"
-
+    user = undo_data[0].request_user if undo_data else "unknown"
     logger.info(
         f"Received /undo_sync_task request for user {user} with {len(undo_data)} items."
     )
 
-    undo_action_results = await undo_orchestrator.run(undo_data)
+    # Orchestrator now returns the fully formed response object
+    response = await undo_orchestrator.run(undo_data, request_id=request_id_var.get())
 
-    overall_status = undo_orchestrator._determine_overall_status(
-        undo_action_results, lambda r: r.success
-    )
-
-    logger.info(f"Undo run completed with overall status: {overall_status}.")
-    return UndoSyncTaskResponse(
-        request_id=request_id_var.get(),
-        results=undo_action_results,
-        overall_status=overall_status,
-    )
+    logger.info(f"Undo run completed with overall status: {response.overall_status}.")
+    return response
 
 
 @app.post(

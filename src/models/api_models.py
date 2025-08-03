@@ -163,6 +163,9 @@ class SyncTaskResponse(BaseModel):
     request_id: str = Field(
         ..., description="A unique identifier for the synchronization request."
     )
+    overall_status: str = Field(
+        ..., description="Overall status of both Jira & Confluence update"
+    )
     overall_jira_task_creation_status: str = Field(
         ...,
         description="""Overall status of Jira task creation
