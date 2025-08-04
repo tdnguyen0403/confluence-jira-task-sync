@@ -255,10 +255,7 @@ async def test_update_page_with_jira_links_success(
     put_args, put_kwargs = mock_https_helper.put.call_args
     assert "json_data" in put_kwargs
 
-    # **FIX**: The updated body is now a string representation of the soup
     updated_body = put_kwargs["json_data"]["body"]["storage"]["value"]
-
-    # **FIX**: Check for the new content in the final string
     assert '<ac:parameter ac:name="key">PROJ-1</ac:parameter>' in updated_body
     assert "Task 1 Summary" in updated_body
     assert "<ac:task-list>" not in updated_body  # The empty list should be removed
@@ -894,7 +891,7 @@ async def test_update_page_with_jira_links_aggregation_macro(
     safe_confluence_api, mock_https_helper
 ):
     """
-    **FIX**: Tests that tasks inside aggregation macros are SKIPPED during replacement.
+    Tests that tasks inside aggregation macros are SKIPPED during replacement.
     """
     page_id = "123"
     mappings = [{"confluence_task_id": "task_in_jira", "jira_key": "PROJ-2"}]

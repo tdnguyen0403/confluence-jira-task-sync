@@ -67,7 +67,7 @@ def mock_undo_orchestrator():
                     action_type="jira_transition",
                     target_id="JIRA-001",
                     success=True,
-                    status_message="OK",  # FIX: Added missing required field
+                    status_message="OK",
                 )
             ],
         )
@@ -162,7 +162,6 @@ async def test_sync_task_success_response(mock_sync_orchestrator, client):
                 confluence_page_id="page123",
                 task_summary="Sample Task",
                 success=True,
-                # FIX: Added missing required fields
                 confluence_task_id="task-1",
                 original_page_version=1,
                 creation_status_text="Success",

@@ -90,7 +90,6 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
 
 
 class JiraServiceStub(JiraApiServiceInterface):
-    # FIX: Implemented all abstract methods to prevent TypeError
     def __init__(self):
         self.transitioned_issues = {}
 
@@ -242,8 +241,7 @@ async def test_undo_no_actionable_tasks_in_results(
     undo_orchestrator, confluence_undo_stub, jira_undo_stub
 ):
     """
-    FIX: Restored this test case. It now checks for the expected error
-    when an empty list is provided.
+    Checks for the expected error when an empty list is provided.
     """
     with pytest.raises(
         InvalidInputError,

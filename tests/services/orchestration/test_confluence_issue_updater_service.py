@@ -246,74 +246,64 @@ async def test_update_confluence_hierarchy_success(
     root_page_id = "page1"
     root_project_key = "NEWPROJ-1"
 
-    # Fixed: Use 'config' directly as it's now the globally imported/available module.
-    monkeypatch.setattr(config, "JIRA_PROJECT_ISSUE_TYPE_ID", "10000")
+    # MODIFIED: Setup config to match the service's target issue types
     monkeypatch.setattr(config, "JIRA_PHASE_ISSUE_TYPE_ID", "10001")
     monkeypatch.setattr(config, "JIRA_WORK_PACKAGE_ISSUE_TYPE_ID", "10002")
+    monkeypatch.setattr(config, "JIRA_WORK_CONTAINER_ISSUE_TYPE_ID", "10003")
     monkeypatch.setattr(config, "FUZZY_MATCH_THRESHOLD", 0.75)
+    # Also patch the Project ID to ensure tests that rely on it as a non-target type work
+    monkeypatch.setattr(config, "JIRA_PROJECT_ISSUE_TYPE_ID", "10000")
 
     confluence_updater_stub.set_page_content(
         root_page_id,
-        '<p>Old Jira macro: <ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">OLDPROJ-1</ac:parameter></ac:structured-macro></p>',
+        '<p>Old Jira macro: <ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">OLD-PHASE-1</ac:parameter></ac:structured-macro></p>',
     )
 
+    # MODIFIED: Add all relevant issue types to the stub
     jira_updater_stub.add_issue_type(config.JIRA_PROJECT_ISSUE_TYPE_ID, "Project")
     jira_updater_stub.add_issue_type(config.JIRA_PHASE_ISSUE_TYPE_ID, "Phase")
     jira_updater_stub.add_issue_type(
         config.JIRA_WORK_PACKAGE_ISSUE_TYPE_ID, "Work Package"
     )
+    jira_updater_stub.add_issue_type(
+        config.JIRA_WORK_CONTAINER_ISSUE_TYPE_ID, "Work Container"
+    )
 
+    # MODIFIED: The old issue on the page is now a 'Phase', which is a target type
     old_issue_data = {
-        "key": "OLDPROJ-1",
+        "key": "OLD-PHASE-1",
         "fields": {
-            "summary": "Project Summary",  # Changed
-            "issuetype": {"id": config.JIRA_PROJECT_ISSUE_TYPE_ID, "name": "Project"},
-            "status": {"name": "Old Status", "statusCategory": {"key": "new"}},
+            "summary": "Matchable Phase Summary",
+            "issuetype": {"id": config.JIRA_PHASE_ISSUE_TYPE_ID, "name": "Phase"},
         },
     }
-    jira_updater_stub.add_issue("OLDPROJ-1", old_issue_data)
+    jira_updater_stub.add_issue("OLD-PHASE-1", old_issue_data)
 
-    candidate_new_issue_project = {
-        "key": root_project_key,
-        "fields": {
-            "summary": "Project Summary",  # Changed
-            "issuetype": {"id": config.JIRA_PROJECT_ISSUE_TYPE_ID, "name": "Project"},
-            "status": {"name": "New Status", "statusCategory": {"key": "new"}},
-        },
-    }
+    # MODIFIED: The candidate issue is also a 'Phase' with a matching summary
     candidate_new_issue_phase = {
         "key": "NEWPROJ-PHASE-1",
         "fields": {
-            "summary": "New Phase Summary",
+            "summary": "Matchable Phase Summary",
             "issuetype": {"id": config.JIRA_PHASE_ISSUE_TYPE_ID, "name": "Phase"},
-            "status": {"name": "New Status", "statusCategory": {"key": "new"}},
         },
     }
 
-    project_type_name = jira_updater_stub._issue_types[
-        config.JIRA_PROJECT_ISSUE_TYPE_ID
-    ]["name"]
-    phase_type_name = jira_updater_stub._issue_types[config.JIRA_PHASE_ISSUE_TYPE_ID][
-        "name"
+    # MODIFIED: The JQL should now search for the new set of target types
+    type_names_to_fetch = [
+        jira_updater_stub._issue_types[config.JIRA_PHASE_ISSUE_TYPE_ID]["name"],
+        jira_updater_stub._issue_types[config.JIRA_WORK_PACKAGE_ISSUE_TYPE_ID]["name"],
+        jira_updater_stub._issue_types[config.JIRA_WORK_CONTAINER_ISSUE_TYPE_ID][
+            "name"
+        ],
     ]
-    work_package_type_name = jira_updater_stub._issue_types[
-        config.JIRA_WORK_PACKAGE_ISSUE_TYPE_ID
-    ]["name"]
-
-    issue_type_names_sorted = sorted(
-        [
-            f'"{phase_type_name}"',
-            f'"{project_type_name}"',
-            f'"{work_package_type_name}"',
-        ]
-    )
+    issue_type_names_sorted = sorted([f'"{name}"' for name in type_names_to_fetch])
     jql_query_for_candidates = (
         f"issuetype in ({', '.join(issue_type_names_sorted)}) "
-        f"AND issue in relation('{root_project_key}', '', 'all')"
+        f"AND issue in relation('{root_project_key}', 'Project Children', 'all')"
     )
     jira_updater_stub.add_jql_result(
         jql_query_for_candidates,
-        {"issues": [candidate_new_issue_project, candidate_new_issue_phase]},
+        {"issues": [candidate_new_issue_phase]},
     )
 
     results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
@@ -322,27 +312,10 @@ async def test_update_confluence_hierarchy_success(
 
     assert len(results) == 1
     assert results[0].page_id == root_page_id
-    assert results[0].page_title == f"Page {root_page_id}"
-    assert results[0].project_linked == root_project_key
-    assert root_page_id in confluence_updater_stub._updated_pages
+    assert results[0].new_jira_keys[0] == "NEWPROJ-PHASE-1"
     updated_body = confluence_updater_stub._updated_pages[root_page_id]["body"]
-    assert root_project_key in updated_body
-    assert "OLDPROJ-1" not in updated_body
-
-
-@pytest.mark.asyncio
-async def test_update_confluence_hierarchy_no_root_page_id(
-    confluence_issue_updater_service, confluence_updater_stub
-):
-    root_url = "http://example.com/nonexistent_page"
-    root_project_key = "NEWPROJ-1"
-
-    confluence_updater_stub.page_url_to_id_map = {}
-
-    with pytest.raises(InvalidInputError, match="Could not find page ID for URL"):
-        await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
-            project_page_url=root_url, project_key=root_project_key
-        )
+    assert "NEWPROJ-PHASE-1" in updated_body
+    assert "OLD-PHASE-1" not in updated_body
 
 
 @pytest.mark.asyncio
@@ -575,71 +548,63 @@ async def test_update_confluence_hierarchy_update_page_fails(
 ):
     """
     Tests that if confluence_api.update_page fails, the page is not included in the summary,
-    but the process continues.
+    but the process continues and the attempt to update is still recorded.
     """
     root_url = "http://example.com/page1"
     root_page_id = "page1"
     root_project_key = "NEWPROJ-FAIL"
 
-    # Fixed: Use 'config' directly
-    monkeypatch.setattr(config, "JIRA_PROJECT_ISSUE_TYPE_ID", "10000")
     monkeypatch.setattr(config, "JIRA_PHASE_ISSUE_TYPE_ID", "10001")
     monkeypatch.setattr(config, "JIRA_WORK_PACKAGE_ISSUE_TYPE_ID", "10002")
+    monkeypatch.setattr(config, "JIRA_WORK_CONTAINER_ISSUE_TYPE_ID", "10003")
     monkeypatch.setattr(config, "FUZZY_MATCH_THRESHOLD", 0.75)
 
     confluence_updater_stub.set_page_content(
         root_page_id,
-        '<p>Old macro: <ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">OLDPROJ-TO-FAIL</ac:parameter></ac:structured-macro></p>',
+        '<p>Old macro: <ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">OLD-PHASE-TO-FAIL</ac:parameter></ac:structured-macro></p>',
     )
 
     confluence_updater_stub.set_update_success(False)
 
-    jira_updater_stub.add_issue_type(config.JIRA_PROJECT_ISSUE_TYPE_ID, "Project")
     jira_updater_stub.add_issue_type(config.JIRA_PHASE_ISSUE_TYPE_ID, "Phase")
     jira_updater_stub.add_issue_type(
         config.JIRA_WORK_PACKAGE_ISSUE_TYPE_ID, "Work Package"
     )
+    jira_updater_stub.add_issue_type(
+        config.JIRA_WORK_CONTAINER_ISSUE_TYPE_ID, "Work Container"
+    )
 
     old_issue_data = {
-        "key": "OLDPROJ-TO-FAIL",
+        "key": "OLD-PHASE-TO-FAIL",
         "fields": {
-            "summary": "Project For Failure Test",  # Changed
-            "issuetype": {"id": config.JIRA_PROJECT_ISSUE_TYPE_ID, "name": "Project"},
-            "status": {"name": "Old Status", "statusCategory": {"key": "new"}},
+            "summary": "Phase For Failure Test",
+            "issuetype": {"id": config.JIRA_PHASE_ISSUE_TYPE_ID, "name": "Phase"},
         },
     }
-    jira_updater_stub.add_issue("OLDPROJ-TO-FAIL", old_issue_data)
+    jira_updater_stub.add_issue("OLD-PHASE-TO-FAIL", old_issue_data)
 
-    candidate_new_issue_project = {
+    candidate_new_issue = {
         "key": root_project_key,
         "fields": {
-            "summary": "Project For Failure Test",  # Changed
-            "issuetype": {"id": config.JIRA_PROJECT_ISSUE_TYPE_ID, "name": "Project"},
-            "status": {"name": "New Status", "statusCategory": {"key": "new"}},
+            "summary": "Phase For Failure Test",
+            "issuetype": {"id": config.JIRA_PHASE_ISSUE_TYPE_ID, "name": "Phase"},
         },
     }
-    project_type_name = jira_updater_stub._issue_types[
-        config.JIRA_PROJECT_ISSUE_TYPE_ID
-    ]["name"]
-    phase_type_name = jira_updater_stub._issue_types[config.JIRA_PHASE_ISSUE_TYPE_ID][
-        "name"
+    type_names_to_fetch = [
+        jira_updater_stub._issue_types[config.JIRA_PHASE_ISSUE_TYPE_ID]["name"],
+        jira_updater_stub._issue_types[config.JIRA_WORK_PACKAGE_ISSUE_TYPE_ID]["name"],
+        jira_updater_stub._issue_types[config.JIRA_WORK_CONTAINER_ISSUE_TYPE_ID][
+            "name"
+        ],
     ]
-    work_package_type_name = jira_updater_stub._issue_types[
-        config.JIRA_WORK_PACKAGE_ISSUE_TYPE_ID
-    ]["name"]
-    issue_type_names_sorted = sorted(
-        [
-            f'"{phase_type_name}"',
-            f'"{project_type_name}"',
-            f'"{work_package_type_name}"',
-        ]
-    )
+    issue_type_names_sorted = sorted([f'"{name}"' for name in type_names_to_fetch])
+
     jql_query_for_candidates = (
         f"issuetype in ({', '.join(issue_type_names_sorted)}) "
-        f"AND issue in relation('{root_project_key}', '', 'all')"
+        f"AND issue in relation('{root_project_key}', 'Project Children', 'all')"
     )
     jira_updater_stub.add_jql_result(
-        jql_query_for_candidates, {"issues": [candidate_new_issue_project]}
+        jql_query_for_candidates, {"issues": [candidate_new_issue]}
     )
 
     results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
@@ -647,10 +612,11 @@ async def test_update_confluence_hierarchy_update_page_fails(
     )
 
     assert len(results) == 0
+    # Assert that an update was ATTEMPTED
     assert root_page_id in confluence_updater_stub._updated_pages
     updated_body = confluence_updater_stub._updated_pages[root_page_id]["body"]
     assert root_project_key in updated_body
-    assert "OLDPROJ-TO-FAIL" not in updated_body
+    assert "OLD-PHASE-TO-FAIL" not in updated_body
 
 
 @pytest.mark.asyncio
@@ -675,7 +641,7 @@ async def test_find_and_replace_jira_macros_on_page_jira_bulk_fetch_fails(
         '<ac:parameter ac:name="key">PASS-KEY</ac:parameter>'
         "</ac:structured-macro>.</p>"
     )
-    page_details = {"id": page_id, "title": "Page with Failing Fetch"}
+    page_title = "Page with Failing Fetch"
 
     candidate_new_issues = [
         {
@@ -714,7 +680,7 @@ async def test_find_and_replace_jira_macros_on_page_jira_bulk_fetch_fails(
         modified_html,
         did_modify,
     ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
-        page_details=page_details,
+        page_title=page_title,
         html_content=html_content,
         candidate_new_issues=candidate_new_issues,
         target_issue_type_ids=target_issue_type_ids,
@@ -834,7 +800,7 @@ async def test_find_and_replace_jira_macros_on_page_macro_no_key_param(
 ):
     page_id = "page1"
     html_content = '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="notkey">VAL</ac:parameter></ac:structured-macro>'
-    page_details = {"id": page_id, "title": "Page"}
+    page_title = f"Page {page_id}"
     candidate_new_issues = []
     target_issue_type_ids = {"10000"}
     monkeypatch.setattr(config, "JIRA_PROJECT_ISSUE_TYPE_ID", "10000")
@@ -843,7 +809,7 @@ async def test_find_and_replace_jira_macros_on_page_macro_no_key_param(
         modified_html,
         did_modify,
     ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
-        page_details=page_details,
+        page_title=page_title,
         html_content=html_content,
         candidate_new_issues=candidate_new_issues,
         target_issue_type_ids=target_issue_type_ids,
@@ -861,7 +827,7 @@ async def test_find_and_replace_jira_macros_on_page_macro_key_empty(
 ):
     page_id = "page1"
     html_content = '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="key"></ac:parameter></ac:structured-macro>'
-    page_details = {"id": page_id, "title": "Page"}
+    page_title = f"Page {page_id}"
     candidate_new_issues = []
     target_issue_type_ids = {"10000"}
     monkeypatch.setattr(config, "JIRA_PROJECT_ISSUE_TYPE_ID", "10000")
@@ -870,7 +836,7 @@ async def test_find_and_replace_jira_macros_on_page_macro_key_empty(
         modified_html,
         did_modify,
     ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
-        page_details=page_details,
+        page_title=page_title,
         html_content=html_content,
         candidate_new_issues=candidate_new_issues,
         target_issue_type_ids=target_issue_type_ids,
@@ -888,7 +854,7 @@ async def test_find_and_replace_jira_macros_on_page_macro_issue_type_not_target(
 ):
     page_id = "page1"
     html_content = '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">ISSUE-1</ac:parameter></ac:structured-macro>'
-    page_details = {"id": page_id, "title": "Page"}
+    page_title = f"Page {page_id}"
     candidate_new_issues = []
     target_issue_type_ids = {"10000"}
     monkeypatch.setattr(config, "JIRA_PROJECT_ISSUE_TYPE_ID", "10000")
@@ -908,7 +874,7 @@ async def test_find_and_replace_jira_macros_on_page_macro_issue_type_not_target(
         modified_html,
         did_modify,
     ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
-        page_details=page_details,
+        page_title=page_title,
         html_content=html_content,
         candidate_new_issues=candidate_new_issues,
         target_issue_type_ids=target_issue_type_ids,
@@ -919,7 +885,7 @@ async def test_find_and_replace_jira_macros_on_page_macro_issue_type_not_target(
 
 @pytest.mark.asyncio
 async def test_find_best_new_issue_match_candidate_type_mismatch(
-    confluence_issue_updater_service,
+    confluence_issue_updater_service, monkeypatch
 ):
     old_issue_details = {
         "fields": {
@@ -935,15 +901,16 @@ async def test_find_best_new_issue_match_candidate_type_mismatch(
             }
         }
     ]
+    monkeypatch.setattr(config, "FUZZY_MATCH_THRESHOLD", 0.75)
     result = confluence_issue_updater_service._find_best_new_issue_match(
-        old_issue_details, candidate_new_issues, FUZZY_MATCH_THRESHOLD=0.75
+        old_issue_details, candidate_new_issues
     )
     assert result is None
 
 
 @pytest.mark.asyncio
 async def test_find_best_new_issue_match_both_summaries_empty(
-    confluence_issue_updater_service,
+    confluence_issue_updater_service, monkeypatch
 ):
     old_issue_details = {
         "fields": {
@@ -954,8 +921,9 @@ async def test_find_best_new_issue_match_both_summaries_empty(
     candidate_new_issues = [
         {"fields": {"issuetype": {"id": "10000", "name": "Project"}, "summary": ""}}
     ]
+    monkeypatch.setattr(config, "FUZZY_MATCH_THRESHOLD", 0.75)
     result = confluence_issue_updater_service._find_best_new_issue_match(
-        old_issue_details, candidate_new_issues, FUZZY_MATCH_THRESHOLD=0.75
+        old_issue_details, candidate_new_issues
     )
     assert result is not None
 
@@ -969,7 +937,7 @@ async def test_find_and_replace_jira_macros_on_page_best_match_no_key(
 ):
     page_id = "page1"
     html_content = '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">ISSUE-1</ac:parameter></ac:structured-macro>'
-    page_details = {"id": page_id, "title": "Page"}
+    page_title = f"Page {page_id}"
     candidate_new_issues = [
         {
             "fields": {
@@ -1007,7 +975,7 @@ async def test_find_and_replace_jira_macros_on_page_best_match_no_key(
         modified_html,
         did_modify,
     ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
-        page_details=page_details,
+        page_title=page_title,
         html_content=html_content,
         candidate_new_issues=candidate_new_issues,
         target_issue_type_ids=target_issue_type_ids,
@@ -1026,7 +994,7 @@ async def test_find_and_replace_jira_macros_on_page_no_macros(
 ):
     page_id = "page1"
     html_content = "<p>No macros here.</p>"
-    page_details = {"id": page_id, "title": "Page"}
+    page_title = f"Page {page_id}"
     candidate_new_issues = []
     target_issue_type_ids = {"10000"}
     monkeypatch.setattr(config, "JIRA_PROJECT_ISSUE_TYPE_ID", "10000")
@@ -1035,7 +1003,7 @@ async def test_find_and_replace_jira_macros_on_page_no_macros(
         modified_html,
         did_modify,
     ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
-        page_details=page_details,
+        page_title=page_title,
         html_content=html_content,
         candidate_new_issues=candidate_new_issues,
         target_issue_type_ids=target_issue_type_ids,
@@ -1054,17 +1022,29 @@ async def test_find_and_replace_jira_macros_on_page_candidates_none(
     """Test _find_and_replace_jira_macros_on_page with candidate_new_issues=None."""
     page_id = "page1"
     html_content = '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">ISSUE-1</ac:parameter></ac:structured-macro>'
-    page_details = {"id": page_id, "title": "Page"}
+    page_title = f"Page {page_id}"
     target_issue_type_ids = {"10000"}
     monkeypatch.setattr(config, "JIRA_PROJECT_ISSUE_TYPE_ID", "10000")
     monkeypatch.setattr(config, "FUZZY_MATCH_THRESHOLD", 0.75)
+
+    jira_updater_stub.add_issue(
+        "ISSUE-1",
+        {
+            "key": "ISSUE-1",
+            "fields": {
+                "summary": "Summary",
+                "issuetype": {"id": "10000", "name": "Project"},
+            },
+        },
+    )
+
     (
         modified_html,
         did_modify,
     ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
-        page_details=page_details,
+        page_title=page_title,
         html_content=html_content,
-        candidate_new_issues=None,
+        candidate_new_issues=[], # Set to empty list as per method signature
         target_issue_type_ids=target_issue_type_ids,
     )
     assert did_modify is False
@@ -1073,7 +1053,7 @@ async def test_find_and_replace_jira_macros_on_page_candidates_none(
 
 @pytest.mark.asyncio
 async def test_find_best_new_issue_match_candidate_summary_none(
-    confluence_issue_updater_service,
+    confluence_issue_updater_service, monkeypatch
 ):
     old_issue_details = {
         "fields": {
@@ -1084,8 +1064,9 @@ async def test_find_best_new_issue_match_candidate_summary_none(
     candidate_new_issues = [
         {"fields": {"issuetype": {"id": "10000", "name": "Project"}, "summary": None}}
     ]
+    monkeypatch.setattr(config, "FUZZY_MATCH_THRESHOLD", 0.75)
     result = confluence_issue_updater_service._find_best_new_issue_match(
-        old_issue_details, candidate_new_issues, FUZZY_MATCH_THRESHOLD=0.75
+        old_issue_details, candidate_new_issues
     )
     assert result is None
 

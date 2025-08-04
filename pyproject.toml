@@ -71,7 +71,7 @@ omit = [
     "*/__init__.py", # Excludes all __init__.py files
     "tests/*",       # Excludes all tests
     "venv/*",        # Exclude virtual environment files
-    "scripts/*"      # exclude all scripts
+    "src/scripts/*"      # exclude all scripts
 ]
 
 [tool.coverage.report]
