@@ -72,7 +72,7 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
         return "confluence-jira-id"
 
     # This method should return just the macro fragment
-    def _generate_jira_macro_html(self, jira_key: str) -> str:
+    def _generate_jira_macro_html_with_summary(self, jira_key: str) -> str:
         return (
             f'<ac:structured-macro ac:name="jira" ac:schema-version="1" ac:macro-id="some-id">'
             f'<ac:parameter ac:name="key">{jira_key}</ac:parameter>'
