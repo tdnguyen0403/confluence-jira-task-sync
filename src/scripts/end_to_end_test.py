@@ -34,8 +34,6 @@ TEST_USER = "j2t-automator"
 async def run_end_to_end_test():
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=60.0) as client:
         headers = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
-        # This will now store lists of dictionaries that directly match UndoSyncTaskRequest
-        jira_creation_results_for_undo: List[Dict[str, Any]] = []
 
         # 1. Health Check (unchanged)
         logger.info("\n--- Testing /health endpoint ---")
@@ -87,6 +85,7 @@ async def run_end_to_end_test():
             "project_key": "SFSEA-1720",
             "request_user": TEST_USER,
         }
+
         sync_project_payload_2 = {
             "project_page_url": "https://pfteamspace.pepperl-fuchs.com/x/OTBhGg",
             "project_key": "SFSEA-1721",
@@ -154,8 +153,8 @@ async def run_end_to_end_test():
         logger.info("\n--- Testing /sync_task endpoint ---")
         sync_task_payload = {
             "confluence_page_urls": [
-                "https://pfteamspace.pepperl-fuchs.com/x/W-T3GQ",
-                "https://pfteamspace.pepperl-fuchs.com/x/cDDsGg"
+                "https://pfteamspace.pepperl-fuchs.com/x/W-T3GQ", #normal test page
+                "https://pfteamspace.pepperl-fuchs.com/x/cDDsGg"  #locked test page
             ],
             "context": {"request_user": TEST_USER, "days_to_due_date": 7},
         }
@@ -191,9 +190,11 @@ async def run_end_to_end_test():
                 assert "new_jira_task_key" in sync_task_responses_list[0]
                 assert "success" in sync_task_responses_list[0]
 
+            # This will now store lists of dictionaries that directly match UndoSyncTaskRequest
+            undo_payload: List[Dict[str, Any]] = []
             # Extract results that are eligible for undo (i.e., successful Jira creations)
             # and format them into the simplified UndoSyncTaskRequest structure
-            jira_creation_results_for_undo = [
+            undo_payload = [
                 {
                     "confluence_page_id": res["confluence_page_id"],
                     "original_page_version": res["original_page_version"],
@@ -203,14 +204,14 @@ async def run_end_to_end_test():
                 for res in sync_task_responses_list if res["success"]
             ]
 
-            if not jira_creation_results_for_undo:
+            if not undo_payload:
                 logger.warning(
                     """No successful tasks were processed by /sync_task.
                     Cannot proceed with undo test."""
                 )
                 return
 
-            for result_for_undo in jira_creation_results_for_undo:
+            for result_for_undo in undo_payload:
                 assert "new_jira_task_key" in result_for_undo and result_for_undo["new_jira_task_key"] is not None
                 assert "confluence_page_id" in result_for_undo
                 assert "original_page_version" in result_for_undo
@@ -256,13 +257,11 @@ async def run_end_to_end_test():
 
         # 5. Undo Sync Task
         logger.info("\n--- Testing /undo_sync_task endpoint ---")
-        if not jira_creation_results_for_undo:
+        if not undo_payload:
             logger.info(
                 "Skipping /undo_sync_task as no tasks were synced successfully."
             )
             return
-
-        undo_payload = jira_creation_results_for_undo
 
         try:
             response = await client.post(
