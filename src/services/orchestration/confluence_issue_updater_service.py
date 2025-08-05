@@ -238,7 +238,9 @@ class ConfluenceIssueUpdaterService:
                     f"On page '{page_title}', replacing '{current_key}' "
                     f"with '{new_key}'"
                 )
-                new_macro_html = self.confluence_api._generate_jira_macro_html(new_key)
+                new_macro_html = (
+                    self.confluence_api._generate_jira_macro_html_with_summary(new_key)
+                )  # noqa E501
                 macro.replace_with(BeautifulSoup(new_macro_html, "html.parser"))
                 modified = True
 

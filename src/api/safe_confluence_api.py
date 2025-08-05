@@ -637,6 +637,27 @@ class SafeConfluenceApi:
             f"</ac:structured-macro>"
         )
 
+    def _generate_jira_macro_html_with_summary(self, jira_key: str) -> str:
+        """
+        Generates the Confluence storage format for a Jira issue macro,
+        ensuring the summary is displayed.
+        Args:
+            jira_key (str): The key of the Jira issue (e.g., 'PROJ-123').
+        Returns:
+            str: A string containing the HTML for the Confluence macro.
+        """
+        macro_id = str(uuid.uuid4())
+        return (
+            f'<ac:structured-macro ac:name="jira" ac:schema-version="1" '
+            f'ac:macro-id="{macro_id}">'
+            f'<ac:parameter ac:name="server">{self.jira_macro_server_name}'
+            f"</ac:parameter>"
+            f'<ac:parameter ac:name="serverId">{self.jira_macro_server_id}'
+            f"</ac:parameter>"
+            f'<ac:parameter ac:name="key">{jira_key}</ac:parameter>'
+            f"</ac:structured-macro>"
+        )
+
     @handle_api_errors(ConfluenceApiError)
     async def get_all_spaces(self) -> List[Dict[str, Any]]:
         """
