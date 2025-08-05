@@ -55,7 +55,6 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
     def set_page_content(self, page_id: str, content: str):
         self._page_content[page_id] = content
 
-
 class SafeJiraApiStub(SafeJiraApi):
     def __init__(self):
         # We need AsyncMock for methods that are awaited in IssueFinderService

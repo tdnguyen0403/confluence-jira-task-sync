@@ -57,7 +57,8 @@ class IssueFinderService(IssueFinderServiceInterface):
         confluence_api_service: ConfluenceApiServiceInterface,
     ) -> Optional[Dict[str, Any]]:
         """
-        Finds the first Jira macro on a page matching a specified issue type.
+        Finds the first Jira macro on a page matching a specified issue type,
+        traversing up the page hierarchy if not found on the initial page.
 
         This method performs a multi-step process:
         1. Fetches the full content of a Confluence page.
@@ -65,6 +66,9 @@ class IssueFinderService(IssueFinderServiceInterface):
         3. Fetches details for all found issues in a single bulk request.
         4. Iterates through the fetched issues to find one that matches a
            target issue type.
+        5. If no issue is found, it repeats the process for the parent page,
+           continuing until an issue is found or the top of the hierarchy is
+           reached.
 
         Args:
             page_id (str): The ID of the Confluence page to search.
@@ -77,38 +81,46 @@ class IssueFinderService(IssueFinderServiceInterface):
             Optional[Dict[str, Any]]: The full Jira issue dictionary if a
                 matching issue is found, otherwise None.
         """
-        page_content = await confluence_api_service.get_page_by_id(
-            page_id, expand="body.storage"
-        )
-        if (
-            not page_content
-            or "body" not in page_content
-            or "storage" not in page_content["body"]
-        ):
-            logger.warning(f"Could not retrieve content for page ID '{page_id}'.")
-            return None
+        current_page_id = page_id
+        while current_page_id:
+            logger.info(f"Searching for issue on page ID: {current_page_id}")
+            page_content = await confluence_api_service.get_page_by_id(
+                current_page_id, expand="body.storage,version,ancestors"
+            )
 
-        extracted_data = await self.find_issues_and_macros_on_page(
-            page_content["body"]["storage"]["value"]
-        )
-        fetched_issues_map = extracted_data["fetched_issues_map"]
-
-        target_issue_type_names = set(issue_type_map.keys())
-
-        for (
-            issue_key,
-            jira_issue_obj,
-        ) in fetched_issues_map.items():
-            if jira_issue_obj.issue_type in target_issue_type_names:
-                logger.info(
-                    f"Found matching parent issue '{issue_key}' on page '{page_id}'."
+            if (
+                page_content
+                and "body" in page_content
+                and "storage" in page_content["body"]
+                and page_content["body"]["storage"]["value"]
+            ):
+                extracted_data = await self.find_issues_and_macros_on_page(
+                    page_content["body"]["storage"]["value"]
                 )
-                return await self.jira_api.get_issue(
-                    issue_key, fields=["key", "issuetype", "assignee", "reporter"]
-                )
+                fetched_issues_map = extracted_data["fetched_issues_map"]
+                target_issue_type_names = set(issue_type_map.keys())
+
+                for issue_key, jira_issue_obj in fetched_issues_map.items():
+                    if jira_issue_obj.issue_type in target_issue_type_names:
+                        logger.info(
+                            f"Found matching parent issue '{issue_key}' "
+                            f"on page '{current_page_id}'."
+                        )
+                        return await self.jira_api.get_issue(
+                            issue_key,
+                            fields=["key", "issuetype", "assignee", "reporter"],
+                        )
+
+            # Move to the parent page if one exists
+            if page_content and page_content.get("ancestors"):
+                # The last ancestor in the list is the direct parent
+                current_page_id = page_content["ancestors"][-1]["id"]
+            else:
+                current_page_id = None
 
         logger.info(
-            f"No matching parent issue found on page '{page_id}' for the given types."
+            f"No matching parent issue found "
+            f"in the hierarchy starting from page '{page_id}'."
         )
         return None
 
