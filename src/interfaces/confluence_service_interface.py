@@ -103,7 +103,7 @@ class ConfluenceApiServiceInterface(ABC):
                 where each maps a 'confluence_task_id' to its new 'jira_key'.
 
         Returns:
-            None: This method performs an action and does not return a value.
+            bool: True if the update was successful, False otherwise.
         """
         pass
 
@@ -123,4 +123,23 @@ class ConfluenceApiServiceInterface(ABC):
         Returns:
             bool: True if the page was successfully updated, False otherwise.
         """
+        pass
+
+    @abstractmethod
+    def generate_jira_macro(self, jira_key: str, with_summary: bool = False) -> str:
+        """
+        Generates the Confluence storage format HTML for a Jira macro.
+
+        Args:
+            jira_key (str): The key of the Jira issue.
+            with_summary (bool): If True, generates a macro that shows the summary.
+                                 Defaults to False.
+        Returns:
+            str: The HTML string for the Confluence macro.
+        """
+        pass
+
+    @abstractmethod
+    async def health_check(self) -> None:
+        """Performs a basic API call to check connectivity and auth."""
         pass

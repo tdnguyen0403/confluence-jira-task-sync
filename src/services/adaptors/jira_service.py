@@ -237,19 +237,21 @@ class JiraService(JiraApiServiceInterface):
         return fields
 
     async def search_issues_by_jql(
-        self, jql_query: str, fields: List[str] = None
+        self, jql_query: str, fields: str = "*all"
     ) -> List[Dict[str, Any]]:
         """
         Delegates JQL search to the API layer asynchronously.
 
         Args:
             jql_query (str): The JQL query to execute.
-            fields (List[str], optional): Specific fields to return. Defaults to None.
+            fields (str): A comma-separated list of fields to return for each issue.
 
         Returns:
             List[Dict[str, Any]]: The list of issues found.
         """
-        return await self._api.search_issues(jql_query, fields=fields)
+        field_list = fields.split(",") if fields and fields != "*all" else None
+        search_results = await self._api.search_issues(jql_query, fields=field_list)
+        return search_results.get("issues", []) if search_results else []
 
     async def get_issue_type_name_by_id(self, type_id: str) -> Optional[str]:
         """

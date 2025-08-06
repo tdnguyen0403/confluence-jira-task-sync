@@ -15,13 +15,15 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from src.dependencies import (
     get_api_key,
     get_confluence_issue_updater_service,
+    get_confluence_service,
     get_https_helper,
-    get_safe_confluence_api,
-    get_safe_jira_api,
+    get_jira_service,
     get_sync_task_orchestrator,
     get_undo_sync_task_orchestrator,
 )
 from src.error_handlers import register_exception_handlers
+from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
+from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.models.api_models import (
     SyncProjectRequest,
     SyncProjectResponse,
@@ -75,9 +77,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable):
         """
         Processes each incoming request to add logging context.
-
-        It also serves as a final catch-all for unhandled exceptions due to
-        framework limitations.
         """
         req_id = uuid.uuid4().hex
         request_id_var.set(req_id)
@@ -122,7 +121,6 @@ async def sync_task(
         f"with {len(request.confluence_page_urls)} URLs."
     )
 
-    # Orchestrator now returns the fully formed response object
     response = await sync_orchestrator.run(
         request.model_dump(), request.context, request_id=request_id_var.get()
     )
@@ -147,7 +145,6 @@ async def undo_sync_task(
         f"Received /undo_sync_task request for user {user} with {len(undo_data)} items."
     )
 
-    # Orchestrator now returns the fully formed response object
     response = await undo_orchestrator.run(undo_data, request_id=request_id_var.get())
 
     logger.info(f"Undo run completed with overall status: {response.overall_status}.")
@@ -202,13 +199,13 @@ async def health_check():
 
 @app.get("/ready", status_code=status.HTTP_200_OK)
 async def readiness_check(
-    jira_api_dep=Depends(get_safe_jira_api),
-    confluence_api_dep=Depends(get_safe_confluence_api),
+    jira_service: JiraApiServiceInterface = Depends(get_jira_service),
+    confluence_service: ConfluenceApiServiceInterface = Depends(get_confluence_service),
 ):
     """Provides a readiness probe endpoint."""
     logger.info("Performing readiness check...")
-    await jira_api_dep.get_current_user()
-    logger.info("Jira API is reachable and authenticated.")
-    await confluence_api_dep.get_all_spaces()
-    logger.info("Confluence API is reachable and authenticated.")
+    await jira_service.get_current_user_display_name()
+    logger.info("Jira service is reachable and authenticated.")
+    await confluence_service.health_check()
+    logger.info("Confluence service is reachable and authenticated.")
     return {"status": "ready", "detail": "Application and dependencies are ready."}

@@ -151,8 +151,10 @@ async def test_search_issues_by_jql_delegation(jira_service):
     service, api_stub = jira_service
     api_stub._jql_results["project = ABC"] = {"issues": [{"key": "JQL-1"}]}
     result = await service.search_issues_by_jql("project = ABC", fields="key")
-    assert result == {"issues": [{"key": "JQL-1"}]}
-    api_stub.mock.search_issues.assert_called_once_with("project = ABC", fields="key")
+    assert result == [{"key": "JQL-1"}]
+    api_stub.mock.search_issues.assert_called_once_with(
+        "project = ABC", fields=["key"]
+    )
 
 
 @pytest.mark.asyncio

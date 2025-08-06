@@ -88,6 +88,12 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
     async def update_page_with_jira_links(self, page_id: str, mappings: list) -> bool:
         return True
 
+    async def health_check(self) -> None:
+        pass
+
+    def generate_jira_macro(self, jira_key: str, with_summary: bool = False) -> str:
+        return f"mock macro for {jira_key}"
+
 
 class JiraServiceStub(JiraApiServiceInterface):
     def __init__(self):
@@ -127,7 +133,6 @@ class JiraServiceStub(JiraApiServiceInterface):
 
     async def assign_issue(self, issue_key: str, assignee_name: Optional[str]) -> bool:
         return True
-
 
 class IssueFinderServiceStub(IssueFinderServiceInterface):
     async def find_issue_on_page(

@@ -12,13 +12,13 @@ from typing import Any, Dict, List, Optional
 
 from bs4 import BeautifulSoup
 
-from src.api.safe_jira_api import SafeJiraApi
 from src.interfaces.confluence_service_interface import (
     ConfluenceApiServiceInterface,
 )
 from src.interfaces.issue_finder_service_interface import (
     IssueFinderServiceInterface,
 )
+from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.models.data_models import (
     JiraIssue,
     JiraIssueMacro,
@@ -39,14 +39,14 @@ class IssueFinderService(IssueFinderServiceInterface):
 
     def __init__(
         self,
-        jira_api: SafeJiraApi,
+        jira_api: JiraApiServiceInterface,
     ):
         """
         Initializes the IssueFinderService.
 
         Args:
-            jira_api (SafeJiraApi): An instance of the safe Jira API
-                wrapper for validating issue details.
+            jira_api (JiraApiServiceInterface): An instance of the Jira API
+                service interface for validating issue details.
         """
         self.jira_api = jira_api
 
@@ -106,9 +106,10 @@ class IssueFinderService(IssueFinderServiceInterface):
                             f"Found matching parent issue '{issue_key}' "
                             f"on page '{current_page_id}'."
                         )
+                        fields_to_get = "key,issuetype,assignee,reporter"
                         return await self.jira_api.get_issue(
                             issue_key,
-                            fields=["key", "issuetype", "assignee", "reporter"],
+                            fields=fields_to_get,
                         )
 
             # Move to the parent page if one exists
@@ -159,12 +160,16 @@ class IssueFinderService(IssueFinderServiceInterface):
 
         fetched_issues_map: Dict[str, JiraIssue] = {}
         if jira_keys_to_fetch:
-            jql_query = f"issue in ({','.join(jira_keys_to_fetch)})"
+            jql_query = f"issue in ({','.join(sorted(jira_keys_to_fetch))})"
             try:
-                search_results = await self.jira_api.search_issues(
-                    jql_query, fields=["summary", "status", "issuetype"]
+                # Use the interface method and pass fields as a string
+                fields_to_get = "summary,status,issuetype"
+                issues_list = await self.jira_api.search_issues_by_jql(
+                    jql_query, fields=fields_to_get
                 )
-                for issue_data in search_results.get("issues", []):
+
+                # The interface returns a list directly
+                for issue_data in issues_list:
                     status_name = issue_data["fields"]["status"]["name"]
                     status_category = issue_data["fields"]["status"]["statusCategory"][
                         "key"

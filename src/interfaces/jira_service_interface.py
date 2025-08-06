@@ -178,3 +178,17 @@ class JiraApiServiceInterface(ABC):
                                  on failure.
         """
         pass
+
+    @abstractmethod
+    async def assign_issue(self, issue_key: str, assignee_name: Optional[str]) -> bool:
+        """
+        Assigns a Jira issue to a specified user or unassigns it.
+
+        Args:
+            issue_key (str): The key of the issue to assign.
+            assignee_name (Optional[str]): The username for the assignee.
+                                           If None, the issue is unassigned.
+        Returns:
+            bool: True if the operation was successful, False otherwise.
+        """
+        pass

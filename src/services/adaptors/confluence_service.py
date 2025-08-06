@@ -146,3 +146,15 @@ class ConfluenceService(ConfluenceApiServiceInterface):
             Optional[Dict[str, Any]]: The user's details, or None.
         """
         return await self._api.get_user_details_by_username(username)
+
+    def generate_jira_macro(self, jira_key: str, with_summary: bool = False) -> str:
+        """
+        Delegates generating Jira macro HTML to the API layer.
+        """
+        if with_summary:
+            return self._api._generate_jira_macro_html_with_summary(jira_key)
+        return self._api._generate_jira_macro_html(jira_key)
+
+    async def health_check(self) -> None:
+        """Delegates health check to the API layer by getting all spaces."""
+        await self._api.get_all_spaces()

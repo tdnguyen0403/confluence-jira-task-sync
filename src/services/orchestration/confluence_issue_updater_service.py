@@ -1,5 +1,3 @@
-# File: src/services/orchestration/confluence_issue_updater_service.py
-
 import asyncio
 import difflib
 import logging
@@ -122,7 +120,7 @@ class ConfluenceIssueUpdaterService:
 
         if did_modify:
             logger.info(f"Updating page '{page_title}' (ID: {page_id}).")
-            success = await self.confluence_api.update_page(
+            success = await self.confluence_api.update_page_content(
                 page_id, page_details["title"], modified_html
             )
             if success:
@@ -150,14 +148,12 @@ class ConfluenceIssueUpdaterService:
         """
         Fetches all Jira issues of target types under a given root project.
         """
-        detail_tasks = [
-            self.jira_api.get_issue_type_details_by_id(t_id)
+        type_name_tasks = [
+            self.jira_api.get_issue_type_name_by_id(t_id)
             for t_id in target_issue_type_ids
         ]
-        type_details = await asyncio.gather(*detail_tasks)
-        valid_type_names = sorted(
-            [f'"{details["name"]}"' for details in type_details if details]
-        )
+        type_names = await asyncio.gather(*type_name_tasks)
+        valid_type_names = sorted([f'"{name}"' for name in type_names if name])
 
         if not valid_type_names:
             logger.warning("No valid issue type names found for JQL.")
@@ -169,10 +165,8 @@ class ConfluenceIssueUpdaterService:
         )
         logger.info(f"Searching Jira with JQL: {jql}")
 
-        response = await self.jira_api.search_issues(
-            jql, fields=["key", "issuetype", "summary"]
-        )
-        return response.get("issues", [])
+        fields_to_get = "key,issuetype,summary"
+        return await self.jira_api.search_issues_by_jql(jql, fields=fields_to_get)
 
     async def _fetch_details_for_page_macros(
         self, soup: BeautifulSoup
@@ -188,10 +182,9 @@ class ConfluenceIssueUpdaterService:
             return {}
 
         jql = f"issue in ({','.join(sorted(keys_on_page))})"
-        response = await self.jira_api.search_issues(
-            jql, fields=["issuetype", "summary"]
-        )
-        return {issue["key"]: issue for issue in response.get("issues", [])}
+        fields_to_get = "issuetype,summary"
+        issues = await self.jira_api.search_issues_by_jql(jql, fields=fields_to_get)
+        return {issue["key"]: issue for issue in issues}
 
     async def _find_and_replace_jira_macros_on_page(
         self,
@@ -238,9 +231,9 @@ class ConfluenceIssueUpdaterService:
                     f"On page '{page_title}', replacing '{current_key}' "
                     f"with '{new_key}'"
                 )
-                new_macro_html = (
-                    self.confluence_api._generate_jira_macro_html_with_summary(new_key)
-                )  # noqa E501
+                new_macro_html = self.confluence_api.generate_jira_macro(
+                    new_key, with_summary=True
+                )
                 macro.replace_with(BeautifulSoup(new_macro_html, "html.parser"))
                 modified = True
 

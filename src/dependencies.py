@@ -20,6 +20,9 @@ from src.api.https_helper import HTTPSHelper
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
+from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
+from src.interfaces.issue_finder_service_interface import IssueFinderServiceInterface
+from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
 from src.services.business_logic.issue_finder_service import IssueFinderService
@@ -88,17 +91,7 @@ def get_https_helper() -> HTTPSHelper:
 def get_safe_jira_api(
     https_helper: HTTPSHelper = Depends(get_https_helper),
 ) -> SafeJiraApi:
-    """
-    Provides a singleton instance of the SafeJiraApi client.
-
-    This dependency is injected with the shared `HTTPSHelper` instance.
-
-    Args:
-        https_helper (HTTPSHelper): The shared HTTPSHelper instance.
-
-    Returns:
-        SafeJiraApi: The single, shared instance of the Jira API client.
-    """
+    """Provides a singleton instance of the SafeJiraApi client."""
     return SafeJiraApi(
         base_url=config.JIRA_URL,
         https_helper=https_helper,
@@ -109,17 +102,7 @@ def get_safe_jira_api(
 def get_safe_confluence_api(
     https_helper: HTTPSHelper = Depends(get_https_helper),
 ) -> SafeConfluenceApi:
-    """
-    Provides a singleton instance of the SafeConfluenceApi client.
-
-    This dependency is injected with the shared `HTTPSHelper` instance.
-
-    Args:
-        https_helper (HTTPSHelper): The shared HTTPSHelper instance.
-
-    Returns:
-        SafeConfluenceApi: The single, shared instance of the Confluence API client.
-    """
+    """Provides a singleton instance of the SafeConfluenceApi client."""
     return SafeConfluenceApi(
         base_url=config.CONFLUENCE_URL,
         https_helper=https_helper,
@@ -131,91 +114,50 @@ def get_safe_confluence_api(
 @lru_cache(maxsize=None)
 def get_jira_service(
     safe_jira_api: SafeJiraApi = Depends(get_safe_jira_api),
-) -> JiraService:
-    """
-    Provides a singleton instance of the JiraService.
-
-    Args:
-        safe_jira_api (SafeJiraApi): The shared Jira API client instance.
-
-    Returns:
-        JiraService: The single, shared instance of the Jira service.
-    """
+) -> JiraApiServiceInterface:
+    """Provides a singleton instance of the JiraService."""
     return JiraService(safe_jira_api)
 
 
 @lru_cache(maxsize=None)
 def get_confluence_service(
     safe_confluence_api: SafeConfluenceApi = Depends(get_safe_confluence_api),
-) -> ConfluenceService:
-    """
-    Provides a singleton instance of the ConfluenceService.
-
-    Args:
-        safe_confluence_api (SafeConfluenceApi):
-            The shared Confluence API client instance.
-
-    Returns:
-        ConfluenceService: The single, shared instance of the Confluence service.
-    """
+) -> ConfluenceApiServiceInterface:
+    """Provides a singleton instance of the ConfluenceService."""
     return ConfluenceService(safe_confluence_api)
 
 
 @lru_cache(maxsize=None)
 def get_issue_finder_service(
-    safe_jira_api: SafeJiraApi = Depends(get_safe_jira_api),
-) -> IssueFinderService:
-    """
-    Provides a singleton instance of the IssueFinderService.
-
-    Args:
-        safe_jira_api (SafeJiraApi): The shared Jira API client instance.
-
-    Returns:
-        IssueFinderService: The single, shared instance of the issue finder service.
-    """
-    return IssueFinderService(safe_jira_api)
+    jira_service: JiraApiServiceInterface = Depends(get_jira_service),
+) -> IssueFinderServiceInterface:
+    """Provides a singleton instance of the IssueFinderService."""
+    return IssueFinderService(jira_service)
 
 
 @lru_cache(maxsize=None)
 def get_confluence_issue_updater_service(
-    safe_confluence_api: SafeConfluenceApi = Depends(get_safe_confluence_api),
-    safe_jira_api: SafeJiraApi = Depends(get_safe_jira_api),
-    issue_finder_service: IssueFinderService = Depends(get_issue_finder_service),
+    confluence_service: ConfluenceApiServiceInterface = Depends(get_confluence_service),
+    jira_service: JiraApiServiceInterface = Depends(get_jira_service),
+    issue_finder_service: IssueFinderServiceInterface = Depends(
+        get_issue_finder_service
+    ),
 ) -> ConfluenceIssueUpdaterService:
-    """
-    Provides a singleton instance of the ConfluenceIssueUpdaterService.
-
-    Args:
-        safe_confluence_api (SafeConfluenceApi): The Confluence API client.
-        safe_jira_api (SafeJiraApi): The Jira API client.
-        issue_finder_service (IssueFinderService): The issue finder service.
-
-    Returns:
-        ConfluenceIssueUpdaterService: The shared instance of the updater service.
-    """
+    """Provides a singleton instance of the ConfluenceIssueUpdaterService."""
     return ConfluenceIssueUpdaterService(
-        safe_confluence_api, safe_jira_api, issue_finder_service
+        confluence_service, jira_service, issue_finder_service
     )
 
 
 @lru_cache(maxsize=None)
 def get_sync_task_orchestrator(
-    confluence_service: ConfluenceService = Depends(get_confluence_service),
-    jira_service: JiraService = Depends(get_jira_service),
-    issue_finder_service: IssueFinderService = Depends(get_issue_finder_service),
+    confluence_service: ConfluenceApiServiceInterface = Depends(get_confluence_service),
+    jira_service: JiraApiServiceInterface = Depends(get_jira_service),
+    issue_finder_service: IssueFinderServiceInterface = Depends(
+        get_issue_finder_service
+    ),
 ) -> SyncTaskOrchestrator:
-    """
-    Provides a singleton instance of the SyncTaskOrchestrator.
-
-    Args:
-        confluence_service (ConfluenceService): The Confluence service instance.
-        jira_service (JiraService): The Jira service instance.
-        issue_finder_service (IssueFinderService): The issue finder service instance.
-
-    Returns:
-        SyncTaskOrchestrator: The shared instance of the sync task orchestrator.
-    """
+    """Provides a singleton instance of the SyncTaskOrchestrator."""
     return SyncTaskOrchestrator(
         confluence_service,
         jira_service,
@@ -225,21 +167,13 @@ def get_sync_task_orchestrator(
 
 @lru_cache(maxsize=None)
 def get_undo_sync_task_orchestrator(
-    confluence_service: ConfluenceService = Depends(get_confluence_service),
-    jira_service: JiraService = Depends(get_jira_service),
-    issue_finder_service: IssueFinderService = Depends(get_issue_finder_service),
+    confluence_service: ConfluenceApiServiceInterface = Depends(get_confluence_service),
+    jira_service: JiraApiServiceInterface = Depends(get_jira_service),
+    issue_finder_service: IssueFinderServiceInterface = Depends(
+        get_issue_finder_service
+    ),
 ) -> UndoSyncTaskOrchestrator:
-    """
-    Provides a singleton instance of the UndoSyncTaskOrchestrator.
-
-    Args:
-        confluence_service (ConfluenceService): The Confluence service instance.
-        jira_service (JiraService): The Jira service instance.
-        issue_finder_service (IssueFinderService): The issue finder service instance.
-
-    Returns:
-        UndoSyncTaskOrchestrator: The shared instance of the undo orchestrator.
-    """
+    """Provides a singleton instance of the UndoSyncTaskOrchestrator."""
     return UndoSyncTaskOrchestrator(
         confluence_service, jira_service, issue_finder_service
     )

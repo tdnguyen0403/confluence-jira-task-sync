@@ -77,6 +77,12 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
     async def update_page_content(self, page_id: str, title: str, body: str) -> bool:
         return True
 
+    async def health_check(self) -> None:
+        pass
+
+    def generate_jira_macro(self, jira_key: str, with_summary: bool = False) -> str:
+        return f"mock macro for {jira_key}"
+
 
 class JiraServiceStub(JiraApiServiceInterface):
     def __init__(self):

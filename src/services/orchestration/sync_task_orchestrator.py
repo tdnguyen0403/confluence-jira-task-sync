@@ -277,7 +277,7 @@ class SyncTaskOrchestrator:
             logger.info(f"Assigning from Confluence task: {task.assignee_name}")
             return
 
-        assignee_data = parent_wp.get("fields", {}).get("assignee")
+        assignee_data = (parent_wp.get("fields") or {}).get("assignee")
         if isinstance(assignee_data, dict) and assignee_data.get("name"):
             task.assignee_name = assignee_data["name"]
             logger.info(f"Assigning from parent WP: {task.assignee_name}")
