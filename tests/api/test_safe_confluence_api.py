@@ -1,9 +1,10 @@
 import logging
-from unittest.mock import AsyncMock, call, patch
+from unittest.mock import AsyncMock, call, patch, MagicMock
 
 import httpx
 import pytest
-from bs4 import BeautifulSoup  # Added import
+from bs4 import BeautifulSoup
+import uuid
 
 from src.api.https_helper import HTTPSHelper, HTTPXClientError, HTTPXServerError, HTTPXCustomError
 from src.api.safe_confluence_api import SafeConfluenceApi
@@ -1342,3 +1343,38 @@ async def test_update_page_with_jira_links_no_matching_tasks(
     mock_https_helper.put.assert_not_called()
     # Assert that the warning was logged
     assert f"No tasks were replaced on page {page_id}. Skipping update." in caplog.text
+
+@pytest.mark.asyncio
+async def test_generate_jira_macro_html_with_summary(safe_confluence_api):
+    """
+    Tests that the generated Jira macro HTML is correctly formatted to show a summary.
+    """
+    jira_key = "PROJ-456"
+
+    # Mock uuid.uuid4() to have a predictable macro ID
+    with patch.object(uuid, 'uuid4', return_value=MagicMock(hex='mock-macro-id')):
+        macro_html = safe_confluence_api._generate_jira_macro_html_with_summary(
+            jira_key
+        )
+
+        # Use BeautifulSoup to parse and inspect the generated HTML
+        soup = BeautifulSoup(macro_html, "html.parser")
+
+        # Verify the root macro element
+        macro_element = soup.find("ac:structured-macro")
+        assert macro_element is not None, "The root ac:structured-macro element was not found."
+        assert macro_element.get("ac:name") == "jira"
+
+        # Find all parameter tags
+        params = {
+            param.get("ac:name"): param.get_text(strip=True)
+            for param in macro_element.find_all("ac:parameter")
+        }
+
+        # Assert that the correct parameters are present
+        assert params.get("key") == jira_key
+        assert params.get("server") == "TestJira"  # From fixture
+        assert params.get("serverId") == "12345"    # From fixture
+
+        # Crucially, assert that 'showSummary' is NOT 'false'
+        assert "showSummary" not in params, "showSummary should not be present to default to showing the summary."
