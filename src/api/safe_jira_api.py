@@ -55,6 +55,7 @@ class SafeJiraApi:
                                         asynchronous HTTPSHelper.
         """
         self.base_url = config.JIRA_URL.rstrip("/")
+        self.JIRA_API_PATH = "/rest/api/2"
         self.https_helper = https_helper
         self.headers = {
             "Accept": "application/json",
@@ -82,7 +83,7 @@ class SafeJiraApi:
             Exception: Propagates exceptions from the `HTTPSHelper`
             if the request fails.
         """
-        url = f"{self.base_url}/rest/api/2/issue/{issue_key}"
+        url = f"{self.base_url}{self.JIRA_API_PATH}/issue/{issue_key}"
         params = {"fields": ",".join(fields)} if fields else {}
         return await self.https_helper.get(url, headers=self.headers, params=params)
 
@@ -113,7 +114,7 @@ class SafeJiraApi:
             Exception: Propagates exceptions from the `HTTPSHelper`
             if the request fails.
         """
-        url = f"{self.base_url}/rest/api/2/issue"
+        url = f"{self.base_url}{self.JIRA_API_PATH}/issue"
         payload = {"fields": fields}
 
         return await self.https_helper.post(
@@ -140,7 +141,7 @@ class SafeJiraApi:
             Exception: Propagates exceptions from the `HTTPSHelper`
             if the request fails.
         """
-        url = f"{self.base_url}/rest/api/2/issue/{issue_key}/assignee"
+        url = f"{self.base_url}{self.JIRA_API_PATH}/issue/{issue_key}/assignee"
 
         payload: Dict[str, Any] = {}
         if assignee_name:
@@ -174,7 +175,7 @@ class SafeJiraApi:
             Exception: Propagates exceptions from the `HTTPSHelper`
             if the request fails.
         """
-        url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
+        url = f"{self.base_url}{self.JIRA_API_PATH}/issue/{issue_key}/transitions"
         response_data = await self.https_helper.get(url, headers=self.headers)
         return response_data.get("transitions", [])
 
@@ -242,7 +243,7 @@ class SafeJiraApi:
                 f"Transition '{transition_name}' not found for issue {issue_key}"
             )
 
-        url = f"{self.base_url}/rest/api/2/issue/{issue_key}/transitions"
+        url = f"{self.base_url}{self.JIRA_API_PATH}/issue/{issue_key}/transitions"
         payload = {"transition": {"id": transition_id}}
 
         response = await self.https_helper.post(
@@ -266,7 +267,7 @@ class SafeJiraApi:
             Exception: Propagates exceptions from the `HTTPSHelper`
             if the request fails.
         """
-        url = f"{self.base_url}/rest/api/2/myself"
+        url = f"{self.base_url}{self.JIRA_API_PATH}/myself"
 
         return await self.https_helper.get(url, headers=self.headers)
 
@@ -291,7 +292,7 @@ class SafeJiraApi:
             Exception: Propagates exceptions from the `HTTPSHelper`
             if the request fails.
         """
-        url = f"{self.base_url}/rest/api/2/search"
+        url = f"{self.base_url}{self.JIRA_API_PATH}/search"
         params = {"jql": jql_query}
         if fields:
             params["fields"] = ",".join(fields)
@@ -312,7 +313,7 @@ class SafeJiraApi:
             Optional[Dict[str, Any]]: A dictionary containing details of the
                                       issue type, or None if an error occurs.
         """
-        url = f"{self.base_url}/rest/api/2/issuetype/{issue_type_id}"
+        url = f"{self.base_url}{self.JIRA_API_PATH}/issuetype/{issue_type_id}"
 
         return await self.https_helper.get(url, headers=self.headers)
 
@@ -338,7 +339,7 @@ class SafeJiraApi:
             Exception: Propagates exceptions from the `HTTPSHelper` if the API
                        request fails.
         """
-        url = f"{self.base_url}/rest/api/2/issue/{issue_key}"
+        url = f"{self.base_url}{self.JIRA_API_PATH}/issue/{issue_key}"
         payload = {"fields": {"description": new_description}}
 
         response = await self.https_helper.put(

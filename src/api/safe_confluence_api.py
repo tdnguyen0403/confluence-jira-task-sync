@@ -74,6 +74,7 @@ class SafeConfluenceApi:
                                         Defaults to a value from config.
         """
         self.base_url = config.CONFLUENCE_URL.rstrip("/")
+        self.CONFLUENCE_API_PATH = "/rest/api"
         self.https_helper = https_helper
         self.headers = {
             "Authorization": f"Bearer {config.CONFLUENCE_API_TOKEN}",
@@ -172,12 +173,12 @@ class SafeConfluenceApi:
                                       or None if retrieval fails.
         """
         if version is not None:
-            url = f"{self.base_url}/rest/api/content/{page_id}"
+            url = f"{self.base_url}{self.CONFLUENCE_API_PATH}/content/{page_id}"
             params = {"version": version}
             if expand:
                 params["expand"] = expand
         else:
-            url = f"{self.base_url}/rest/api/content/{page_id}"
+            url = f"{self.base_url}{self.CONFLUENCE_API_PATH}/content/{page_id}"
             params = {"expand": expand} if expand else {}
 
         return await self.https_helper.get(url, headers=self.headers, params=params)
@@ -208,7 +209,7 @@ class SafeConfluenceApi:
 
         while True:
             url = (
-                f"{self.base_url}/rest/api/content/{page_id}/child/{page_type}"
+                f"{self.base_url}{self.CONFLUENCE_API_PATH}/content/{page_id}/child/{page_type}"
                 f"?start={start}&limit={limit}"
             )
             response_data = await self.https_helper.get(url, headers=self.headers)
@@ -240,7 +241,7 @@ class SafeConfluenceApi:
         Returns:
             bool: True if the page was updated successfully, False otherwise.
         """
-        url = f"{self.base_url}/rest/api/content/{page_id}"
+        url = f"{self.base_url}{self.CONFLUENCE_API_PATH}/content/{page_id}"
         current_page = await self.get_page_by_id(page_id, expand="version")
         if not current_page:
             logger.error(f"Could not retrieve page '{page_id}' for update.")
@@ -294,7 +295,7 @@ class SafeConfluenceApi:
             Optional[Dict[str, Any]]: The created page object as a dictionary,
                                       or None if creation fails.
         """
-        url = f"{self.base_url}/rest/api/content"
+        url = f"{self.base_url}{self.CONFLUENCE_API_PATH}/content"
         payload = {
             "type": "page",
             "title": title,
@@ -325,7 +326,7 @@ class SafeConfluenceApi:
                                       details, or None if the user is not found
                                       or an error occurs.
         """
-        url = f"{self.base_url}/rest/api/user?username={username}"
+        url = f"{self.base_url}{self.CONFLUENCE_API_PATH}/user?username={username}"
 
         return await self.https_helper.get(url, headers=self.headers)
 
@@ -344,7 +345,7 @@ class SafeConfluenceApi:
                                       details, or None if the user is not found
                                       or an error occurs.
         """
-        url = f"{self.base_url}/rest/api/user?key={userkey}"
+        url = f"{self.base_url}{self.CONFLUENCE_API_PATH}/user?key={userkey}"
 
         return await self.https_helper.get(url, headers=self.headers)
 
@@ -673,6 +674,6 @@ class SafeConfluenceApi:
             Exception: Propagates exceptions from the underlying `HTTPSHelper` call
                        if the API request fails.
         """
-        url = f"{self.base_url}/rest/api/space"
+        url = f"{self.base_url}{self.CONFLUENCE_API_PATH}/space"
         response_data = await self.https_helper.get(url, headers=self.headers)
         return response_data.get("results", [])
