@@ -65,7 +65,7 @@ async def run_end_to_end_test():
             logger.info("Readiness check passed. Jira and Confluence are reachable.")
         except httpx.HTTPStatusError as e:
             logger.error(
-                f"Readiness check failed with HTTP error: {e.status_code} - {e.text}"
+                f"Readiness check failed with HTTP error: {e.response.status_code} - {e.response.text}"
             )
             logger.error(
                 """Ensure JIRA_URL, CONFLUENCE_URL, JIRA_API_TOKEN,

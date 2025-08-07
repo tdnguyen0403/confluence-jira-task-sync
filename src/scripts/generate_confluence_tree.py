@@ -4,12 +4,12 @@ import logging
 import sys
 import uuid
 import warnings
+import urllib3
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, List, Optional
 
 import httpx
-import requests
 
 from src.api.https_helper import HTTPSHelper
 from src.api.safe_confluence_api import SafeConfluenceApi
@@ -22,7 +22,7 @@ from src.utils.logging_config import endpoint_var, request_id_var, setup_logging
 
 # Suppress insecure request warnings for local/dev environments
 warnings.filterwarnings(
-    "ignore", category=requests.packages.urllib3.exceptions.InsecureRequestWarning
+    "ignore", category=urllib3.exceptions.InsecureRequestWarning
 )
 
 logger = logging.getLogger(__name__)

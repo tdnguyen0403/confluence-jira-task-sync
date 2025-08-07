@@ -89,7 +89,7 @@ class ConfluenceApiServiceInterface(ABC):
 
     @abstractmethod
     async def update_page_with_jira_links(
-        self, page_id: str, jira_task_mappings: List[Dict[str, str]]
+        self, page_id: str, mappings: List[Dict[str, str]]
     ) -> bool:
         """
         Updates a Confluence page by replacing completed tasks with Jira links.
@@ -99,7 +99,7 @@ class ConfluenceApiServiceInterface(ABC):
 
         Args:
             page_id (str): The ID of the Confluence page to update.
-            jira_task_mappings (List[Dict[str, str]]): A list of dictionaries,
+            mappings (List[Dict[str, str]]): A list of dictionaries,
                 where each maps a 'confluence_task_id' to its new 'jira_key'.
 
         Returns:
@@ -109,15 +109,15 @@ class ConfluenceApiServiceInterface(ABC):
 
     @abstractmethod
     async def update_page_content(
-        self, page_id: str, title: str, html_content: str
+        self, page_id: str, new_title: str, new_body: str
     ) -> bool:
         """
         Updates the full content of a Confluence page asynchronously.
 
         Args:
             page_id (str): The ID of the Confluence page to update.
-            title (str): The new title for the page.
-            html_content (str): The new HTML content for the page body in
+            new_title (str): The new title for the page.
+            new_body (str): The new HTML content for the page body in
                                 Confluence storage format.
 
         Returns:
