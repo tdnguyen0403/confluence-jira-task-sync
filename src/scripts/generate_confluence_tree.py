@@ -219,7 +219,10 @@ async def main_async():
             safe_confluence_api = SafeConfluenceApi(config.CONFLUENCE_URL, https_helper)
             jira_service = JiraService(safe_jira_api)
             confluence_service = ConfluenceService(safe_confluence_api)
-            issue_finder_service = IssueFinderService(jira_api=safe_jira_api)
+            issue_finder_service = IssueFinderService(
+                jira_api=jira_service, confluence_api=confluence_service
+            )
+
 
             generator = ConfluenceTreeGenerator(
                 confluence_service=confluence_service,

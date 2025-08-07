@@ -40,6 +40,7 @@ class IssueFinderService(IssueFinderServiceInterface):
     def __init__(
         self,
         jira_api: JiraApiServiceInterface,
+        confluence_api: ConfluenceApiServiceInterface,
     ):
         """
         Initializes the IssueFinderService.
@@ -47,14 +48,17 @@ class IssueFinderService(IssueFinderServiceInterface):
         Args:
             jira_api (JiraApiServiceInterface): An instance of the Jira API
                 service interface for validating issue details.
+            confluence_api (ConfluenceApiServiceInterface):
+                An instance of the Confluence API service interface
+                for fetching page content.
         """
         self.jira_api = jira_api
+        self.confluence_api = confluence_api
 
     async def find_issue_on_page(
         self,
         page_id: str,
         issue_type_map: Dict[str, str],
-        confluence_api_service: ConfluenceApiServiceInterface,
     ) -> Optional[Dict[str, Any]]:
         """
         Finds the first Jira macro on a page matching a specified issue type,
@@ -74,8 +78,6 @@ class IssueFinderService(IssueFinderServiceInterface):
             page_id (str): The ID of the Confluence page to search.
             issue_type_map (Dict[str, str]): A mapping of issue type names to
                 their IDs (e.g., {"Work Package": "10100"}).
-            confluence_api_service (ConfluenceApiServiceInterface): The service
-                used to fetch Confluence page content.
 
         Returns:
             Optional[Dict[str, Any]]: The full Jira issue dictionary if a
@@ -84,7 +86,7 @@ class IssueFinderService(IssueFinderServiceInterface):
         current_page_id = page_id
         while current_page_id:
             logger.info(f"Searching for issue on page ID: {current_page_id}")
-            page_content = await confluence_api_service.get_page_by_id(
+            page_content = await self.confluence_api.get_page_by_id(
                 current_page_id, expand="body.storage,version,ancestors"
             )
 

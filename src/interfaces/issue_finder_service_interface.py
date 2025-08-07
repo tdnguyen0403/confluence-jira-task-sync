@@ -15,8 +15,6 @@ from typing import (
     Optional,
 )
 
-from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
-
 
 class IssueFinderServiceInterface(ABC):
     """
@@ -30,7 +28,6 @@ class IssueFinderServiceInterface(ABC):
         self,
         page_id: str,
         issue_type_map: Dict[str, str],
-        confluence_api_service: ConfluenceApiServiceInterface,
     ) -> Optional[Dict[str, Any]]:
         """
         Finds the first Jira macro on a page that matches a specified issue type.
@@ -43,8 +40,6 @@ class IssueFinderServiceInterface(ABC):
             page_id (str): The ID of the Confluence page to search.
             issue_type_map (Dict[str, str]): A mapping of target issue type names
                 to their IDs (e.g., {"Work Package": "10100"}).
-            confluence_api_service (ConfluenceApiServiceInterface): An active
-                Confluence service to fetch page content.
 
         Returns:
             Optional[Dict[str, Any]]: The full Jira issue dictionary from the API

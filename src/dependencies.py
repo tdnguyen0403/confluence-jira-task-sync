@@ -130,9 +130,10 @@ def get_confluence_service(
 @lru_cache(maxsize=None)
 def get_issue_finder_service(
     jira_service: JiraApiServiceInterface = Depends(get_jira_service),
+    confluence_service: ConfluenceApiServiceInterface = Depends(get_confluence_service),
 ) -> IssueFinderServiceInterface:
     """Provides a singleton instance of the IssueFinderService."""
-    return IssueFinderService(jira_service)
+    return IssueFinderService(jira_service, confluence_service)
 
 
 @lru_cache(maxsize=None)

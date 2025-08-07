@@ -507,7 +507,7 @@ class SafeConfluenceApi:
         )
 
         page_version = page_details.get("version", {})
-        context = get_task_context(task_element)
+        context = await asyncio.to_thread(get_task_context, task_element)
 
         task_body_copy = BeautifulSoup(str(task_body), "html.parser")
 

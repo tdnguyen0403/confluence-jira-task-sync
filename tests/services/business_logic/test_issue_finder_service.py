@@ -15,7 +15,7 @@ from src.services.business_logic.issue_finder_service import IssueFinderService
 # --- Stubs for Dependencies ---
 
 
-class ConfluenceServiceStub(ConfluenceApiServiceInterface):
+class ConfluenceApiStub(ConfluenceApiServiceInterface):
     """A complete stub that implements the Confluence interface for tests."""
 
     def __init__(self):
@@ -65,7 +65,7 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
         pass
 
 
-class JiraApiServiceStub(JiraApiServiceInterface):
+class JiraApiStub(JiraApiServiceInterface):
     """A complete stub that implements the JiraApiServiceInterface."""
     def __init__(self):
         self.mock = AsyncMock()
@@ -113,23 +113,24 @@ class JiraApiServiceStub(JiraApiServiceInterface):
 
 
 @pytest_asyncio.fixture
-async def mock_confluence_service() -> ConfluenceServiceStub:
+async def mock_confluence_api() -> ConfluenceApiStub:
     """Provides a stubbed ConfluenceService."""
-    return ConfluenceServiceStub()
+    return ConfluenceApiStub()
 
 
 @pytest_asyncio.fixture
-async def mock_jira_api() -> JiraApiServiceStub:
+async def mock_jira_api() -> JiraApiStub:
     """Provides a stubbed JiraApiService adhering to the interface."""
-    return JiraApiServiceStub()
+    return JiraApiStub()
 
 
 @pytest_asyncio.fixture
 async def issue_finder_service(
-    mock_jira_api: JiraApiServiceStub,
+    mock_jira_api: JiraApiStub,
+    mock_confluence_api: ConfluenceApiStub,
 ) -> IssueFinderService:
     """Provides an IssueFinderService instance with the correct mock dependency."""
-    return IssueFinderService(jira_api=mock_jira_api)
+    return IssueFinderService(jira_api=mock_jira_api, confluence_api=mock_confluence_api)
 
 
 # --- Test Helper ---
@@ -194,17 +195,17 @@ async def test_find_issues_and_macros_on_page_jira_api_error(
 
 @pytest.mark.asyncio
 async def test_find_issue_on_page_match_found(
-    issue_finder_service, mock_confluence_service, mock_jira_api
+    issue_finder_service, mock_confluence_api, mock_jira_api
 ):
     page_id = "page123"
     issue_type_map = {"Work Package": "10000"}
     html = '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">WP-ABC</ac:parameter></ac:structured-macro>'
-    mock_confluence_service.set_page_content(page_id, html)
+    mock_confluence_api.set_page_content(page_id, html)
     # FIX: Set attributes on the internal mock object
     mock_jira_api.mock.search_issues_by_jql.return_value = [{"key": "WP-ABC", "fields": {"issuetype": {"name": "Work Package"}, "summary": "s", "status": {"name":"d", "statusCategory": {"key":"d"}}}}]
     mock_jira_api.mock.get_issue.return_value = {"key": "WP-ABC"}
 
-    found_issue = await issue_finder_service.find_issue_on_page(page_id, issue_type_map, mock_confluence_service)
+    found_issue = await issue_finder_service.find_issue_on_page(page_id, issue_type_map)
 
     assert found_issue["key"] == "WP-ABC"
     # FIX: Call assertion on the internal mock object
@@ -213,16 +214,16 @@ async def test_find_issue_on_page_match_found(
 
 @pytest.mark.asyncio
 async def test_find_issue_on_page_no_match_found(
-    issue_finder_service, mock_confluence_service, mock_jira_api
+    issue_finder_service, mock_confluence_api, mock_jira_api
 ):
     page_id = "page123"
     issue_type_map = {"Epic": "10001"}
     html = '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">TASK-1</ac:parameter></ac:structured-macro>'
-    mock_confluence_service.set_page_content(page_id, html)
+    mock_confluence_api.set_page_content(page_id, html)
     # FIX: Set attributes on the internal mock object
     mock_jira_api.mock.search_issues_by_jql.return_value = [{"key": "TASK-1", "fields": {"issuetype": {"name": "Task"}, "summary":"s", "status": {"name":"d", "statusCategory": {"key":"d"}}}}]
 
-    found_issue = await issue_finder_service.find_issue_on_page(page_id, issue_type_map, mock_confluence_service)
+    found_issue = await issue_finder_service.find_issue_on_page(page_id, issue_type_map)
 
     assert found_issue is None
     mock_jira_api.mock.search_issues_by_jql.assert_awaited_once()
@@ -231,21 +232,21 @@ async def test_find_issue_on_page_no_match_found(
 
 @pytest.mark.asyncio
 async def test_find_issue_on_page_no_page_content(
-    issue_finder_service, mock_confluence_service, mock_jira_api
+    issue_finder_service, mock_confluence_api, mock_jira_api
 ):
     page_id = "page123"
-    mock_confluence_service.set_page_content(page_id, None)
-    await issue_finder_service.find_issue_on_page(page_id, {}, mock_confluence_service)
+    mock_confluence_api.set_page_content(page_id, None)
+    await issue_finder_service.find_issue_on_page(page_id, {})
     # FIX: Call assertion on the internal mock object
     mock_jira_api.mock.search_issues_by_jql.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_find_issue_on_page_empty_html_content(
-    issue_finder_service, mock_confluence_service, mock_jira_api
+    issue_finder_service, mock_confluence_api, mock_jira_api
 ):
     page_id = "page123"
-    mock_confluence_service.set_page_content(page_id, "")
-    await issue_finder_service.find_issue_on_page(page_id, {}, mock_confluence_service)
+    mock_confluence_api.set_page_content(page_id, "")
+    await issue_finder_service.find_issue_on_page(page_id, {})
     # FIX: Call assertion on the internal mock object
     mock_jira_api.mock.search_issues_by_jql.assert_not_awaited()

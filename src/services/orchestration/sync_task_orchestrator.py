@@ -235,7 +235,6 @@ class SyncTaskOrchestrator:
         parent_wp = await self.issue_finder_service.find_issue_on_page(
             task.confluence_page_id,
             config.PARENT_ISSUES_TYPE_ID,
-            self.confluence_service,
         )
 
         if not parent_wp or not parent_wp.get("key"):

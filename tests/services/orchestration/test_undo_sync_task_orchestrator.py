@@ -139,7 +139,6 @@ class IssueFinderServiceStub(IssueFinderServiceInterface):
         self,
         page_id: str,
         issue_type_map: Dict[str, str],
-        confluence_api_service: ConfluenceApiServiceInterface,
     ) -> Optional[Dict[str, Any]]:
         return None
 

@@ -196,7 +196,7 @@ class ConfluenceIssueUpdaterService:
         """
         Parses HTML, finds Jira macros, and replaces them with the best match.
         """
-        soup = BeautifulSoup(html_content, "html.parser")
+        soup = await asyncio.to_thread(BeautifulSoup, html_content, "html.parser")
         modified = False
 
         try:
