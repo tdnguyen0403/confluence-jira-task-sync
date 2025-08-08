@@ -1,4 +1,4 @@
-# File: src/error_handlers.py
+# File: src/error_handler_app.py
 
 """
 Centralized exception handlers for the FastAPI application.
@@ -33,15 +33,16 @@ def register_exception_handlers(app: FastAPI):
     Args:
         app: The FastAPI application instance.
     """
-    app.add_exception_handler(InvalidInputError, invalid_input_error_handler)
+    app.add_exception_handler(InvalidInputError, invalid_input_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(
-        ParentIssueNotFoundError, parent_issue_not_found_error_handler
+        ParentIssueNotFoundError,
+        parent_issue_not_found_error_handler,  # type: ignore[arg-type]
     )
-    app.add_exception_handler(SetupError, setup_error_handler)
-    app.add_exception_handler(SyncError, sync_error_handler)
-    app.add_exception_handler(UndoError, undo_error_handler)
-    app.add_exception_handler(MissingRequiredDataError, missing_data_exception_handler)
-    app.add_exception_handler(AutomationError, general_automation_error_handler)
+    app.add_exception_handler(SetupError, setup_error_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(SyncError, sync_error_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(UndoError, undo_error_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(MissingRequiredDataError, missing_data_exception_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(AutomationError, general_automation_error_handler)  # type: ignore[arg-type]
 
 
 async def invalid_input_error_handler(request: Request, exc: InvalidInputError):

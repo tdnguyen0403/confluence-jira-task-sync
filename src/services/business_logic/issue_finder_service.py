@@ -10,7 +10,7 @@ and validates them against specified criteria, such as issue type.
 import logging
 from typing import Any, Dict, List, Optional
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from src.interfaces.confluence_service_interface import (
     ConfluenceApiServiceInterface,
@@ -148,6 +148,8 @@ class IssueFinderService(IssueFinderServiceInterface):
         jira_keys_to_fetch = set()
 
         for macro_tag in soup.find_all("ac:structured-macro", {"ac:name": "jira"}):
+            if not isinstance(macro_tag, Tag):
+                continue
             try:
                 issue_key_param = macro_tag.find("ac:parameter", {"ac:name": "key"})
                 if issue_key_param and issue_key_param.text:

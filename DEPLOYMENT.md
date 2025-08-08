@@ -41,7 +41,7 @@ Deployment configuration is managed through environment variables.
 
 The `docker-compose.override.yml` file is configured for local development. It builds the `development` stage from the `Dockerfile`, maps your local source code into the container for live-reloading, and exposes the application on port 8000.
 
-### Steps to Run:
+### Steps to Run
 
 1. Make sure your `.env.dev` file is correctly filled out. Load them into your environment.
 2. Build and run the containers in detached mode:
@@ -71,7 +71,7 @@ The `docker-compose.override.yml` file is configured for local development. It b
 
 The `docker-compose.yml` file is configured for a production deployment. It builds the lean `production` stage from the `Dockerfile` and exposes the application on port 8080.
 
-### Steps to Build & Test:
+### Steps to Build & Test
 
 1. Ensure all required environment variables are available in the shell where you run Docker Compose. You can source them from your `.env.prod` file or set them directly in your deployment environment (e.g., as secrets in a CI/CD system).
 2. Build and run the container using the production compose file:
@@ -88,7 +88,7 @@ The `docker-compose.yml` file is configured for a production deployment. It buil
     docker compose down
     ```
 
-### Steps to Run on Virtual Machine:
+### Steps to Run on Virtual Machine
 
 1. Save the Image to a .tar File
 

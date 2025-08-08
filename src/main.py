@@ -21,7 +21,7 @@ from src.dependencies import (
     get_sync_task_orchestrator,
     get_undo_sync_task_orchestrator,
 )
-from src.error_handlers import register_exception_handlers
+from src.error_handler_app import register_exception_handlers
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.models.api_models import (
@@ -179,7 +179,9 @@ async def update_confluence_project(
     else:
         logger.info("Update process completed, but no pages were modified.")
 
-    return SyncProjectResponse(request_id=request_id_var.get(), results=updated_pages)
+    request_id = request_id_var.get()
+    assert request_id is not None
+    return SyncProjectResponse(request_id=request_id, results=updated_pages)
 
 
 @app.get("/", include_in_schema=False)

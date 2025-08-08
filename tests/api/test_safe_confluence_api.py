@@ -6,7 +6,7 @@ import pytest
 from bs4 import BeautifulSoup
 import uuid
 
-from src.api.https_helper import HTTPSHelper, HTTPXClientError, HTTPXServerError, HTTPXCustomError
+from src.api.https_helper import HTTPSHelper, HTTPXClientError, HTTPXCustomError
 from src.api.safe_confluence_api import SafeConfluenceApi
 from src.config import config
 from src.exceptions import ConfluenceApiError

@@ -200,9 +200,10 @@ class JiraService(JiraApiServiceInterface):
             due_date = task.due_date
             logger.info(f"Using due date from Confluence task: {due_date}")
         else:
-            calculated_due_date = date.today() + timedelta(
-                days=context.days_to_due_date
+            days_to_add = (
+                context.days_to_due_date if context.days_to_due_date is not None else 14
             )
+            calculated_due_date = date.today() + timedelta(days=days_to_add)
             due_date = calculated_due_date.strftime("%Y-%m-%d")
             logger.info(f"Calculating due date: {due_date}")
 

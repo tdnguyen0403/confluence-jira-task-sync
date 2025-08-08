@@ -221,6 +221,7 @@ class HTTPSHelper:
             HTTPXCustomError: For other `httpx` request-related errors or unexpected
                 HTTP status codes.
         """
+        assert HTTPSHelper._semaphore is not None
         async with HTTPSHelper._semaphore:
             current_timeout = (
                 timeout if timeout is not None else config.API_REQUEST_TIMEOUT_SECONDS  # noqa: E501

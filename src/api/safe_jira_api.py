@@ -22,7 +22,7 @@ error handling, and improves the overall reliability of Jira-dependent services.
 import logging
 from typing import Any, Dict, List, Optional
 
-from src.api.error_handler import handle_api_errors
+from src.api.error_handler_api import handle_api_errors
 from src.api.https_helper import HTTPSHelper
 from src.config import config
 from src.exceptions import JiraApiError

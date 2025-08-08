@@ -25,9 +25,9 @@ import re
 import uuid
 from typing import Any, Dict, List, Optional
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
-from src.api.error_handler import handle_api_errors
+from src.api.error_handler_api import handle_api_errors
 from src.api.https_helper import HTTPSHelper
 from src.config import config
 from src.exceptions import ConfluenceApiError
@@ -172,6 +172,7 @@ class SafeConfluenceApi:
             Optional[Dict[str, Any]]: A dictionary containing the page data,
                                       or None if retrieval fails.
         """
+        params: Dict[str, Any] = {}
         if version is not None:
             url = f"{self.base_url}{self.CONFLUENCE_API_PATH}/content/{page_id}"
             params = {"version": version}
@@ -310,6 +311,7 @@ class SafeConfluenceApi:
         )
         if response:
             return response
+        return None
 
     @handle_api_errors(ConfluenceApiError)
     async def get_user_details_by_username(
@@ -390,7 +392,7 @@ class SafeConfluenceApi:
         """
         all_pages = []
         processed_page_ids = set()
-        queue = asyncio.Queue()
+        queue: asyncio.Queue[str] = asyncio.Queue()
         await queue.put(page_id)
 
         async def worker():
@@ -489,7 +491,11 @@ class SafeConfluenceApi:
         task_id_tag = task_element.find("ac:task-id")
         task_status_tag = task_element.find("ac:task-status")
 
-        if not (task_body and task_id_tag and task_status_tag):
+        if not (
+            isinstance(task_body, Tag)
+            and isinstance(task_id_tag, Tag)
+            and isinstance(task_status_tag, Tag)
+        ):
             return None
 
         assignee_name: Optional[str] = None
@@ -502,7 +508,7 @@ class SafeConfluenceApi:
         due_date_tag = task_element.find("time")
         due_date = (
             due_date_tag["datetime"]
-            if due_date_tag and "datetime" in due_date_tag.attrs
+            if isinstance(due_date_tag, Tag) and "datetime" in due_date_tag.attrs
             else None
         )
 
@@ -561,6 +567,8 @@ class SafeConfluenceApi:
         mapping_dict = {m["confluence_task_id"]: m["jira_key"] for m in mappings}
 
         for task in soup.find_all("ac:task"):
+            if not isinstance(task, Tag):
+                continue
             task_id_tag = task.find("ac:task-id")
 
             if task_id_tag and task_id_tag.string in mapping_dict:
