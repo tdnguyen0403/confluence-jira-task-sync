@@ -1,8 +1,8 @@
 # ==================================
 # 1. Builder Stage
-# Installs dependencies
+# Pre-installs production dependencies into the system python
 # ==================================
-FROM python:3.9-slim as builder
+FROM python:3.12-slim as builder
 
 WORKDIR /app
 
@@ -13,57 +13,59 @@ RUN pip install poetry==1.8.2
 # Copy dependency definition files
 COPY poetry.lock pyproject.toml ./
 
-# Configure poetry and install production dependencies
-# This creates a virtual env at /app/.venv
-RUN poetry config virtualenvs.in-project true && poetry install --no-root --no-dev
+# === KEY CHANGE ===
+# Tell Poetry NOT to create a virtual env for this project
+RUN poetry config virtualenvs.create false --local
+
+# Install ONLY production dependencies into the system's site-packages
+RUN poetry install --no-root --no-dev
 
 
 # ==================================
 # 2. Production Stage
 # Final, optimized image
 # ==================================
-FROM python:3.9-slim as production
+FROM python:3.12-slim as production
 
-# Create a non-root user for better security
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 WORKDIR /app
 
-# Copy the virtual environment from the builder stage
-COPY --from=builder /app/.venv ./.venv
-# Add the venv to the PATH
-ENV PATH="/app/.venv/bin:$PATH"
+# Create the user first, so we can assign ownership later
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
-# Copy your application source code
-COPY . .
+# Copy the globally installed packages from the builder stage
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 
-# Create data directories and give the new user ownership
-RUN mkdir -p logs input output && chown -R appuser:appgroup logs input output
+# Copy the application source code
+COPY ./src ./src
+
+# Create the directories that will be used by the app
+RUN mkdir -p logs input output
+
+# Change ownership of the entire app directory AFTER all files are copied.
+# This ensures the user owns the mount point for the volume.
+RUN chown -R appuser:appgroup /app
 
 # Switch to the non-root user
 USER appuser
 
-# Expose the port the app will run on.
-EXPOSE 8080
-
-ENV LOG_LEVEL=INFO
-# Command to run the production application.
-# The port can be overridden by the PORT environment variable.
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "${PORT:-8080}"]
+# Expose port 80 and run the application
+EXPOSE 80
+CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "80"]
 
 
 # ==================================
 # 3. Development Stage
-# Used for local development with live-reloading
+# Inherits from builder and adds development tools
 # ==================================
 FROM builder as development
 
 WORKDIR /app
 
-# Install all dependencies, including development ones
-RUN poetry install --no-root
+# Install ONLY the development-specific dependencies into the system
+RUN poetry install --no-root --only dev
 
 # Copy the application source code
-COPY . .
+COPY ./src ./src
 
-# Command to run the dev server with live-reloading
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# The command is simple because all packages are in the global path
+CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

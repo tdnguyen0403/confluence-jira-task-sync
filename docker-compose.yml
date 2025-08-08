@@ -1,58 +1,21 @@
-# docker-compose.yml (for Production)
-
-version: '3.9'
-
 services:
-  jira-to-teamspace-automator:
+  jta:
+    image: jta-app:prod
     build:
       context: .
       target: production
+    container_name: jta-prod
     restart: unless-stopped
+    env_file:
+      - .env.prod
     ports:
+      # Maps port 80 in the container to port 8080 on the host machine
       - "8080:80"
-    volumes:
-      - jira-automator-logs:/app/logs
-    container_name: jira-to-teamspace-automator-prod
     environment:
-      - LOG_LEVEL: ERROR
-      # Secrets
-      - JIRA_API_TOKEN
-      - CONFLUENCE_API_TOKEN
-      - JIRA_MACRO_SERVER_NAME
-      - JIRA_MACRO_SERVER_ID
-      - API_SECRET_KEY
-
-      # API Configuration
-      - JIRA_URL
-      - CONFLUENCE_URL
-      - VERIFY_SSL
-
-      # Jira Specific IDs
-      - JIRA_TASK_ISSUE_TYPE_ID
-      - JIRA_PARENT_WP_CUSTOM_FIELD_ID
-      - JIRA_PARENT_WP_ISSUE_TYPE_ID
-      - JIRA_PROJECT_WP_ISSUE_TYPE_ID
-
-      # Logging Configuration
-      - HTTPX_LOG_LEVEL
-      - ASYNCIO_LOG_LEVEL
-      - URLLIB3_LOG_LEVEL
-
-      # Master Data / Custom IDs
-      - JIRA_PARENT_ID_WORK_PACKAGE
-      - JIRA_PARENT_ID_RISK
-      - JIRA_PARENT_ID_DEVIATION
-      - JIRA_PROJECT_ISSUE_TYPE_ID
-      - JIRA_PHASE_ISSUE_TYPE_ID
-      - JIRA_WORK_PACKAGE_ISSUE_TYPE_ID
-
-      # Automation Settings
-      - JIRA_STATUS_NEW
-      - JIRA_STATUS_DONE
-      - JIRA_STATUS_UNDO
-
-      # Fuzzy Matching Settings
-      - FUZZY_MATCH_THRESHOLD
+      - RUNNING_IN_CONTAINER=true
+    volumes:
+      # Persists logs in a named volume for production
+      - jta-logs:/app/logs
 
 volumes:
-  jira-automator-logs:
+  jta-logs:

@@ -28,6 +28,7 @@ ruff = "^0.2.2"
 pre-commit = "^3.6.0"
 requests-mock = "^1.12.1"
 pytest-cov = "^6.2.0"
+mypy = "^1.8.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -76,3 +77,17 @@ omit = [
 
 [tool.coverage.report]
 skip_empty = true
+
+[tool.mypy]
+# Ignore errors from untyped function definitions
+check_untyped_defs = false
+
+# Ignore errors from calling functions defined without annotations
+disallow_untyped_calls = false
+
+# Allow function definitions without type annotations
+disallow_untyped_defs = false
+
+# Don't follow imports to modules that mypy can't find stubs for (e.g., many third-party libraries)
+# This is essential for a smooth start.
+ignore_missing_imports = true

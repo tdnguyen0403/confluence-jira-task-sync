@@ -7,6 +7,8 @@ exceptions allows for more granular error handling and clearer, more expressive
 code in the service and API layers.
 """
 
+from typing import Optional
+
 
 class AutomationError(Exception):
     """Base exception for all application-specific errors."""
@@ -17,7 +19,12 @@ class AutomationError(Exception):
 class ApiError(AutomationError):
     """Represents a failure in the underlying API communication layer."""
 
-    def __init__(self, message: str, status_code: int = None, details: str = None):
+    def __init__(
+        self,
+        message: str,
+        status_code: Optional[int] = None,
+        details: Optional[str] = None,
+    ):
         self.status_code = status_code
         self.details = details
         super().__init__(message)
@@ -51,7 +58,7 @@ class ParentIssueNotFoundError(SetupError):
 class SyncError(AutomationError):
     """Base exception for errors during the task synchronization process."""
 
-    def __init__(self, message: str, confluence_page_id: str = None):
+    def __init__(self, message: str, confluence_page_id: Optional[str] = None):
         self.confluence_page_id = confluence_page_id
         super().__init__(message)
 

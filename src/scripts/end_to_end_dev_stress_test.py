@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load environment variables for API key and URLs
-load_dotenv(dotenv_path="./.env")
+load_dotenv(dotenv_path="./.env.dev")
 BASE_URL = "http://localhost:8000"
 API_KEY = os.getenv("API_SECRET_KEY")
 if not API_KEY:

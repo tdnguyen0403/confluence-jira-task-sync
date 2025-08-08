@@ -1,53 +1,29 @@
-
 # Git
 .git
 .gitignore
 
-# Docker
-Dockerfile
-.dockerignore
-
-# Byte-compiled / optimized / dll files
+# Python
 __pycache__/
+.venv/
 *.pyc
-*.pyd
-*.pyo
 
-# Distribution / packaging
+# Docker
+.dockerignore
+Dockerfile
+
+# IDE / OS files
+.vscode/
+.idea/
+*.DS_Store
+
+# Environment files
 .env
-.gitignore
-.Python
-.pytest_cache/
-.ruff_cache/
+.env.*
+!/.env.prod
+!/.env.example
 
-# Pip
-pip-wheel-metadata/
-.pip-eggs/
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Editors
-.vscode/ # VS Code settings/workspace files
-.VS*
-.idea/ # PyCharm / IntelliJ IDEA files
-*.sublime-project
-*.sublime-workspace
-
-# OS junk files
-.DS_Store # macOS
-Thumbs.db # Windows
-ehthumbs.db # Windows
-*.log
-*.sqlite3
-.coverage
-
-# Testing
-.pytest_cache/
-.coverage
-.bak
-htmlcov/
-.coverage
-coverage.xml
-
-#AI prompt
-prompt/
+# Build artifacts and logs
+build/
+dist/
+logs/
+.logs/
