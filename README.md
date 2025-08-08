@@ -61,10 +61,11 @@ The tool is designed with a clear separation of concerns, making it easy to unde
   - `main.py`: The FastAPI application entry point.
   - `dependencies.py`: Decouple services from FastAPI application using built in Depend module for dependency injection.
   - `exceptions.py`: custom exception class to be used throughout applcation.
-  - `scripts/`: Contains auxiliary script such as generate_confluence_tree.pu for generating Confluence test data, to be run in CLI.
+  - `scripts/`: Contains auxiliary script such as generate_confluence_tree.pu for generating Confluence test data, to be run in CLI, or end_to_end_test script to test the overall API workflow
 - `tests/`: Contains unit and integration tests.
 - `Dockerfile`: Defines the multi-stage build process for development and production containers.
-- `docker-compose.yml`: Defines the services for production deployment.
+- `docker-compose.yml`: Defines the services for production deployment test - build & run the container in developer machine
+- `docker-compose.prod.yml`: Defines the services for production deployment - run the container.
 - `docker-compose.override.yml`: Extends the production setup for local development.
 - `pyproject.toml`: Python dependencies managed by Poetry.
 - `README.md`: This documentation file.
@@ -88,16 +89,16 @@ You can run this application either locally with a Python environment or using D
 
 This tool uses environment variables to store sensitive API credentials.
 
-1. -*Create a `.env` file**: Copy the provided `.env.example` file to a new file named `.env` in the project's root directory.
+1. -*Create a `.env.dev` file (for development)**: Copy the provided `.env.example` file to a new file named `.env.dev` in the project's root directory.
 
     ```bash
-    cp .env.example .env
+    cp .env.example .env.dev
     ```
 
-2. -*Fill in your credentials**: Open the `.env` file and replace the placeholder values with your actual Jira and Confluence API details and a secure key for the API.
+2. -*Fill in your credentials**: Open the `.env.dev` file and replace the placeholder values with your actual Jira and Confluence API details and a secure key for the API.
 
     ```dotenv
-    # .env
+    # .env.dev
     JIRA_URL="[https://your-jira-instance.atlassian.net](https://your-jira-instance.atlassian.net)"
     JIRA_API_TOKEN="YOUR_JIRA_API_TOKEN"
     CONFLUENCE_URL="[https://your-confluence-instance.atlassian.net](https://your-confluence-instance.atlassian.net)"
@@ -258,6 +259,6 @@ The tool generates detailed logs for each run in the `logs/` directory. These lo
 
 ## Troubleshooting
 
-- **ResponseValidationError**: This typically means there's a mismatch between the data format your API endpoint is returning and the Pydantic `response_model` defined for that endpoint. Check `src/models/data_models.py` against the actual data returned by the service.
-- **Authentication Errors (401/403)**: Double-check your API tokens and URLs in the `.env` file. Ensure the credentials have the necessary
-- **SSL Certificate Errors**: If you encounter SSL certificate validation issues, ensure your environment's certificate store is up to date, or set `VERIFY_SSL=false` in your `.env` file for local development (not recommended for production).
+- **ResponseValidationError**: This typically means there's a mismatch between the data format your API endpoint is returning and the Pydantic `response_model` defined for that endpoint. Check `src/models/api_models.py` against the actual data returned by the service.
+- **Authentication Errors (401/403)**: Double-check your API tokens and URLs in the `.env.dev` or `.end.prod` file. Ensure the credentials have the necessary
+- **SSL Certificate Errors**: If you encounter SSL certificate validation issues, ensure your environment's certificate store is up to date, or set `VERIFY_SSL=false` in your `.env.dev` file for local development (not recommended for production).

@@ -16,8 +16,8 @@ from dotenv import load_dotenv
 
 # Only load the .env file if we're NOT running in Docker.
 if not os.getenv("RUNNING_IN_CONTAINER"):
-    print("--- Running locally: loading .env file ---", file=sys.stderr)
-    load_dotenv()
+    print("--- Running locally: loading .env.prod file ---", file=sys.stderr)
+    load_dotenv(dotenv_path=".env.dev")
 
 DEV_ENVIRONMENT: bool = os.getenv("DEV_ENVIRONMENT", "false").lower() == "true"
 
