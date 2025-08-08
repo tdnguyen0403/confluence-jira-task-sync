@@ -1,71 +1,69 @@
 # ==================================
 # 1. Builder Stage
-# Pre-installs production dependencies into the system python
+# Creates an isolated virtual environment
 # ==================================
-FROM python:3.12-slim as builder
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# Install poetry
-RUN pip install --upgrade pip
-RUN pip install poetry==1.8.2
+# Install uv globally so we can use it to create our venv and install packages
+RUN pip install uv
 
 # Copy dependency definition files
-COPY poetry.lock pyproject.toml ./
+COPY pyproject.toml uv.lock* ./
 
-# === KEY CHANGE ===
-# Tell Poetry NOT to create a virtual env for this project
-RUN poetry config virtualenvs.create false --local
+# Create a virtual environment and install production dependencies into it
+# uv will automatically create a '.venv' directory for us
+RUN uv venv
 
-# Install ONLY production dependencies into the system's site-packages
-RUN poetry install --no-root --no-dev
-
+# install all dependencies
+RUN uv sync
 
 # ==================================
 # 2. Production Stage
-# Final, optimized image
+# Final, optimized image with the isolated venv
 # ==================================
-FROM python:3.12-slim as production
+FROM python:3.12-slim AS production
 
 WORKDIR /app
 
 # Create the user first, so we can assign ownership later
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
-# Copy the globally installed packages from the builder stage
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-
 # Copy the application source code
 COPY ./src ./src
 
-# Create the directories that will be used by the app
-RUN mkdir -p logs input output
+# Copy the entire virtual environment from the builder stage
+# This directory contains the Python interpreter and all dependencies
+COPY --from=builder /app/.venv /app/.venv
 
-# Change ownership of the entire app directory AFTER all files are copied.
-# This ensures the user owns the mount point for the volume.
+# Create the directories that will be used by the app
+RUN mkdir -p logs
+
+# Change ownership of the entire app directory to the non-root user
 RUN chown -R appuser:appgroup /app
 
 # Switch to the non-root user
 USER appuser
 
-# Expose port 80 and run the application
+# Expose port 80
 EXPOSE 80
-CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "80"]
+
+# The CMD now uses the python interpreter from the virtual environment
+CMD ["/app/.venv/bin/python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "80"]
 
 
 # ==================================
 # 3. Development Stage
-# Inherits from builder and adds development tools
+# Can remain the same, but you could also adapt it
 # ==================================
-FROM builder as development
+FROM builder AS development
 
 WORKDIR /app
-
-# Install ONLY the development-specific dependencies into the system
-RUN poetry install --no-root --only dev
 
 # Copy the application source code
 COPY ./src ./src
 
-# The command is simple because all packages are in the global path
-CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# The command is simple because all packages are in the venv's global path
+# The CMD now uses the python interpreter from the virtual environment
+CMD ["/app/.venv/bin/python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

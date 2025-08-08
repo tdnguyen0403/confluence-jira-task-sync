@@ -1,48 +1,49 @@
-[tool.poetry]
-name = "confluence-jira-task-sync"
+###---PROJECT CONFIGURATION---###
+
+[project]
+name = "jira-to-teamspace-automator"
 version = "0.1.0"
-description = "A tool to automate Jira and Confluence synchronization."
-authors = ["Nguyen Tuan Dat <tdnguyen@vn.pepperl-fuchs.com>"]
+description = "A tool to automate Jira and teamspace synchronization."
+authors = [
+    { name = "Nguyen Tuan Dat", email = "tdnguyen@vn.pepperl-fuchs.com" },
+]
 readme = "README.md"
-package-mode = false
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic >= 2.5.3",
+    "python-dotenv >= 1.0.1",
+    "fastapi >= 0.111.0",
+    "httpx >= 0.27.0",
+    "uvicorn >= 0.35.0",
+    "tenacity >= 9.1.2",
+    "beautifulsoup4 >= 4.13.0",
+    "starlette>=0.47.2",
+    "urllib3>=2.5.0",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.9,<4.0"
-# Core application dependencies
-pydantic = "^2.5.3"
-punq = "^0.7.0"
-python-dotenv = "^1.0.1"
-fastapi = "^0.111.0"
-httpx = "^0.27.0"
-uvicorn = {extras = ["standard"], version = "^0.35.0"}
-python-multipart = "^0.0.9"
-tenacity = "^9.1.2"
-beautifulsoup4 = "^4.13.0"
+[dependency-groups]
+dev = [
+    "pytest >= 8.2.0",
+    "pytest-mock >= 3.12.0",
+    "pytest-asyncio >= 1.0.0",
+    "ruff >= 0.2.2",
+    "pre-commit>=3.6.0",
+    "requests-mock >= 1.12.1",
+    "pytest-cov >= 6.2.0",
+    "mypy >= 1.8.0",
+    "deptry>=0.23.1",
+]
 
-[tool.poetry.group.dev.dependencies]
-# Tools for testing, formatting, and linting
-pytest = "^8.2.0"
-pytest-mock = "^3.12.0"
-pytest-asyncio = "^1.0.0"
-ruff = "^0.2.2"
-pre-commit = "^3.6.0"
-requests-mock = "^1.12.1"
-pytest-cov = "^6.2.0"
-mypy = "^1.8.0"
+###---TOOLS CONFIGURATION---###
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-# ++ Added Ruff Configuration
 [tool.ruff]
 line-length = 88
-target-version = "py39"
+target-version = "py312"
 exclude = [
     ".mypy_cache",
     ".venv",
     "src/scripts/",
-    "end_to_end_test.py",
+    "end_to_end_*test.py",
     "tests/*.py",
 ]
 
@@ -60,12 +61,11 @@ per-file-ignores = { "tests/*.py" = ["E501"] }
 quote-style = "double"
 
 [tool.ruff.lint.flake8-bugbear]
-    extend-immutable-calls = ["Depends", "fastapi.Depends", "fastapi.params.Depends"]
+extend-immutable-calls = ["Depends", "fastapi.Depends", "fastapi.params.Depends"]
 
-# ++ Updated Pytest Configuration
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=. --cov-branch --cov-report=term-missing --cov-report=html:htmlcov"
+addopts = "--cov=. --cov-branch --cov-report=term-missing --cov-report=xml:coverage.xml"
 
 [tool.coverage.run]
 omit = [
@@ -79,15 +79,7 @@ omit = [
 skip_empty = true
 
 [tool.mypy]
-# Ignore errors from untyped function definitions
-check_untyped_defs = false
-
-# Ignore errors from calling functions defined without annotations
-disallow_untyped_calls = false
-
-# Allow function definitions without type annotations
-disallow_untyped_defs = false
-
-# Don't follow imports to modules that mypy can't find stubs for (e.g., many third-party libraries)
-# This is essential for a smooth start.
-ignore_missing_imports = true
+check_untyped_defs = false # Ignore errors from untyped function definitions
+disallow_untyped_calls = false # Ignore errors from calling functions defined without annotations
+disallow_untyped_defs = false # Allow function definitions without type annotations
+ignore_missing_imports = true # Don't follow imports to modules that mypy can't find stubs for (e.g., many third-party libraries)

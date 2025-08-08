@@ -67,7 +67,7 @@ The tool is designed with a clear separation of concerns, making it easy to unde
 - `docker-compose.yml`: Defines the services for production deployment test - build & run the container in developer machine
 - `docker-compose.prod.yml`: Defines the services for production deployment - run the container.
 - `docker-compose.override.yml`: Extends the production setup for local development.
-- `pyproject.toml`: Python dependencies managed by Poetry.
+- `pyproject.toml`: Python dependencies managed by uv.
 - `README.md`: This documentation file.
 - `ARCHITECTURE.md`: Explain the architecture desgin of the application.
 - `DEPLOYMENT.me`: step by step guide for deployment as Dockers container
@@ -80,9 +80,8 @@ You can run this application either locally with a Python environment or using D
 
 ### Prerequisites
 
-- Python 3.9+
-- [Poetry](https://python-poetry.org/docs/#installation) for managing dependencies.
-- [Docker](https://www.docker.com/get-started) and Docker Compose.
+- Python 3.12+
+- uv for managing dependencies.
 - Jira and Confluence instances with API access.
 
 ### API Authentication
@@ -116,16 +115,16 @@ This tool uses environment variables to store sensitive API credentials.
     cd confluence-jira-task-sync
     ```
 
-2. -*Install dependencies** using Poetry:
+2. -*Install dependencies** using uv:
 
     ```bash
-    poetry install
+    uv sync
     ```
 
 3. -*Run the FastAPI Application**:
 
     ```bash
-    uvicorn main:app --reload --host 0.0.0.0 --port 8000
+    uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
     ```
 
 The application will be available at `http://localhost:8000`.
@@ -137,13 +136,13 @@ The project uses `pytest` for unit and integration testing.
 1. -*Run all tests**:
 
     ```bash
-    poetry run pytest
+    uv run pytest
     ```
 
 2. -*Run tests with coverage**:
 
     ```bash
-    poetry run pytest --cov=src
+    uv run pytest --cov=src
     ```
 
 This will run the tests and generate a coverage report. A `coverage.xml` file is also generated, which shows a line rate of over 92% and a branch rate of over 82%.
