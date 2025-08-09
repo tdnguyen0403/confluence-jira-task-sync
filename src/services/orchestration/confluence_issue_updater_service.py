@@ -10,7 +10,7 @@ from typing import (
     Tuple,
 )
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from src.config import config
 from src.exceptions import InvalidInputError
@@ -59,11 +59,12 @@ class ConfluenceIssueUpdaterService:
         )
         logger.info(f"Found {len(all_page_ids)} total page(s) to scan.")
 
-        target_ids = {
+        target_ids_raw = {
             config.JIRA_PHASE_ISSUE_TYPE_ID,
             config.JIRA_WORK_PACKAGE_ISSUE_TYPE_ID,
             config.JIRA_WORK_CONTAINER_ISSUE_TYPE_ID,
         }
+        target_ids = {t_id for t_id in target_ids_raw if t_id is not None}
         candidate_issues = await self._get_relevant_jira_issues_under_root(
             project_key, target_ids
         )
@@ -125,9 +126,11 @@ class ConfluenceIssueUpdaterService:
             )
             if success:
                 new_keys = [
-                    issue.get("key")
+                    issue_key
                     for issue in candidate_new_issues
-                    if issue.get("key") in modified_html
+                    if (issue_key := issue.get("key"))
+                    and isinstance(issue_key, str)
+                    and issue_key in modified_html
                 ]
                 return SinglePageResult(
                     page_id=page_id,
@@ -172,11 +175,13 @@ class ConfluenceIssueUpdaterService:
         self, soup: BeautifulSoup
     ) -> Dict[str, Dict[str, Any]]:
         """Finds all Jira macro keys on a page and fetches their details in bulk."""
-        keys_on_page = {
-            key_param.get_text(strip=True)
-            for macro in soup.find_all("ac:structured-macro", {"ac:name": "jira"})
-            if (key_param := macro.find("ac:parameter", {"ac:name": "key"}))
-        }
+        keys_on_page = set()
+        for macro in soup.find_all("ac:structured-macro", {"ac:name": "jira"}):
+            if not isinstance(macro, Tag):
+                continue
+            key_param = macro.find("ac:parameter", {"ac:name": "key"})
+            if isinstance(key_param, Tag):
+                keys_on_page.add(key_param.get_text(strip=True))
 
         if not keys_on_page:
             return {}
@@ -208,8 +213,12 @@ class ConfluenceIssueUpdaterService:
             return str(soup), False
 
         for macro in soup.find_all("ac:structured-macro", {"ac:name": "jira"}):
+            if not isinstance(macro, Tag):  # Ensure macro is a Tag
+                continue
             key_param = macro.find("ac:parameter", {"ac:name": "key"})
-            if not key_param or not (current_key := key_param.get_text(strip=True)):
+            if not isinstance(key_param, Tag) or not (
+                current_key := key_param.get_text(strip=True)
+            ):  # Ensure key_param is a Tag
                 continue
 
             old_issue = old_issues_map.get(current_key)

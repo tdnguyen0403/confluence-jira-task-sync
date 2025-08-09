@@ -83,3 +83,8 @@ check_untyped_defs = true # Ignore errors from untyped function definitions
 disallow_untyped_calls = true # Ignore errors from calling functions defined without annotations
 disallow_untyped_defs = true # Allow function definitions without type annotations
 ignore_missing_imports = true # Don't follow imports to modules that mypy can't find stubs for (e.g., many third-party libraries)
+exclude = [
+    "tests/",
+    "src/scripts",
+    "^venv/", # Exclude a virtual environment folder at the root
+]

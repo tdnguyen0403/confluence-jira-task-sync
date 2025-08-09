@@ -67,7 +67,7 @@ def get_task_context(task_element: Tag) -> str:
     if isinstance(parent_row, Tag):  # Ensure parent_row is a Tag
         parent_table = parent_row.find_parent("table")
         if parent_table:
-            headers = [th.get_text(strip=True) for th in parent_table.find_all("th")]
+            headers = [th.get_text(strip=True) for th in parent_table.find_all("th")]  # type: ignore[attr-defined]
             row_data: List[str] = []
             task_cell = task_element.find_parent(["td", "th"])
 

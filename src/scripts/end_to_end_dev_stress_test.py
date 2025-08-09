@@ -22,6 +22,7 @@ if not API_KEY:
         """API_SECRET_KEY not found in environment variables.
         Please set it in your .env file."""
     )
+_api_key_str: str = API_KEY # Explicitly type API_KEY as str for MyPy
 
 # --- Test Data (Replace with your actual test data) ---
 TEST_USER = "j2t-automator"
@@ -29,7 +30,7 @@ TEST_USER = "j2t-automator"
 
 async def run_end_to_end_test() -> None:
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=60.0) as client:
-        headers = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
+        headers = {"X-API-Key": _api_key_str, "Content-Type": "application/json"}
         # This will now store lists of dictionaries that directly match UndoSyncTaskRequest
         jira_creation_results_for_undo: List[Dict[str, Any]] = []
 
@@ -162,7 +163,7 @@ async def run_end_to_end_test() -> None:
                 ]
 
             logger.info("""Sync Task call successful. Verifying Jira issues "
-                        and Confluence page content manually or via API.""")
+                        "and Confluence page content manually or via API.""")
         except httpx.HTTPStatusError as e:
             logger.error(
                 f"Request failed with HTTP error: "

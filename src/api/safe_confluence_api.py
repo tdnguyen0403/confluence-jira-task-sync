@@ -615,7 +615,7 @@ class SafeConfluenceApi:
 
         if modified:
             for tl in soup.find_all("ac:task-list"):
-                if not tl.find("ac:task"):
+                if not tl.find("ac:task"):  # type: ignore[union-attr]
                     tl.decompose()
             return await self.update_page(page_id, page["title"], str(soup))
         else:

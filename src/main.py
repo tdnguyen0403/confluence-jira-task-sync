@@ -128,8 +128,10 @@ async def sync_task(
         f"with {len(request.confluence_page_urls)} URLs."
     )
 
+    request_id = request_id_var.get()
+    assert request_id is not None
     response = await sync_orchestrator.run(
-        request.model_dump(), request.context, request_id=request_id_var.get()
+        request.model_dump(), request.context, request_id=request_id
     )
 
     logger.info(f"Sync run completed with overall status: {response.overall_status}")
@@ -154,7 +156,9 @@ async def undo_sync_task(
         f"Received /undo_sync_task request for user {user} with {len(undo_data)} items."
     )
 
-    response = await undo_orchestrator.run(undo_data, request_id=request_id_var.get())
+    request_id = request_id_var.get()
+    assert request_id is not None
+    response = await undo_orchestrator.run(undo_data, request_id=request_id)
 
     logger.info(f"Undo run completed with overall status: {response.overall_status}.")
     return response
@@ -172,7 +176,9 @@ async def update_confluence_project(
         get_confluence_issue_updater_service
     ),
 ) -> SyncProjectResponse:
-    """Updates existing Jira issue macros within a Confluence page hierarchy."""
+    """
+    Updates existing Jira issue macros within a Confluence page hierarchy.
+    """
     logger.info(
         f"Received /sync_project request for user {request.request_user} "
         f"on root URL: {request.project_page_url}"
