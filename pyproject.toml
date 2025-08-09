@@ -26,11 +26,11 @@ dev = [
     "pytest >= 8.2.0",
     "pytest-mock >= 3.12.0",
     "pytest-asyncio >= 1.0.0",
-    "ruff >= 0.2.2",
+    "ruff>=0.2.2",
     "pre-commit>=3.6.0",
     "requests-mock >= 1.12.1",
     "pytest-cov >= 6.2.0",
-    "mypy >= 1.8.0",
+    "mypy>=1.8.0",
     "deptry>=0.23.1",
 ]
 
