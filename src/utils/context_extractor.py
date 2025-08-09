@@ -9,7 +9,8 @@ clear and understandable descriptions when creating Jira issues.
 
 from typing import List
 
-from bs4 import BeautifulSoup, PageElement, Tag
+from bs4 import BeautifulSoup, ResultSet, Tag
+from bs4.element import NavigableString, PageElement
 
 
 def get_task_context(task_element: Tag) -> str:
@@ -45,34 +46,47 @@ def get_task_context(task_element: Tag) -> str:
     # Priority 2: Context from a direct container (a list item or another task).
     parent_container = task_element.find_parent(["li", "ac:task"])
     if parent_container:
-        container_clone = BeautifulSoup(str(parent_container), "html.parser")
-        task_lists: List[Tag] = container_clone.find_all("ac:task-list")
+        container_soup: BeautifulSoup = BeautifulSoup(
+            str(parent_container), "html.parser"
+        )
+        task_lists_raw: ResultSet[PageElement | Tag | NavigableString] = (
+            container_soup.find_all("ac:task-list")
+        )
+        task_lists: List[Tag] = [t for t in task_lists_raw if isinstance(t, Tag)]
         for task_list in task_lists:
             task_list.decompose()
 
-        task_body = container_clone.find("ac:task-body")
+        task_body = container_soup.find("ac:task-body")
         if task_body:
             return task_body.get_text(strip=True)
         else:
-            return container_clone.get_text(strip=True)
+            return container_soup.get_text(strip=True)
 
     # Priority 3: Table context. This provides highly specific context.
     parent_row = task_element.find_parent("tr")
-    if parent_row:
+    if isinstance(parent_row, Tag):  # Ensure parent_row is a Tag
         parent_table = parent_row.find_parent("table")
         if parent_table:
             headers = [th.get_text(strip=True) for th in parent_table.find_all("th")]
             row_data: List[str] = []
             task_cell = task_element.find_parent(["td", "th"])
 
-            cells: List[Tag] = parent_row.find_all(["td", "th"])
+            cells_raw: ResultSet[PageElement | Tag | NavigableString] = (
+                parent_row.find_all(["td", "th"])
+            )
+            cells: List[Tag] = [c for c in cells_raw if isinstance(c, Tag)]
             for cell in cells:
                 if cell == task_cell:
-                    cell_clone = BeautifulSoup(str(cell), "html.parser")
-                    inner_task_lists: List[Tag] = cell_clone.find_all("ac:task-list")
+                    cell_soup = BeautifulSoup(str(cell), "html.parser")
+                    inner_task_lists_raw: ResultSet[
+                        PageElement | Tag | NavigableString
+                    ] = cell_soup.find_all("ac:task-list")
+                    inner_task_lists: List[Tag] = [
+                        t for t in inner_task_lists_raw if isinstance(t, Tag)
+                    ]
                     for task_list in inner_task_lists:
                         task_list.decompose()
-                    row_data.append(cell_clone.get_text(strip=True))
+                    row_data.append(cell_soup.get_text(strip=True))
                 else:
                     row_data.append(cell.get_text(strip=True))
 
@@ -85,11 +99,12 @@ def get_task_context(task_element: Tag) -> str:
     # Priority 4: The definitive fallback for top-level tasks.
     parent_task_list_fallback = task_element.find_parent("ac:task-list")
     if parent_task_list_fallback:
-        all_previous_tags: List[PageElement] = (
-            parent_task_list_fallback.find_all_previous()
-        )
+        all_previous_tags_raw = parent_task_list_fallback.find_all_previous()
+        all_previous_tags: List[Tag] = [
+            t for t in all_previous_tags_raw if isinstance(t, Tag)
+        ]
         for tag in all_previous_tags:
-            if isinstance(tag, Tag) and tag.name in [
+            if tag.name in [
                 "p",
                 "h1",
                 "h2",
@@ -101,7 +116,12 @@ def get_task_context(task_element: Tag) -> str:
             ]:
                 if tag.name == "li":
                     li_clone = BeautifulSoup(str(tag), "html.parser")
-                    task_lists_in_li: List[Tag] = li_clone.find_all("ac:task-list")
+                    task_lists_in_li_raw: ResultSet[
+                        PageElement | Tag | NavigableString
+                    ] = li_clone.find_all("ac:task-list")
+                    task_lists_in_li: List[Tag] = [
+                        tl for tl in task_lists_in_li_raw if isinstance(tl, Tag)
+                    ]
                     for tl in task_lists_in_li:
                         tl.decompose()
                     context_text = li_clone.get_text(strip=True)

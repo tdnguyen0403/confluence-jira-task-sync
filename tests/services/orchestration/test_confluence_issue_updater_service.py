@@ -67,7 +67,17 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
         pass
 
     def generate_jira_macro(self, jira_key: str, with_summary: bool = False) -> str:
-        return f"mock macro for {jira_key}"
+        macro_id = "mock-macro-id"  # Use a fixed ID for testing
+        summary_param = '<ac:parameter ac:name="showSummary">true</ac:parameter>' if with_summary else '<ac:parameter ac:name="showSummary">false</ac:parameter>'
+        return (
+            f'<ac:structured-macro ac:name="jira" ac:schema-version="1" '
+            f'ac:macro-id="{macro_id}>'
+            f'{summary_param}'
+            f'<ac:parameter ac:name="server">ConfluenceJiraServer</ac:parameter>'
+            f'<ac:parameter ac:name="serverId">confluence-jira-id</ac:parameter>'
+            f'<ac:parameter ac:name="key">{jira_key}</ac:parameter>'
+            f'</ac:structured-macro>'
+        )
 
 
     @property
@@ -114,9 +124,9 @@ class JiraServiceStub(JiraApiServiceInterface):
     async def search_issues_by_jql(self, jql: str, fields: str="*all") -> List[Dict[str, Any]]:
         if jql in self._jql_search_results:
             return self._jql_search_results[jql]
-        if jql.startswith("issue in ("):
+        if jql.startswith("issue in (") and jql.endswith(")"):
             keys_str = jql[len("issue in (") : -1]
-            keys = [key.strip() for key in keys_str.split(",")]
+            keys = [key.strip().strip("'") for key in keys_str.split(",")]
             return [self._issues[key] for key in keys if key in self._issues]
         return []
 

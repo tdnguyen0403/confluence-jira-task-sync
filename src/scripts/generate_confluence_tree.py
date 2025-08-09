@@ -7,7 +7,7 @@ import warnings
 import urllib3
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import AsyncIterator, Dict, List, Optional
 
 import httpx
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def resource_manager():
+async def resource_manager() -> AsyncIterator[HTTPSHelper]:
     """
     Manages the lifecycle of resources for the script, similar to FastAPI's lifespan.
     Initializes the HTTPSHelper and its client, and ensures it's closed on exit.
@@ -75,7 +75,7 @@ class ConfluenceTreeGenerator:
         self.generated_page_ids: List[str] = []
         self.assignee_account_id: Optional[str] = None
 
-    async def _initialize_assignee(self):
+    async def _initialize_assignee(self) -> None:
         """Asynchronously fetches and sets the assignee's account ID."""
         logger.info(f"Fetching account ID for assignee: {self.assignee_username}")
         user_details = await self.confluence.get_user_details_by_username(
@@ -197,7 +197,7 @@ class ConfluenceTreeGenerator:
         return parser.parse_args()
 
 
-async def main_async():
+async def main_async() -> None:
     # Set up logging for the script
     setup_logging()
     endpoint_var.set("generate_confluence_tree.py")

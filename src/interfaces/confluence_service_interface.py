@@ -36,7 +36,9 @@ class ConfluenceApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_page_by_id(self, page_id: str, **kwargs) -> Optional[Dict[str, Any]]:
+    async def get_page_by_id(
+        self, page_id: str, **kwargs: Any
+    ) -> Optional[Dict[str, Any]]:
         """
         Retrieves a Confluence page by its ID asynchronously.
 

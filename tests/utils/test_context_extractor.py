@@ -4,7 +4,7 @@ complex HTML document. This file preserves all original test scenarios.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 import pytest
 from bs4 import BeautifulSoup
@@ -40,7 +40,7 @@ def _get_task_element_by_id(soup: BeautifulSoup, task_id: str) -> Optional[Tag]:
             "Test setup failed: Could not find task with ID "
             f"{task_id} in the test HTML."
         )
-    return task_id_tag.find_parent("ac:task")
+    return cast(Optional[Tag], task_id_tag.find_parent("ac:task"))
 
 
 def test_task_preceded_by_jira_macro(soup: BeautifulSoup) -> None:

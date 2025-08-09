@@ -27,7 +27,7 @@ if not API_KEY:
 TEST_USER = "j2t-automator"
 
 
-async def run_end_to_end_test():
+async def run_end_to_end_test() -> None:
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=60.0) as client:
         headers = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
         # This will now store lists of dictionaries that directly match UndoSyncTaskRequest
@@ -172,7 +172,7 @@ async def run_end_to_end_test():
             logger.error(f"Request Headers: {e.request.headers}")
             logger.error(
                 f"Request Content (truncated if large): "
-                f"{e.request.content[:500] if e.request.content else 'N/A'}"
+                f"{(e.request.content[:500].decode()) if e.request.content else 'N/A'}"
             )
             logger.error(f"Response Headers: {e.response.headers}")
             logger.error(
@@ -188,7 +188,7 @@ async def run_end_to_end_test():
             )
             logger.error(
                 f"Request Content (truncated if large): "
-                f"{e.request.content[:500] if e.request and e.request.content else 'N/A'}"
+                f"{(e.request.content[:500].decode()) if e.request and e.request.content else 'N/A'}"
             )
             return
 
@@ -241,7 +241,7 @@ async def run_end_to_end_test():
             logger.error(f"Request Headers: {e.request.headers}")
             logger.error(
                 f"Request Content (truncated if large): "
-                f"{e.request.content[:500] if e.request.content else 'N/A'}"
+                f"{(e.request.content[:500].decode()) if e.request.content else 'N/A'}"
             )
             logger.error(f"Response Headers: {e.response.headers}")
             logger.error(
@@ -257,7 +257,7 @@ async def run_end_to_end_test():
             )
             logger.error(
                 f"Request Content (truncated if large): "
-                f"{e.request.content[:500] if e.request and e.request.content else 'N/A'}"
+                f"{(e.request.content[:500].decode()) if e.request and e.request.content else 'N/A'}"
             )
             return
 

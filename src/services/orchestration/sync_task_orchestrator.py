@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 from src.config import config
 from src.exceptions import ConfluenceApiError, InvalidInputError, JiraApiError
@@ -55,7 +55,10 @@ class SyncTaskOrchestrator:
         hierarchy_tasks = [
             self.process_page_hierarchy(url, context) for url in page_urls
         ]
-        results = await asyncio.gather(*hierarchy_tasks, return_exceptions=True)
+        results: List[
+            Tuple[List[JiraTaskCreationResult], List[ConfluencePageUpdateResult]]
+            | BaseException
+        ] = await asyncio.gather(*hierarchy_tasks, return_exceptions=True)
 
         all_jira_results: List[JiraTaskCreationResult] = []
         all_confluence_results: List[ConfluencePageUpdateResult] = []
@@ -64,8 +67,13 @@ class SyncTaskOrchestrator:
             if isinstance(res, Exception):
                 logger.error(f"Error processing page hierarchy: {res}", exc_info=res)
                 continue
-            all_jira_results.extend(res[0])
-            all_confluence_results.extend(res[1])
+            # Cast res to the expected tuple type after checking for Exception
+            typed_res = cast(
+                Tuple[List[JiraTaskCreationResult], List[ConfluencePageUpdateResult]],
+                res,
+            )
+            all_jira_results.extend(typed_res[0])
+            all_confluence_results.extend(typed_res[1])
 
         jira_status = self._determine_overall_status(
             all_jira_results, lambda r: r.success

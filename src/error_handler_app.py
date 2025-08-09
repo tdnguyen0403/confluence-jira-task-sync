@@ -26,7 +26,7 @@ from src.exceptions import (
 logger = logging.getLogger(__name__)
 
 
-def register_exception_handlers(app: FastAPI):
+def register_exception_handlers(app: FastAPI) -> None:
     """
     Registers all custom exception handlers with the FastAPI app.
 
@@ -45,7 +45,9 @@ def register_exception_handlers(app: FastAPI):
     app.add_exception_handler(AutomationError, general_automation_error_handler)  # type: ignore[arg-type]
 
 
-async def invalid_input_error_handler(request: Request, exc: InvalidInputError):
+async def invalid_input_error_handler(
+    request: Request, exc: InvalidInputError
+) -> JSONResponse:
     """Handles errors from invalid request body format."""
     logger.warning(f"Invalid input provided: {exc}", exc_info=True)
     return JSONResponse(
@@ -56,7 +58,7 @@ async def invalid_input_error_handler(request: Request, exc: InvalidInputError):
 
 async def parent_issue_not_found_error_handler(
     request: Request, exc: ParentIssueNotFoundError
-):
+) -> JSONResponse:
     """Handles failure to find a required parent entity (e.g., Work Package)."""
     logger.error(f"A required parent issue was not found: {exc}", exc_info=True)
     return JSONResponse(
@@ -65,7 +67,7 @@ async def parent_issue_not_found_error_handler(
     )
 
 
-async def setup_error_handler(request: Request, exc: SetupError):
+async def setup_error_handler(request: Request, exc: SetupError) -> JSONResponse:
     """Handles generic errors during the pre-processing/setup phase."""
     logger.warning(f"Request setup failed: {exc}", exc_info=True)
     return JSONResponse(
@@ -74,7 +76,7 @@ async def setup_error_handler(request: Request, exc: SetupError):
     )
 
 
-async def sync_error_handler(request: Request, exc: SyncError):
+async def sync_error_handler(request: Request, exc: SyncError) -> JSONResponse:
     """Handles errors during the main synchronization workflow."""
     logger.error(f"Synchronization process error: {exc}", exc_info=True)
     return JSONResponse(
@@ -83,7 +85,7 @@ async def sync_error_handler(request: Request, exc: SyncError):
     )
 
 
-async def undo_error_handler(request: Request, exc: UndoError):
+async def undo_error_handler(request: Request, exc: UndoError) -> JSONResponse:
     """Handles errors specifically from the undo workflow."""
     logger.error(f"Undo process error: {exc}", exc_info=True)
     return JSONResponse(
@@ -94,7 +96,7 @@ async def undo_error_handler(request: Request, exc: UndoError):
 
 async def missing_data_exception_handler(
     request: Request, exc: MissingRequiredDataError
-):
+) -> JSONResponse:
     """Handles `MissingRequiredDataError` exceptions globally."""
     logger.warning(f"Missing required data: {exc}")
     return JSONResponse(
@@ -103,7 +105,9 @@ async def missing_data_exception_handler(
     )
 
 
-async def general_automation_error_handler(request: Request, exc: AutomationError):
+async def general_automation_error_handler(
+    request: Request, exc: AutomationError
+) -> JSONResponse:
     """A final catch-all for any other application-specific errors."""
     logger.critical(f"An unexpected automation error occurred: {exc}", exc_info=True)
     return JSONResponse(

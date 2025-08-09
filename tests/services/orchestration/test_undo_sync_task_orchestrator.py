@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # --- Test Data Fixtures ---
 @pytest.fixture
-def sample_synced_item():
+def sample_synced_item() -> UndoSyncTaskRequest:
     return UndoSyncTaskRequest(
         confluence_page_id="435680347",
         original_page_version=213,
@@ -32,7 +32,7 @@ def sample_synced_item():
 
 
 @pytest.fixture
-def sample_completed_item():
+def sample_completed_item() -> UndoSyncTaskRequest:
     return UndoSyncTaskRequest(
         confluence_page_id="435680347",
         original_page_version=213,
@@ -56,7 +56,7 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
             }
         }
 
-    async def get_page_by_id(self, page_id: str, **kwargs) -> Optional[Dict[str, Any]]:
+    async def get_page_by_id(self, page_id: str, **kwargs: Any) -> Optional[Dict[str, Any]]:
         if page_id in self._page_details:
             if "version" in kwargs and kwargs["version"] == 213:
                 return {
@@ -85,7 +85,7 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
     ) -> List[ConfluenceTask]:
         return []
 
-    async def update_page_with_jira_links(self, page_id: str, mappings: list) -> bool:
+    async def update_page_with_jira_links(self, page_id: str, mappings: List[Dict[str, str]]) -> bool:
         return True
 
     async def health_check(self) -> None:
@@ -97,7 +97,7 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
 
 class JiraServiceStub(JiraApiServiceInterface):
     def __init__(self):
-        self.transitioned_issues = {}
+        self.transitioned_issues: Dict[str, str] = {}
 
     async def transition_issue(self, issue_key: str, target_status: str) -> bool:
         self.transitioned_issues[issue_key] = target_status
@@ -108,24 +108,24 @@ class JiraServiceStub(JiraApiServiceInterface):
     ) -> Optional[str]:
         return None
 
-    async def get_issue(self, issue_key: str, fields: str = "*all") -> dict:
+    async def get_issue(self, issue_key: str, fields: str = "*all") -> Dict[str, Any]:
         return {}
 
     async def get_issue_status(self, issue_key: str) -> Optional[JiraIssueStatus]:
         return None
 
-    async def get_jira_issue(self, issue_key: str):
+    async def get_jira_issue(self, issue_key: str) -> None:
         pass
 
     async def prepare_jira_task_fields(
         self, task: ConfluenceTask, parent_key: str, context: SyncTaskContext
-    ) -> dict:
+    ) -> Dict[str, Any]:
         return {}
 
     async def get_current_user_display_name(self) -> str:
         return "Stubbed User"
 
-    async def search_issues_by_jql(self, jql_query: str, fields: str = "*all") -> list:
+    async def search_issues_by_jql(self, jql_query: str, fields: str = "*all") -> List[Dict[str, Any]]:
         return []
 
     async def get_issue_type_name_by_id(self, type_id: str) -> str:
@@ -149,24 +149,26 @@ class IssueFinderServiceStub(IssueFinderServiceInterface):
 
 
 @pytest_asyncio.fixture
-async def confluence_undo_stub():
+async def confluence_undo_stub() -> ConfluenceServiceStub:
     return ConfluenceServiceStub(initial_html="<p>Current content.</p>")
 
 
 @pytest_asyncio.fixture
-async def jira_undo_stub():
+async def jira_undo_stub() -> JiraServiceStub:
     return JiraServiceStub()
 
 
 @pytest_asyncio.fixture
-async def issue_finder_undo_stub():
+async def issue_finder_undo_stub() -> IssueFinderServiceStub:
     return IssueFinderServiceStub()
 
 
 @pytest_asyncio.fixture
 async def undo_orchestrator(
-    confluence_undo_stub, jira_undo_stub, issue_finder_undo_stub
-):
+    confluence_undo_stub: ConfluenceServiceStub,
+    jira_undo_stub: JiraServiceStub,
+    issue_finder_undo_stub: IssueFinderServiceStub,
+) -> UndoSyncTaskOrchestrator:
     return UndoSyncTaskOrchestrator(
         confluence_service=confluence_undo_stub,
         jira_service=jira_undo_stub,
@@ -179,12 +181,12 @@ async def undo_orchestrator(
 
 @pytest.mark.asyncio
 async def test_undo_run_success_with_tasks(
-    undo_orchestrator,
-    confluence_undo_stub,
-    jira_undo_stub,
-    sample_synced_item,
-    sample_completed_item,
-):
+    undo_orchestrator: UndoSyncTaskOrchestrator,
+    confluence_undo_stub: ConfluenceServiceStub,
+    jira_undo_stub: JiraServiceStub,
+    sample_synced_item: UndoSyncTaskRequest,
+    sample_completed_item: UndoSyncTaskRequest,
+) -> None:
     undo_requests = [sample_synced_item, sample_completed_item]
 
     undo_response = await undo_orchestrator.run(
@@ -218,14 +220,14 @@ async def test_undo_run_success_with_tasks(
 
 
 @pytest.mark.asyncio
-async def test_undo_run_no_input(undo_orchestrator):
+async def test_undo_run_no_input(undo_orchestrator: UndoSyncTaskOrchestrator) -> None:
     """Test that an error is raised for no input."""
     with pytest.raises(InvalidInputError, match="No data provided for undo operation"):
         await undo_orchestrator.run([], request_id="undo-test-2")
 
 
 @pytest.mark.asyncio
-async def test_undo_run_empty_processable_data(undo_orchestrator):
+async def test_undo_run_empty_processable_data(undo_orchestrator: UndoSyncTaskOrchestrator) -> None:
     """Test error is raised if requests contain no actionable data."""
     undo_requests = [
         UndoSyncTaskRequest(
@@ -242,8 +244,10 @@ async def test_undo_run_empty_processable_data(undo_orchestrator):
 
 @pytest.mark.asyncio
 async def test_undo_no_actionable_tasks_in_results(
-    undo_orchestrator, confluence_undo_stub, jira_undo_stub
-):
+    undo_orchestrator: UndoSyncTaskOrchestrator,
+    confluence_undo_stub: ConfluenceServiceStub,
+    jira_undo_stub: JiraServiceStub,
+) -> None:
     """
     Checks for the expected error when an empty list is provided.
     """
@@ -258,8 +262,11 @@ async def test_undo_no_actionable_tasks_in_results(
 
 @pytest.mark.asyncio
 async def test_undo_jira_transition_failure(
-    undo_orchestrator, jira_undo_stub, sample_synced_item, confluence_undo_stub
-):
+    undo_orchestrator: UndoSyncTaskOrchestrator,
+    jira_undo_stub: JiraServiceStub,
+    sample_synced_item: UndoSyncTaskRequest,
+    confluence_undo_stub: ConfluenceServiceStub,
+) -> None:
     """Test failure capture when Jira transition fails."""
     jira_undo_stub.transition_issue = AsyncMock(
         side_effect=Exception("Simulated Jira API Error")
@@ -287,8 +294,11 @@ async def test_undo_jira_transition_failure(
 
 @pytest.mark.asyncio
 async def test_undo_confluence_rollback_failure(
-    undo_orchestrator, confluence_undo_stub, sample_synced_item, jira_undo_stub
-):
+    undo_orchestrator: UndoSyncTaskOrchestrator,
+    confluence_undo_stub: ConfluenceServiceStub,
+    sample_synced_item: UndoSyncTaskRequest,
+    jira_undo_stub: JiraServiceStub,
+) -> None:
     """Test failure capture when Confluence rollback fails."""
     confluence_undo_stub.update_page_content = AsyncMock(
         side_effect=Exception("Simulated Confluence API Error")

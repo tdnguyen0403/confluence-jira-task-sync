@@ -65,7 +65,9 @@ class ConfluenceService(ConfluenceApiServiceInterface):
         """
         return await self._api.get_all_descendants(page_id)
 
-    async def get_page_by_id(self, page_id: str, **kwargs) -> Optional[Dict[str, Any]]:
+    async def get_page_by_id(
+        self, page_id: str, **kwargs: Any
+    ) -> Optional[Dict[str, Any]]:
         """
         Delegates fetching a page by its ID to the API layer.
 
@@ -94,7 +96,9 @@ class ConfluenceService(ConfluenceApiServiceInterface):
         """
         return await self._api.update_page(page_id, new_title, new_body)
 
-    async def get_tasks_from_page(self, page_details: Dict) -> List[ConfluenceTask]:
+    async def get_tasks_from_page(
+        self, page_details: Dict[str, Any]
+    ) -> List[ConfluenceTask]:
         """
         Delegates extracting tasks from a page to the API layer.
 
@@ -107,7 +111,7 @@ class ConfluenceService(ConfluenceApiServiceInterface):
         return await self._api.get_tasks_from_page(page_details)
 
     async def update_page_with_jira_links(
-        self, page_id: str, mappings: List[Dict]
+        self, page_id: str, mappings: List[Dict[str, str]]
     ) -> bool:
         """
         Delegates updating a page with Jira links to the API layer.
@@ -120,7 +124,7 @@ class ConfluenceService(ConfluenceApiServiceInterface):
         """
         return await self._api.update_page_with_jira_links(page_id, mappings)
 
-    async def create_page(self, **kwargs) -> Optional[Dict[str, Any]]:
+    async def create_page(self, **kwargs: Any) -> Optional[Dict[str, Any]]:
         """
         Delegates creating a page to the API layer.
 

@@ -395,7 +395,7 @@ class SafeConfluenceApi:
         queue: asyncio.Queue[str] = asyncio.Queue()
         await queue.put(page_id)
 
-        async def worker():
+        async def worker() -> None:
             while True:
                 p_id = await queue.get()
                 if p_id in processed_page_ids:
@@ -506,11 +506,10 @@ class SafeConfluenceApi:
                     assignee_name = user_details.get("username")
 
         due_date_tag = task_element.find("time")
-        due_date = (
-            due_date_tag["datetime"]
-            if isinstance(due_date_tag, Tag) and "datetime" in due_date_tag.attrs
-            else None
-        )
+        due_date: Optional[str] = None
+        if isinstance(due_date_tag, Tag) and "datetime" in due_date_tag.attrs:
+            # Ensure datetime attribute is treated as a string
+            due_date = str(due_date_tag["datetime"])
 
         page_version = page_details.get("version", {})
         context = await asyncio.to_thread(get_task_context, task_element)
@@ -571,7 +570,12 @@ class SafeConfluenceApi:
                 continue
             task_id_tag = task.find("ac:task-id")
 
-            if task_id_tag and task_id_tag.string in mapping_dict:
+            # Ensure task_id_tag is a Tag and has text before using it as a key
+            if (
+                isinstance(task_id_tag, Tag)
+                and task_id_tag.get_text(strip=True) in mapping_dict
+            ):
+                current_task_id = task_id_tag.get_text(strip=True)
                 if task.find_parent(
                     "ac:structured-macro",
                     {"ac:name": lambda x: x in config.AGGREGATION_CONFLUENCE_MACRO},
@@ -582,7 +586,7 @@ class SafeConfluenceApi:
                 if not parent_task_list:
                     continue
 
-                jira_key = mapping_dict[task_id_tag.string]
+                jira_key = mapping_dict[current_task_id]
                 task_body = task.find("ac:task-body")
                 if not task_body:
                     continue
@@ -595,15 +599,16 @@ class SafeConfluenceApi:
                 ).strip()
 
                 jira_macro_html = self._generate_jira_macro_html(jira_key)
-                new_content_html = f"<p>{jira_macro_html} {task_summary}</p>"
-                new_content_soup = BeautifulSoup(new_content_html, "html.parser")
+                new_p_tag = soup.new_tag("p")
+                new_p_tag.append(BeautifulSoup(jira_macro_html, "html.parser"))
+                new_p_tag.append(task_summary)
 
-                parent_task_list.insert_after(new_content_soup)
+                parent_task_list.insert_after(new_p_tag)
 
                 task.decompose()
                 modified = True
                 logger.info(
-                    f"Prepared task '{task_id_tag.string}' "
+                    f"Prepared task '{current_task_id}' "
                     f"for replacement with text and "
                     f"Jira macro for '{jira_key}'."
                 )

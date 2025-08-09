@@ -5,6 +5,8 @@ import json
 import logging
 import os
 import sys
+from types import TracebackType
+from typing import Callable, Optional, Tuple, Type
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,10 +23,14 @@ from src.utils.logging_config import (
 
 
 @pytest.fixture
-def mock_log_record():
+def mock_log_record() -> Callable[..., logging.LogRecord]:
     """Creates a mock log record for testing."""
 
-    def _mock_log_record(msg, level=logging.INFO, exc_info=None):
+    def _mock_log_record(
+        msg: str,
+        level: int = logging.INFO,
+        exc_info: Optional[Tuple[Type[BaseException], BaseException, Optional[TracebackType]]] = None,
+    ) -> logging.LogRecord:
         record = logging.LogRecord(
             "test_logger", level, "/path/to/file.py", 123, msg, (), exc_info
         )
@@ -34,7 +40,7 @@ def mock_log_record():
     return _mock_log_record
 
 
-def test_secret_redacting_filter(mock_log_record):
+def test_secret_redacting_filter(mock_log_record: Callable[..., logging.LogRecord]) -> None:
     """Verify the SecretRedactingFilter redacts sensitive strings."""
     sensitive_patterns = {"secret123", "api_key_456"}
     filtr = SecretRedactingFilter(sensitive_patterns)
@@ -46,7 +52,9 @@ def test_secret_redacting_filter(mock_log_record):
     assert "[REDACTED]" in log_record.getMessage()
 
 
-def test_json_formatter_structure_and_order(mock_log_record):
+def test_json_formatter_structure_and_order(
+    mock_log_record: Callable[..., logging.LogRecord]
+) -> None:
     """Verify the JsonFormatter creates a well-structured JSON log."""
     formatter = JsonFormatter()
     log_record = mock_log_record("This is a test message.")
@@ -75,7 +83,7 @@ def test_json_formatter_structure_and_order(mock_log_record):
     assert log_dict["function"] == "test_function"
 
 
-def test_json_formatter_with_exception(mock_log_record):
+def test_json_formatter_with_exception(mock_log_record: Callable[..., logging.LogRecord]) -> None:
     """Verify the JsonFormatter includes exception info when present."""
     formatter = JsonFormatter()
     try:
@@ -94,7 +102,9 @@ def test_json_formatter_with_exception(mock_log_record):
     assert "ValueError: A test error" in log_dict["exception"]
 
 
-def test_request_id_filter_injects_context_vars(mock_log_record):
+def test_request_id_filter_injects_context_vars(
+    mock_log_record: Callable[..., logging.LogRecord]
+) -> None:
     """Verify the RequestIdFilter injects context variables into the log record."""
     filtr = RequestIdFilter()
     log_record = mock_log_record("A message.")
@@ -115,8 +125,8 @@ def test_request_id_filter_injects_context_vars(mock_log_record):
 @patch("src.utils.logging_config.os.makedirs")
 @patch("src.utils.logging_config.logging.getLogger")
 def test_setup_logging_configures_root_logger(
-    mock_get_logger, mock_makedirs, mock_rotating_handler
-):
+    mock_get_logger: MagicMock, mock_makedirs: MagicMock, mock_rotating_handler: MagicMock
+) -> None:
     """Verify setup_logging configures the root logger with correct handlers and formatters."""
     mock_root_logger = MagicMock()
     mock_get_logger.return_value = mock_root_logger

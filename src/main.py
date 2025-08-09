@@ -5,7 +5,7 @@ Main entry point for the Jira-Confluence Automation FastAPI application.
 import logging
 import uuid
 from contextlib import asynccontextmanager
-from typing import Callable, List
+from typing import AsyncIterator, Callable, Dict, List
 
 import httpx
 from fastapi import Depends, FastAPI, Request, status
@@ -32,13 +32,20 @@ from src.models.api_models import (
     UndoSyncTaskRequest,
     UndoSyncTaskResponse,
 )
+from src.services.orchestration.confluence_issue_updater_service import (
+    ConfluenceIssueUpdaterService,
+)
+from src.services.orchestration.sync_task_orchestrator import SyncTaskOrchestrator
+from src.services.orchestration.undo_sync_task_orchestrator import (
+    UndoSyncTaskOrchestrator,
+)
 from src.utils.logging_config import endpoint_var, request_id_var, setup_logging
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manages the application's lifespan events for resource management."""
     setup_logging()
     logger.info("Application starting up...")
@@ -74,7 +81,7 @@ app = FastAPI(
 class LoggingMiddleware(BaseHTTPMiddleware):
     """Middleware to inject a unique request ID and endpoint path into logs."""
 
-    async def dispatch(self, request: Request, call_next: Callable):
+    async def dispatch(self, request: Request, call_next: Callable) -> JSONResponse:
         """
         Processes each incoming request to add logging context.
         """
@@ -113,8 +120,8 @@ register_exception_handlers(app)
 )
 async def sync_task(
     request: SyncTaskRequest,
-    sync_orchestrator=Depends(get_sync_task_orchestrator),
-):
+    sync_orchestrator: SyncTaskOrchestrator = Depends(get_sync_task_orchestrator),
+) -> SyncTaskResponse:
     """Initiates the synchronization of tasks from Confluence pages to Jira."""
     logger.info(
         f"Received /sync_task request for user: {request.context.request_user} "
@@ -137,8 +144,10 @@ async def sync_task(
 )
 async def undo_sync_task(
     undo_data: List[UndoSyncTaskRequest],
-    undo_orchestrator=Depends(get_undo_sync_task_orchestrator),
-):
+    undo_orchestrator: UndoSyncTaskOrchestrator = Depends(
+        get_undo_sync_task_orchestrator
+    ),
+) -> UndoSyncTaskResponse:
     """Reverts the actions from a previous synchronization run."""
     user = undo_data[0].request_user if undo_data else "unknown"
     logger.info(
@@ -159,8 +168,10 @@ async def undo_sync_task(
 )
 async def update_confluence_project(
     request: SyncProjectRequest,
-    confluence_updater=Depends(get_confluence_issue_updater_service),
-):
+    confluence_updater: ConfluenceIssueUpdaterService = Depends(
+        get_confluence_issue_updater_service
+    ),
+) -> SyncProjectResponse:
     """Updates existing Jira issue macros within a Confluence page hierarchy."""
     logger.info(
         f"Received /sync_project request for user {request.request_user} "
@@ -185,7 +196,7 @@ async def update_confluence_project(
 
 
 @app.get("/", include_in_schema=False)
-async def read_root():
+async def read_root() -> Dict[str, str]:
     """Provides a simple welcome message at the root URL."""
     return {
         "message": "Welcome to the Jira-Confluence Automation API. "
@@ -194,7 +205,7 @@ async def read_root():
 
 
 @app.get("/health", status_code=status.HTTP_200_OK)
-async def health_check():
+async def health_check() -> Dict[str, str]:
     """Provides a liveness probe endpoint."""
     return {"status": "ok", "detail": "Application is alive."}
 
@@ -203,7 +214,7 @@ async def health_check():
 async def readiness_check(
     jira_service: JiraApiServiceInterface = Depends(get_jira_service),
     confluence_service: ConfluenceApiServiceInterface = Depends(get_confluence_service),
-):
+) -> Dict[str, str]:
     """Provides a readiness probe endpoint."""
     logger.info("Performing readiness check...")
     await jira_service.get_current_user_display_name()

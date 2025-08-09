@@ -83,7 +83,7 @@ class IssueFinderService(IssueFinderServiceInterface):
             Optional[Dict[str, Any]]: The full Jira issue dictionary if a
                 matching issue is found, otherwise None.
         """
-        current_page_id = page_id
+        current_page_id: Optional[str] = page_id
         while current_page_id:
             logger.info(f"Searching for issue on page ID: {current_page_id}")
             page_content = await self.confluence_api.get_page_by_id(

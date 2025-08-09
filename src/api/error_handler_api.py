@@ -1,6 +1,6 @@
 import functools
 import logging
-from typing import Type
+from typing import Any, Callable, Type
 
 from src.api.https_helper import (
     HTTPXClientError,
@@ -12,7 +12,7 @@ from src.exceptions import ApiError
 logger = logging.getLogger(__name__)
 
 
-def handle_api_errors(api_error_class: Type[ApiError]):
+def handle_api_errors(api_error_class: Type[ApiError]) -> Callable[..., Any]:
     """
     A decorator that catches low-level HTTP exceptions and translates them
     into a specific, domain-level ApiError.
@@ -25,9 +25,9 @@ def handle_api_errors(api_error_class: Type[ApiError]):
             (e.g., JiraApiError, ConfluenceApiError) to be raised on failure.
     """
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
                 # Execute the decorated API call function (e.g., get_issue)
                 return await func(*args, **kwargs)

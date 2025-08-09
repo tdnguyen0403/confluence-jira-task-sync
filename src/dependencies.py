@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
 
 
-def get_api_key(api_key: str = Security(api_key_header)):
+def get_api_key(api_key: str = Security(api_key_header)) -> str:
     """
     Validates the API key provided in the request header.
 
