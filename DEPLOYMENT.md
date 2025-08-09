@@ -96,9 +96,9 @@ The `docker-compose.yml` file is configured for a production deployment. It buil
     docker save -o jta-prod.tar jta-app:prod
     ```
 
-2. Copy environment file `.env.prod` and production docker-compose file `docker-compose.prod.yml`. For deployment, you need a simpler docker-compose.yml that only specifies how to run the image, not how to build it.
+2. Copy environment file `.env.prod` and production docker-compose file `docker-compose.prod.yml`. For deployment, you need a simpler `docker-compose.prod.yml` that only specifies how to run the image, not how to build it.
 
-3. Copy the Files to the VM
+3. Copy all the files (.evn*, *.yml) and image (*.tar) to the VM
 4. Load the Docker Image
 
     ```bash
