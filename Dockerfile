@@ -46,11 +46,11 @@ RUN chown -R appuser:appgroup /app
 # Switch to the non-root user
 USER appuser
 
-# Expose port 80
-EXPOSE 80
+# Expose port 8080
+EXPOSE 8080
 
 # The CMD now uses the python interpreter from the virtual environment
-CMD ["/app/.venv/bin/python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "80"]
+CMD ["/app/.venv/bin/python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
 
 
 # ==================================
@@ -63,6 +63,9 @@ WORKDIR /app
 
 # Copy the application source code
 COPY ./src ./src
+
+# Expose port 8000
+EXPOSE 8000
 
 # The command is simple because all packages are in the venv's global path
 # The CMD now uses the python interpreter from the virtual environment

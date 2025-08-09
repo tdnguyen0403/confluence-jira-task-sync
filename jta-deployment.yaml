@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jta-deployment
+spec:
+  replicas: 2 # Number of identical pods you want to run
+  selector:
+    matchLabels:
+      app: jta
+  template:
+    metadata:
+      labels:
+        app: jta
+    spec:
+      containers:
+      - name: jta-container
+        image: jta-app:prod
+        ports:
+        - containerPort: 8080
+        env:
+        - name: RUNNING_IN_CONTAINER
+          value: "true"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 15 # Wait for initial startup
+          periodSeconds: 60 # Check every 10 seconds
+          timeoutSeconds: 30 # Wait up to 5 seconds for a response
+        envFrom:
+        - secretRef:
+            name: jta-secret
