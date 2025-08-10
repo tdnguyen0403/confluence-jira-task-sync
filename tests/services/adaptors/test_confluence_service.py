@@ -58,8 +58,8 @@ class SafeConfluenceApiStub(SafeConfluenceApi):
         await self.mock.create_page(**kwargs)
         return {"id": "new_stubbed_page", "title": kwargs.get("title")}
 
-    async def get_user_details_by_username(self, username: str) -> dict:
-        await self.mock.get_user_details_by_username(username)
+    async def get_user_by_username(self, username: str) -> dict:
+        await self.mock.get_user_by_username(username)
         return {"username": username, "displayName": "Stubbed User"}
 
     def _generate_jira_macro_html(self, jira_key: str) -> str:
@@ -157,10 +157,10 @@ async def test_create_page(confluence_service_with_stub):
 
 
 @pytest.mark.asyncio
-async def test_get_user_details_by_username(confluence_service_with_stub):
-    """Verify get_user_details_by_username calls the api and returns its data."""
+async def test_get_user_by_username(confluence_service_with_stub):
+    """Verify get_user_by_username calls the api and returns its data."""
     service, mock_api = confluence_service_with_stub
     username = "testuser"
-    result = await service.get_user_details_by_username(username)
-    mock_api.get_user_details_by_username.assert_called_once_with(username)
+    result = await service.get_user_by_username(username)
+    mock_api.get_user_by_username.assert_called_once_with(username)
     assert result["displayName"] == "Stubbed User"

@@ -137,9 +137,7 @@ class ConfluenceService(ConfluenceApiServiceInterface):
         """
         return await self._api.create_page(**kwargs)
 
-    async def get_user_details_by_username(
-        self, username: str
-    ) -> Optional[Dict[str, Any]]:
+    async def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
         """
         Delegates fetching user details by username to the API layer.
 
@@ -149,7 +147,7 @@ class ConfluenceService(ConfluenceApiServiceInterface):
         Returns:
             Optional[Dict[str, Any]]: The user's details, or None.
         """
-        return await self._api.get_user_details_by_username(username)
+        return await self._api.get_user_by_username(username)
 
     def generate_jira_macro(self, jira_key: str, with_summary: bool = False) -> str:
         """

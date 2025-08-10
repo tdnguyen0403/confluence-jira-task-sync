@@ -264,7 +264,7 @@ class JiraService(JiraApiServiceInterface):
         Returns:
             Optional[str]: The name of the issue type, or None if not found.
         """
-        issue_type_details = await self._api.get_issue_type_details_by_id(type_id)
+        issue_type_details = await self._api.get_issue_type_by_id(type_id)
         return issue_type_details.get("name") if issue_type_details else None
 
     async def get_issue_status(self, issue_key: str) -> Optional[JiraIssueStatus]:

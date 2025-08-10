@@ -170,14 +170,14 @@ async def test_create_page_success(safe_confluence_api, mock_https_helper):
 
 
 @pytest.mark.asyncio
-async def test_get_user_details_by_username_success(
+async def test_get_user_by_username_success(
     safe_confluence_api, mock_https_helper
 ):
     """Tests successful retrieval of user details by username."""
     mock_user_details = {"username": "testuser", "displayName": "Test User"}
     mock_https_helper.get.return_value = mock_user_details
 
-    user_details = await safe_confluence_api.get_user_details_by_username("testuser")
+    user_details = await safe_confluence_api.get_user_by_username("testuser")
 
     assert user_details == mock_user_details
     mock_https_helper.get.assert_awaited_once_with(
@@ -466,16 +466,16 @@ async def test_create_page_http_error(safe_confluence_api, mock_https_helper):
 
 
 @pytest.mark.asyncio
-async def test_get_user_details_by_username_http_error(
+async def test_get_user_by_username_http_error(
     safe_confluence_api, mock_https_helper
 ):
-    """Tests get_user_details_by_username when https_helper.get raises an error."""
+    """Tests get_user_by_username when https_helper.get raises an error."""
     mock_https_helper.get.side_effect = HTTPXCustomError(
         "Connection error", request=httpx.Request("GET", "url")
     )
 
     with pytest.raises(ConfluenceApiError):
-        await safe_confluence_api.get_user_details_by_username(
+        await safe_confluence_api.get_user_by_username(
             "nonexistent_user"
         )
     mock_https_helper.get.assert_awaited_once()

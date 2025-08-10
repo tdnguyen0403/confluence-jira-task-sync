@@ -32,12 +32,12 @@ from src.models.api_models import (
     UndoSyncTaskRequest,
     UndoSyncTaskResponse,
 )
-from src.services.orchestration.confluence_issue_updater_service import (
-    ConfluenceIssueUpdaterService,
+from src.services.orchestration.sync_project import (
+    SyncProjectService,
 )
-from src.services.orchestration.sync_task_orchestrator import SyncTaskOrchestrator
-from src.services.orchestration.undo_sync_task_orchestrator import (
-    UndoSyncTaskOrchestrator,
+from src.services.orchestration.sync_task import SyncTaskService
+from src.services.orchestration.undo_sync_task import (
+    UndoSyncService,
 )
 from src.utils.logging_config import endpoint_var, request_id_var, setup_logging
 
@@ -120,7 +120,7 @@ register_exception_handlers(app)
 )
 async def sync_task(
     request: SyncTaskRequest,
-    sync_orchestrator: SyncTaskOrchestrator = Depends(get_sync_task_orchestrator),
+    sync_orchestrator: SyncTaskService = Depends(get_sync_task_orchestrator),
 ) -> SyncTaskResponse:
     """Initiates the synchronization of tasks from Confluence pages to Jira."""
     logger.info(
@@ -146,9 +146,7 @@ async def sync_task(
 )
 async def undo_sync_task(
     undo_data: List[UndoSyncTaskRequest],
-    undo_orchestrator: UndoSyncTaskOrchestrator = Depends(
-        get_undo_sync_task_orchestrator
-    ),
+    undo_orchestrator: UndoSyncService = Depends(get_undo_sync_task_orchestrator),
 ) -> UndoSyncTaskResponse:
     """Reverts the actions from a previous synchronization run."""
     user = undo_data[0].request_user if undo_data else "unknown"
@@ -172,7 +170,7 @@ async def undo_sync_task(
 )
 async def update_confluence_project(
     request: SyncProjectRequest,
-    confluence_updater: ConfluenceIssueUpdaterService = Depends(
+    confluence_updater: SyncProjectService = Depends(
         get_confluence_issue_updater_service
     ),
 ) -> SyncProjectResponse:
@@ -184,11 +182,9 @@ async def update_confluence_project(
         f"on root URL: {request.project_page_url}"
     )
 
-    updated_pages = (
-        await confluence_updater.update_confluence_hierarchy_with_new_jira_project(
-            project_page_url=request.project_page_url,
-            project_key=request.project_key,
-        )
+    updated_pages = await confluence_updater.sync_project_to_confluence(
+        project_page_url=request.project_page_url,
+        project_key=request.project_key,
     )
 
     if updated_pages:

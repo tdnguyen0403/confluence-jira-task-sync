@@ -36,7 +36,7 @@ from src.models.api_models import (
 # --- Fixtures for common mocks ---
 @pytest.fixture
 def mock_sync_orchestrator():
-    """Mocks the SyncTaskOrchestrator."""
+    """Mocks the SyncTaskService."""
     mock_orch = AsyncMock()
 
     async def run_sync_mock(*args, **kwargs):
@@ -55,7 +55,7 @@ def mock_sync_orchestrator():
 
 @pytest.fixture
 def mock_undo_orchestrator():
-    """Mocks the UndoSyncTaskOrchestrator."""
+    """Mocks the UndoSyncService."""
     mock_orch = AsyncMock()
 
     async def run_undo_mock(*args, **kwargs):
@@ -78,9 +78,9 @@ def mock_undo_orchestrator():
 
 @pytest.fixture
 def mock_confluence_issue_updater_service():
-    """Mocks the ConfluenceIssueUpdaterService."""
+    """Mocks the SyncProjectService."""
     mock_service = AsyncMock()
-    mock_service.update_confluence_hierarchy_with_new_jira_project.return_value = [
+    mock_service.sync_project_to_confluence.return_value = [
         SinglePageResult(
             page_id="123",
             page_title="sample title",

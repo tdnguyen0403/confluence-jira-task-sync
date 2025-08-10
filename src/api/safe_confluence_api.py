@@ -314,9 +314,7 @@ class SafeConfluenceApi:
         return None
 
     @handle_api_errors(ConfluenceApiError)
-    async def get_user_details_by_username(
-        self, username: str
-    ) -> Optional[Dict[str, Any]]:
+    async def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
         """
         Retrieves Confluence user details by username asynchronously.
 

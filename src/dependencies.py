@@ -25,13 +25,13 @@ from src.interfaces.issue_finder_service_interface import IssueFinderServiceInte
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
-from src.services.business_logic.issue_finder_service import IssueFinderService
-from src.services.orchestration.confluence_issue_updater_service import (
-    ConfluenceIssueUpdaterService,
+from src.services.business.issue_finder_service import IssueFinderService
+from src.services.orchestration.sync_project import (
+    SyncProjectService,
 )
-from src.services.orchestration.sync_task_orchestrator import SyncTaskOrchestrator
-from src.services.orchestration.undo_sync_task_orchestrator import (
-    UndoSyncTaskOrchestrator,
+from src.services.orchestration.sync_task import SyncTaskService
+from src.services.orchestration.undo_sync_task import (
+    UndoSyncService,
 )
 
 logger = logging.getLogger(__name__)
@@ -143,11 +143,9 @@ def get_confluence_issue_updater_service(
     issue_finder_service: IssueFinderServiceInterface = Depends(
         get_issue_finder_service
     ),
-) -> ConfluenceIssueUpdaterService:
-    """Provides a singleton instance of the ConfluenceIssueUpdaterService."""
-    return ConfluenceIssueUpdaterService(
-        confluence_service, jira_service, issue_finder_service
-    )
+) -> SyncProjectService:
+    """Provides a singleton instance of the SyncProjectService."""
+    return SyncProjectService(confluence_service, jira_service, issue_finder_service)
 
 
 @lru_cache(maxsize=None)
@@ -157,9 +155,9 @@ def get_sync_task_orchestrator(
     issue_finder_service: IssueFinderServiceInterface = Depends(
         get_issue_finder_service
     ),
-) -> SyncTaskOrchestrator:
-    """Provides a singleton instance of the SyncTaskOrchestrator."""
-    return SyncTaskOrchestrator(
+) -> SyncTaskService:
+    """Provides a singleton instance of the SyncTaskService."""
+    return SyncTaskService(
         confluence_service,
         jira_service,
         issue_finder_service,
@@ -173,8 +171,6 @@ def get_undo_sync_task_orchestrator(
     issue_finder_service: IssueFinderServiceInterface = Depends(
         get_issue_finder_service
     ),
-) -> UndoSyncTaskOrchestrator:
-    """Provides a singleton instance of the UndoSyncTaskOrchestrator."""
-    return UndoSyncTaskOrchestrator(
-        confluence_service, jira_service, issue_finder_service
-    )
+) -> UndoSyncService:
+    """Provides a singleton instance of the UndoSyncService."""
+    return UndoSyncService(confluence_service, jira_service, issue_finder_service)

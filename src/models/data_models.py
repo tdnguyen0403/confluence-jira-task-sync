@@ -70,7 +70,8 @@ class JiraIssueStatus(BaseModel):
     )
     category: str = Field(
         ...,
-        description="The category of the status (e.g., 'new', 'indeterminate', 'done').",  # noqa: E501
+        description="""The category of the status
+         (e.g., 'new', 'indeterminate', 'done').""",
     )
 
 

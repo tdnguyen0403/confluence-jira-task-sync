@@ -120,7 +120,7 @@ class HTTPSHelper:
         """
         self._verify_ssl = verify_ssl
         if HTTPSHelper._semaphore is None:
-            HTTPSHelper._semaphore = asyncio.Semaphore(config.MAX_CONCURRENT_API_CALLS)  # noqa: E501
+            HTTPSHelper._semaphore = asyncio.Semaphore(config.MAX_CONCURRENT_API_CALLS)
 
     @property
     def client(self) -> httpx.AsyncClient:
@@ -184,7 +184,7 @@ class HTTPSHelper:
         headers: Optional[Dict[str, str]] = None,
         json_data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, str]] = None,
-        timeout: int = config.API_REQUEST_TIMEOUT_SECONDS,
+        timeout: int = config.API_REQUEST_TIMEOUT,
         follow_redirects: bool = False,
     ) -> httpx.Response:
         """
@@ -206,7 +206,7 @@ class HTTPSHelper:
             params (Optional[Dict[str, str]]): Dictionary of URL parameters.
                 Defaults to None.
             timeout (int): Request timeout in seconds.
-                Defaults to config.API_REQUEST_TIMEOUT_SECONDS.
+                Defaults to config.API_REQUEST_TIMEOUT.
             follow_redirects (bool): Whether to automatically follow HTTP redirects.
                 Defaults to False.
 
@@ -224,7 +224,7 @@ class HTTPSHelper:
         assert HTTPSHelper._semaphore is not None
         async with HTTPSHelper._semaphore:
             current_timeout = (
-                timeout if timeout is not None else config.API_REQUEST_TIMEOUT_SECONDS  # noqa: E501
+                timeout if timeout is not None else config.API_REQUEST_TIMEOUT
             )
             try:
                 request_obj = self.client.build_request(
@@ -317,7 +317,7 @@ class HTTPSHelper:
         url: str,
         headers: Optional[Dict[str, str]] = None,
         params: Optional[Dict[str, str]] = None,
-        timeout: int = config.API_REQUEST_TIMEOUT_SECONDS,
+        timeout: int = config.API_REQUEST_TIMEOUT,
         follow_redirects: bool = False,
     ) -> Dict[str, Any]:
         """
@@ -332,7 +332,7 @@ class HTTPSHelper:
             headers (Optional[Dict[str, str]]): HTTP headers. Defaults to None.
             params (Optional[Dict[str, str]]): URL parameters. Defaults to None.
             timeout (int): Request timeout in seconds.
-            Defaults to config.API_REQUEST_TIMEOUT_SECONDS.
+            Defaults to config.API_REQUEST_TIMEOUT.
             follow_redirects (bool): Whether to follow redirects. Defaults to False.
 
         Returns:
@@ -349,7 +349,7 @@ class HTTPSHelper:
         headers: Optional[Dict[str, str]] = None,
         params: Optional[Dict[str, str]] = None,
         json_data: Optional[Dict[str, Any]] = None,
-        timeout: int = config.API_REQUEST_TIMEOUT_SECONDS,
+        timeout: int = config.API_REQUEST_TIMEOUT,
         follow_redirects: bool = False,
     ) -> Any:
         """
@@ -365,7 +365,7 @@ class HTTPSHelper:
             params (Optional[Dict[str, str]]): URL parameters. Defaults to None.
             json_data (Optional[Dict[str, Any]]): The JSON payload. Defaults to None.
             timeout (int): Request timeout in seconds.
-            Defaults to config.API_REQUEST_TIMEOUT_SECONDS.
+            Defaults to config.API_REQUEST_TIMEOUT.
             follow_redirects (bool): Whether to follow redirects. Defaults to False.
 
         Returns:
@@ -389,7 +389,7 @@ class HTTPSHelper:
         headers: Optional[Dict[str, str]] = None,
         params: Optional[Dict[str, str]] = None,
         json_data: Optional[Dict[str, Any]] = None,
-        timeout: int = config.API_REQUEST_TIMEOUT_SECONDS,
+        timeout: int = config.API_REQUEST_TIMEOUT,
         follow_redirects: bool = False,
     ) -> Any:
         """
@@ -405,7 +405,7 @@ class HTTPSHelper:
             params (Optional[Dict[str, str]]): URL parameters. Defaults to None.
             json_data (Optional[Dict[str, Any]]): The JSON payload. Defaults to None.
             timeout (int): Request timeout in seconds.
-            Defaults to config.API_REQUEST_TIMEOUT_SECONDS.
+            Defaults to config.API_REQUEST_TIMEOUT.
             follow_redirects (bool): Whether to follow redirects. Defaults to False.
 
         Returns:
@@ -427,7 +427,7 @@ class HTTPSHelper:
         self,
         url: str,
         headers: Optional[Dict[str, str]] = None,
-        timeout: int = config.API_REQUEST_TIMEOUT_SECONDS,
+        timeout: int = config.API_REQUEST_TIMEOUT,
         params: Optional[Dict[str, str]] = None,
         follow_redirects: bool = False,
     ) -> httpx.Response:
@@ -438,7 +438,7 @@ class HTTPSHelper:
             url (str): The URL for the DELETE request.
             headers (Optional[Dict[str, str]]): HTTP headers. Defaults to None.
             timeout (int): Request timeout in seconds.
-            Defaults to config.API_REQUEST_TIMEOUT_SECONDS.
+            Defaults to config.API_REQUEST_TIMEOUT.
             params (Optional[Dict[str, str]]): URL parameters. Defaults to None.
             follow_redirects (bool): Whether to follow redirects. Defaults to False.
 

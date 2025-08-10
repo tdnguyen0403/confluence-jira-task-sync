@@ -21,7 +21,7 @@ from src.models.api_models import SinglePageResult
 logger = logging.getLogger(__name__)
 
 
-class ConfluenceIssueUpdaterService:
+class SyncProjectService:
     """
     A service to update Confluence pages by replacing embedded Jira issue macros.
     """
@@ -36,7 +36,7 @@ class ConfluenceIssueUpdaterService:
         self.jira_api = jira_api
         self.issue_finder_service = issue_finder_service
 
-    async def update_confluence_hierarchy_with_new_jira_project(
+    async def sync_project_to_confluence(
         self,
         project_page_url: str,
         project_key: str,
@@ -65,9 +65,7 @@ class ConfluenceIssueUpdaterService:
             config.JIRA_WORK_CONTAINER_ISSUE_TYPE_ID,
         }
         target_ids = {t_id for t_id in target_ids_raw if t_id is not None}
-        candidate_issues = await self._get_relevant_jira_issues_under_root(
-            project_key, target_ids
-        )
+        candidate_issues = await self._get_project_issues(project_key, target_ids)
 
         if not candidate_issues:
             logger.warning(
@@ -107,10 +105,8 @@ class ConfluenceIssueUpdaterService:
             )
             if not page_details or not page_details.get("body", {}).get(
                 "storage", {}
-            ).get("value"):  # noqa E501
-                logger.info(
-                    f"Page '{page_id}' has no content or could not be fetched. Skipping."  # noqa E501
-                )
+            ).get("value"):
+                logger.info(f"Page '{page_id}' has no content or could not be fetched.")
                 return SinglePageResult(
                     page_id=page_id,
                     page_title=f"Unknown Title (ID: {page_id})",
@@ -124,7 +120,7 @@ class ConfluenceIssueUpdaterService:
             (
                 modified_html,
                 did_modify,
-            ) = await self._find_and_replace_jira_macros_on_page(  # noqa E501
+            ) = await self._replace_macros_on_page(
                 page_title, original_html, candidate_new_issues, target_issue_type_ids
             )
 
@@ -194,7 +190,7 @@ class ConfluenceIssueUpdaterService:
                 project_linked=project_key,
             )
 
-    async def _get_relevant_jira_issues_under_root(
+    async def _get_project_issues(
         self, root_key: str, target_issue_type_ids: Set[str]
     ) -> List[Dict[str, Any]]:
         """
@@ -214,7 +210,7 @@ class ConfluenceIssueUpdaterService:
         fields_to_get = "key,issuetype,summary"
         return await self.jira_api.search_issues_by_jql(jql, fields=fields_to_get)
 
-    async def _fetch_details_for_page_macros(
+    async def _get_macro_issue_details(
         self, soup: BeautifulSoup
     ) -> Dict[str, Dict[str, Any]]:
         """Finds all Jira macro keys on a page and fetches their details in bulk."""
@@ -234,7 +230,7 @@ class ConfluenceIssueUpdaterService:
         issues = await self.jira_api.search_issues_by_jql(jql, fields=fields_to_get)
         return {issue["key"]: issue for issue in issues}
 
-    async def _find_and_replace_jira_macros_on_page(
+    async def _replace_macros_on_page(
         self,
         page_title: str,
         html_content: str,
@@ -248,7 +244,7 @@ class ConfluenceIssueUpdaterService:
         modified = False
 
         try:
-            old_issues_map = await self._fetch_details_for_page_macros(soup)
+            old_issues_map = await self._get_macro_issue_details(soup)
         except Exception as e:
             logger.error(
                 f"Could not fetch Jira macro details for page '{page_title}': {e}"
@@ -275,9 +271,7 @@ class ConfluenceIssueUpdaterService:
             if issue_type not in target_issue_type_ids:
                 continue
 
-            best_match = self._find_best_new_issue_match(
-                old_issue, candidate_new_issues
-            )
+            best_match = self._find_best_match(old_issue, candidate_new_issues)
             if best_match and (new_key := best_match.get("key")):
                 logger.info(
                     f"On page '{page_title}', replacing '{current_key}' "
@@ -291,7 +285,7 @@ class ConfluenceIssueUpdaterService:
 
         return str(soup), modified
 
-    def _find_best_new_issue_match(
+    def _find_best_match(
         self,
         old_issue_details: Dict[str, Any],
         candidate_new_issues: List[Dict[str, Any]],
