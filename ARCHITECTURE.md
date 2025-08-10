@@ -54,7 +54,7 @@ The application is divided into several logical layers, with each layer having a
 
 - **Components**: `services/orchestration/*`
 - **Responsibility**: This layer coordinates the high-level business workflows. It doesn't contain complex business logic itself but rather delegates tasks to the appropriate services in the layers below by depending on their interfaces.
-- **Example**: The `SyncTaskOrchestrator` takes a request to sync tasks, calls the `IssueFinderService` to find tasks, the `JiraService` to create tickets, and the `ConfluenceIssueUpdaterService` to update the Confluence page.
+- **Example**: The `SyncTaskService` takes a request to sync tasks, calls the `IssueFinderService` to find tasks, the `JiraService` to create tickets, and the `SyncProjectService` to update the Confluence page.
 
 ### 3. Business Logic & Adaptor Services Layer
 

@@ -5,10 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 
-from src.scripts.generate_confluence_tree import ConfluenceTreeGenerator, main_async
+from src.scripts.generate_page_tree import ConfluenceTreeGenerator, main_async
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
-from src.services.business_logic.issue_finder_service import IssueFinderService
+from src.services.business.issue_finder_service import IssueFinderService
 
 
 @pytest_asyncio.fixture
@@ -59,11 +59,11 @@ async def generator(
 @pytest.mark.asyncio
 async def test_initialize_assignee_success(generator: ConfluenceTreeGenerator):
     """Tests if _initialize_assignee correctly fetches and sets the account ID."""
-    generator.confluence.get_user_details_by_username.return_value = {
+    generator.confluence.get_user_by_username.return_value = {
         "accountId": "test-id"
     }
     await generator._initialize_assignee()
-    generator.confluence.get_user_details_by_username.assert_awaited_once_with(
+    generator.confluence.get_user_by_username.assert_awaited_once_with(
         "testuser"
     )
     assert generator.assignee_account_id == "test-id"
@@ -74,7 +74,7 @@ async def test_initialize_assignee_not_found(
     generator: ConfluenceTreeGenerator, caplog
 ):
     """Tests if _initialize_assignee handles user not found."""
-    generator.confluence.get_user_details_by_username.return_value = None
+    generator.confluence.get_user_by_username.return_value = None
     with caplog.at_level(logging.WARNING):
         await generator._initialize_assignee()
     assert generator.assignee_account_id is None
@@ -98,9 +98,9 @@ async def test_generate_page_hierarchy_single_page(generator: ConfluenceTreeGene
 
 
 @pytest.mark.asyncio
-@patch("src.scripts.generate_confluence_tree.ConfluenceTreeGenerator")
-@patch("src.scripts.generate_confluence_tree.setup_logging")
-@patch("src.scripts.generate_confluence_tree.resource_manager")
+@patch("src.scripts.generate_page_tree.ConfluenceTreeGenerator")
+@patch("src.scripts.generate_page_tree.setup_logging")
+@patch("src.scripts.generate_page_tree.resource_manager")
 async def test_main_async_script_execution(
     mock_resource_manager,
     mock_setup_logging,

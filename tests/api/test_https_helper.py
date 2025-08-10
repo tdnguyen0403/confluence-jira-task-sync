@@ -56,7 +56,7 @@ async def test_make_request_success(
     mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
 
     response = await https_helper_instance._make_request(
-        "GET", "http://test.com", timeout=config.API_REQUEST_TIMEOUT_SECONDS
+        "GET", "http://test.com", timeout=config.API_REQUEST_TIMEOUT
     )
 
     mock_build_request.assert_called_once_with(
@@ -65,7 +65,7 @@ async def test_make_request_success(
         headers=None,
         json=None,
         params=None,
-        timeout=config.API_REQUEST_TIMEOUT_SECONDS,
+        timeout=config.API_REQUEST_TIMEOUT,
     )
     mock_send.assert_awaited_once_with(mock_build_request.return_value)
     assert response.status_code == 200
@@ -90,7 +90,7 @@ async def test_make_request_http_error(
     mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
 
     with pytest.raises(HTTPXClientError):
-        await https_helper_instance._make_request("GET", "http://test.com", timeout=config.API_REQUEST_TIMEOUT_SECONDS)
+        await https_helper_instance._make_request("GET", "http://test.com", timeout=config.API_REQUEST_TIMEOUT)
 
     mock_build_request.assert_called_once_with(
         method="GET",
@@ -98,7 +98,7 @@ async def test_make_request_http_error(
         headers=None,
         json=None,
         params=None,
-        timeout=config.API_REQUEST_TIMEOUT_SECONDS,
+        timeout=config.API_REQUEST_TIMEOUT,
     )
     mock_send.assert_awaited_once_with(mock_build_request.return_value)
 
@@ -118,7 +118,7 @@ async def test_make_request_request_error(
 
     with pytest.raises(httpx.RequestError):
         await https_helper_instance._make_request("GET", "http://test.com",
-        timeout=config.API_REQUEST_TIMEOUT_SECONDS)
+        timeout=config.API_REQUEST_TIMEOUT)
 
     mock_build_request.assert_called_once_with(
         method="GET",
@@ -126,7 +126,7 @@ async def test_make_request_request_error(
         headers=None,
         json=None,
         params=None,
-        timeout=config.API_REQUEST_TIMEOUT_SECONDS,
+        timeout=config.API_REQUEST_TIMEOUT,
     )
     mock_send.assert_awaited_once_with(mock_build_request.return_value)
 
@@ -146,7 +146,7 @@ async def test_get_method(https_helper_instance: HTTPSHelper) -> None:
 
         mock_make_request.assert_awaited_once_with(
             "GET", "http://test.com", headers=None, params=None,
-            timeout=config.API_REQUEST_TIMEOUT_SECONDS
+            timeout=config.API_REQUEST_TIMEOUT
         )
         assert result == {"data": "test"}
 
@@ -172,7 +172,7 @@ async def test_post_method(https_helper_instance: HTTPSHelper) -> None:
             headers=None,
             json_data={"key": "value"},
             params=None,
-            timeout=config.API_REQUEST_TIMEOUT_SECONDS,
+            timeout=config.API_REQUEST_TIMEOUT,
         )
         assert result == {"id": "123"}
 
@@ -198,7 +198,7 @@ async def test_post_method_204_no_content(https_helper_instance: HTTPSHelper) ->
             headers=None,
             json_data={"key": "value"},
             params=None,
-            timeout=config.API_REQUEST_TIMEOUT_SECONDS,
+            timeout=config.API_REQUEST_TIMEOUT,
         )
         assert result == {}
 
@@ -224,7 +224,7 @@ async def test_put_method_204_no_content(https_helper_instance: HTTPSHelper) -> 
             headers=None,
             json_data={"key": "value"},
             params=None,
-            timeout=config.API_REQUEST_TIMEOUT_SECONDS,
+            timeout=config.API_REQUEST_TIMEOUT,
         )
         assert result == {}
 
@@ -243,7 +243,7 @@ async def test_delete_method_success(https_helper_instance: HTTPSHelper) -> None
 
         mock_make_request.assert_awaited_once_with(
             "DELETE", "http://test.com/123", headers=None, params=None,
-            timeout=config.API_REQUEST_TIMEOUT_SECONDS
+            timeout=config.API_REQUEST_TIMEOUT
         )
         assert response.status_code == 200
 
@@ -265,7 +265,7 @@ async def test_make_request_with_redirects(
 
     response = await https_helper_instance._make_request(
         "GET", "http://test.com",
-        timeout=config.API_REQUEST_TIMEOUT_SECONDS, follow_redirects=True
+        timeout=config.API_REQUEST_TIMEOUT, follow_redirects=True
     )
 
     mock_build_request.assert_called_once_with(
@@ -274,7 +274,7 @@ async def test_make_request_with_redirects(
         headers=None,
         json=None,
         params=None,
-        timeout=config.API_REQUEST_TIMEOUT_SECONDS,
+        timeout=config.API_REQUEST_TIMEOUT,
     )
     mock_send.assert_awaited_once_with(mock_build_request.return_value)
     assert response.status_code == 200
@@ -309,7 +309,7 @@ async def test_make_request_with_headers_and_params(
         headers=headers,
         json=None,
         params=params,
-        timeout=config.API_REQUEST_TIMEOUT_SECONDS,
+        timeout=config.API_REQUEST_TIMEOUT,
     )
     mock_send.assert_awaited_once_with(mock_build_request.return_value)
     assert response.status_code == 200
@@ -336,7 +336,7 @@ async def test_get_method_with_headers_and_params(
 
         mock_make_request.assert_awaited_once_with(
             "GET", "http://test.com/api", headers=headers, params=params,
-            timeout=config.API_REQUEST_TIMEOUT_SECONDS
+            timeout=config.API_REQUEST_TIMEOUT
         )
         assert result == {"data": "more_test"}
 
@@ -370,7 +370,7 @@ async def test_post_method_with_headers_and_params(
             headers=headers,
             json_data=json_data,
             params=params,
-            timeout=config.API_REQUEST_TIMEOUT_SECONDS,
+            timeout=config.API_REQUEST_TIMEOUT,
         )
         assert result == {"status": "created"}
 
@@ -468,7 +468,7 @@ async def test_make_request_server_error(
     mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
 
     with pytest.raises(HTTPXServerError):
-        await https_helper_instance._make_request("GET", "http://test.com", timeout=config.API_REQUEST_TIMEOUT_SECONDS)
+        await https_helper_instance._make_request("GET", "http://test.com", timeout=config.API_REQUEST_TIMEOUT)
     # Assert that the request was attempted mutiple time due to retry
     assert mock_build_request.call_count > 1
     assert mock_send.call_count > 1

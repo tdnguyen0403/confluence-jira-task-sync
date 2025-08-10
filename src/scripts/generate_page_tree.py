@@ -17,7 +17,7 @@ from src.api.safe_jira_api import SafeJiraApi
 from src.config import config
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
-from src.services.business_logic.issue_finder_service import IssueFinderService
+from src.services.business.issue_finder_service import IssueFinderService
 from src.utils.logging_config import endpoint_var, request_id_var, setup_logging
 
 # Suppress insecure request warnings for local/dev environments
@@ -78,7 +78,7 @@ class ConfluenceTreeGenerator:
     async def _initialize_assignee(self) -> None:
         """Asynchronously fetches and sets the assignee's account ID."""
         logger.info(f"Fetching account ID for assignee: {self.assignee_username}")
-        user_details = await self.confluence.get_user_details_by_username(
+        user_details = await self.confluence.get_user_by_username(
             self.assignee_username
         )
         if user_details:
@@ -200,7 +200,7 @@ class ConfluenceTreeGenerator:
 async def main_async() -> None:
     # Set up logging for the script
     setup_logging()
-    endpoint_var.set("generate_confluence_tree.py")
+    endpoint_var.set("generate_page_tre.py")
     request_id_var.set(uuid.uuid4().hex)
 
     logger.info("--- Starting Confluence Test Data Generation Script ---")

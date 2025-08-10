@@ -300,7 +300,7 @@ class SafeJiraApi:
         return await self.https_helper.get(url, headers=self.headers, params=params)
 
     @handle_api_errors(JiraApiError)
-    async def get_issue_type_details_by_id(
+    async def get_issue_type_by_id(
         self, issue_type_id: str
     ) -> Optional[Dict[str, Any]]:
         """

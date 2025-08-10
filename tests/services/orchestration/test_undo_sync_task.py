@@ -12,8 +12,8 @@ from src.interfaces.issue_finder_service_interface import IssueFinderServiceInte
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.models.api_models import SyncTaskContext, UndoSyncTaskRequest
 from src.models.data_models import ConfluenceTask, JiraIssueStatus
-from src.services.orchestration.undo_sync_task_orchestrator import (
-    UndoSyncTaskOrchestrator,
+from src.services.orchestration.undo_sync_task import (
+    UndoSyncService,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -168,8 +168,8 @@ async def undo_orchestrator(
     confluence_undo_stub: ConfluenceServiceStub,
     jira_undo_stub: JiraServiceStub,
     issue_finder_undo_stub: IssueFinderServiceStub,
-) -> UndoSyncTaskOrchestrator:
-    return UndoSyncTaskOrchestrator(
+) -> UndoSyncService:
+    return UndoSyncService(
         confluence_service=confluence_undo_stub,
         jira_service=jira_undo_stub,
         issue_finder_service=issue_finder_undo_stub,
@@ -181,7 +181,7 @@ async def undo_orchestrator(
 
 @pytest.mark.asyncio
 async def test_undo_run_success_with_tasks(
-    undo_orchestrator: UndoSyncTaskOrchestrator,
+    undo_orchestrator: UndoSyncService,
     confluence_undo_stub: ConfluenceServiceStub,
     jira_undo_stub: JiraServiceStub,
     sample_synced_item: UndoSyncTaskRequest,
@@ -220,14 +220,14 @@ async def test_undo_run_success_with_tasks(
 
 
 @pytest.mark.asyncio
-async def test_undo_run_no_input(undo_orchestrator: UndoSyncTaskOrchestrator) -> None:
+async def test_undo_run_no_input(undo_orchestrator: UndoSyncService) -> None:
     """Test that an error is raised for no input."""
     with pytest.raises(InvalidInputError, match="No data provided for undo operation"):
         await undo_orchestrator.run([], request_id="undo-test-2")
 
 
 @pytest.mark.asyncio
-async def test_undo_run_empty_processable_data(undo_orchestrator: UndoSyncTaskOrchestrator) -> None:
+async def test_undo_run_empty_processable_data(undo_orchestrator: UndoSyncService) -> None:
     """Test error is raised if requests contain no actionable data."""
     undo_requests = [
         UndoSyncTaskRequest(
@@ -244,7 +244,7 @@ async def test_undo_run_empty_processable_data(undo_orchestrator: UndoSyncTaskOr
 
 @pytest.mark.asyncio
 async def test_undo_no_actionable_tasks_in_results(
-    undo_orchestrator: UndoSyncTaskOrchestrator,
+    undo_orchestrator: UndoSyncService,
     confluence_undo_stub: ConfluenceServiceStub,
     jira_undo_stub: JiraServiceStub,
 ) -> None:
@@ -262,7 +262,7 @@ async def test_undo_no_actionable_tasks_in_results(
 
 @pytest.mark.asyncio
 async def test_undo_jira_transition_failure(
-    undo_orchestrator: UndoSyncTaskOrchestrator,
+    undo_orchestrator: UndoSyncService,
     jira_undo_stub: JiraServiceStub,
     sample_synced_item: UndoSyncTaskRequest,
     confluence_undo_stub: ConfluenceServiceStub,
@@ -294,7 +294,7 @@ async def test_undo_jira_transition_failure(
 
 @pytest.mark.asyncio
 async def test_undo_confluence_rollback_failure(
-    undo_orchestrator: UndoSyncTaskOrchestrator,
+    undo_orchestrator: UndoSyncService,
     confluence_undo_stub: ConfluenceServiceStub,
     sample_synced_item: UndoSyncTaskRequest,
     jira_undo_stub: JiraServiceStub,

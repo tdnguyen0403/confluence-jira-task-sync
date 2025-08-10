@@ -52,8 +52,8 @@ class SafeJiraApiStub(SafeJiraApi):
         await self.mock.search_issues(jql, fields=fields, **kwargs)
         return self._jql_results.get(jql, {"issues": []})
 
-    async def get_issue_type_details_by_id(self, type_id: str) -> dict:
-        await self.mock.get_issue_type_details_by_id(type_id)
+    async def get_issue_type_by_id(self, type_id: str) -> dict:
+        await self.mock.get_issue_type_by_id(type_id)
         return self._issue_types.get(type_id)
 
     async def assign_issue(self, issue_key: str, assignee_name: str) -> dict:
@@ -163,7 +163,7 @@ async def test_get_issue_type_name_by_id_success(jira_service):
     api_stub.add_issue_type("10000", {"id": "10000", "name": "Epic"})
     type_name = await service.get_issue_type_name_by_id("10000")
     assert type_name == "Epic"
-    api_stub.mock.get_issue_type_details_by_id.assert_called_once_with("10000")
+    api_stub.mock.get_issue_type_by_id.assert_called_once_with("10000")
 
 
 @pytest.mark.asyncio

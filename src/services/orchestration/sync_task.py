@@ -21,7 +21,7 @@ from src.models.data_models import ConfluenceTask
 logger = logging.getLogger(__name__)
 
 
-class SyncTaskOrchestrator:
+class SyncTaskService:
     """
     Orchestrates the automation by coordinating service layer interactions.
     """

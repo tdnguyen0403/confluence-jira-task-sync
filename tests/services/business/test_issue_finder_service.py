@@ -9,7 +9,7 @@ from src.interfaces.confluence_service_interface import ConfluenceApiServiceInte
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.models.data_models import ConfluenceTask, JiraIssue, JiraIssueStatus
 from src.models.api_models import SyncTaskContext
-from src.services.business_logic.issue_finder_service import IssueFinderService
+from src.services.business.issue_finder_service import IssueFinderService
 
 
 # --- Stubs for Dependencies ---

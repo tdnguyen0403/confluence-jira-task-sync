@@ -187,12 +187,12 @@ async def test_search_issues_success(safe_jira_api, mock_https_helper):
 
 
 @pytest.mark.asyncio
-async def test_get_issue_type_details_by_id_success(safe_jira_api, mock_https_helper):
+async def test_get_issue_type_by_id_success(safe_jira_api, mock_https_helper):
     """Tests successful retrieval of issue type details."""
     mock_issue_type_details = {"id": "10001", "name": "Task"}
     mock_https_helper.get.return_value = mock_issue_type_details
 
-    details = await safe_jira_api.get_issue_type_details_by_id("10001")
+    details = await safe_jira_api.get_issue_type_by_id("10001")
 
     assert details == mock_issue_type_details
     mock_https_helper.get.assert_awaited_once_with(
@@ -300,16 +300,16 @@ async def test_search_issues_error_handling(safe_jira_api, mock_https_helper):
 
 
 @pytest.mark.asyncio
-async def test_get_issue_type_details_by_id_error_handling(
+async def test_get_issue_type_by_id_error_handling(
     safe_jira_api, mock_https_helper
 ):
-    """Tests get_issue_type_details_by_id when the API call fails."""
+    """Tests get_issue_type_by_id when the API call fails."""
     # Simulate a realistic error from the lower layer.
     mock_https_helper.get.side_effect = HTTPXCustomError("API call failed")
 
     # The correct behavior is now to raise a JiraApiError. We assert this.
     with pytest.raises(JiraApiError) as excinfo:
-        await safe_jira_api.get_issue_type_details_by_id("nonexistent_id")
+        await safe_jira_api.get_issue_type_by_id("nonexistent_id")
 
     # Verify the exception contains the original error message.
     assert "API call failed" in str(excinfo.value)
@@ -329,14 +329,14 @@ async def test_update_issue_description_error_handling(
 
 
 @pytest.mark.asyncio
-async def test_get_issue_type_details_by_id_success_empty_response(
+async def test_get_issue_type_by_id_success_empty_response(
     safe_jira_api, mock_https_helper
 ):
-    """Tests get_issue_type_details_by_id with a successful but empty API response."""
+    """Tests get_issue_type_by_id with a successful but empty API response."""
     # Simulate a successful call (200 OK) but with an empty dictionary
     mock_https_helper.get.return_value = {}
 
-    details = await safe_jira_api.get_issue_type_details_by_id("10001")
+    details = await safe_jira_api.get_issue_type_by_id("10001")
 
     # The method should return the empty dict without raising an error
     assert details == {}

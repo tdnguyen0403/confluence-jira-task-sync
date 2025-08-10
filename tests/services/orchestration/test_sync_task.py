@@ -14,7 +14,7 @@ from src.interfaces.issue_finder_service_interface import IssueFinderServiceInte
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.models.api_models import SyncTaskContext
 from src.models.data_models import ConfluenceTask, JiraIssueStatus
-from src.services.orchestration.sync_task_orchestrator import SyncTaskOrchestrator
+from src.services.orchestration.sync_task import SyncTaskService
 
 logger = logging.getLogger(__name__)
 
@@ -179,9 +179,9 @@ async def issue_finder_stub() -> IssueFinderServiceStub:
 @pytest_asyncio.fixture
 async def sync_orchestrator(
     confluence_stub: ConfluenceServiceStub, jira_stub: JiraServiceStub, issue_finder_stub: IssueFinderServiceStub
-) -> SyncTaskOrchestrator:
-    """Provides a SyncTaskOrchestrator instance with stubbed services."""
-    return SyncTaskOrchestrator(
+) -> SyncTaskService:
+    """Provides a SyncTaskService instance with stubbed services."""
+    return SyncTaskService(
         confluence_service=confluence_stub,
         jira_service=jira_stub,
         issue_finder_service=issue_finder_stub,
@@ -193,7 +193,7 @@ async def sync_orchestrator(
 
 @pytest.mark.asyncio
 async def test_run_success(
-    sync_orchestrator: SyncTaskOrchestrator,
+    sync_orchestrator: SyncTaskService,
     confluence_stub: ConfluenceServiceStub,
     jira_stub: JiraServiceStub,
     sync_context: SyncTaskContext,
@@ -229,7 +229,7 @@ async def test_run_confluence_page_update_failure(
     sync_context: SyncTaskContext,
 ) -> None:
     """Test the path where Jira tasks are created but page update fails."""
-    sync_orchestrator = SyncTaskOrchestrator(
+    sync_orchestrator = SyncTaskService(
         confluence_service=confluence_stub_failing_update,
         jira_service=jira_stub,
         issue_finder_service=issue_finder_stub,
@@ -252,14 +252,14 @@ async def test_run_confluence_page_update_failure(
 
 
 @pytest.mark.asyncio
-async def test_run_no_input(sync_orchestrator: SyncTaskOrchestrator, sync_context: SyncTaskContext) -> None:
+async def test_run_no_input(sync_orchestrator: SyncTaskService, sync_context: SyncTaskContext) -> None:
     """Test that an error is raised for empty input."""
     with pytest.raises(InvalidInputError, match="No 'confluence_page_urls' provided"):
         await sync_orchestrator.run({}, sync_context, request_id="test-3")
 
 
 @pytest.mark.asyncio
-async def test_run_no_urls(sync_orchestrator: SyncTaskOrchestrator, sync_context: SyncTaskContext) -> None:
+async def test_run_no_urls(sync_orchestrator: SyncTaskService, sync_context: SyncTaskContext) -> None:
     """Test that an error is raised if no URLs are provided."""
     with pytest.raises(InvalidInputError, match="No 'confluence_page_urls' provided"):
         await sync_orchestrator.run(
@@ -268,7 +268,7 @@ async def test_run_no_urls(sync_orchestrator: SyncTaskOrchestrator, sync_context
 
 
 @pytest.mark.asyncio
-async def test_process_page_hierarchy_no_page_id(sync_orchestrator: SyncTaskOrchestrator, sync_context: SyncTaskContext) -> None:
+async def test_process_page_hierarchy_no_page_id(sync_orchestrator: SyncTaskService, sync_context: SyncTaskContext) -> None:
     """Test that an empty list is returned if a Confluence URL cannot be resolved."""
     results = await sync_orchestrator.process_page_hierarchy(
         "http://example.com/nonexistent", sync_context
@@ -278,7 +278,7 @@ async def test_process_page_hierarchy_no_page_id(sync_orchestrator: SyncTaskOrch
 
 @pytest.mark.asyncio
 async def test_no_work_package_found(
-    sync_orchestrator: SyncTaskOrchestrator, issue_finder_stub: IssueFinderServiceStub, sync_context: SyncTaskContext
+    sync_orchestrator: SyncTaskService, issue_finder_stub: IssueFinderServiceStub, sync_context: SyncTaskContext
 ) -> None:
     """Test that a task is skipped if no parent Work Package is found."""
     issue_finder_stub.found_issue_key = None
@@ -297,7 +297,7 @@ async def test_no_work_package_found(
 
 
 @pytest.mark.asyncio
-async def test_jira_creation_failure(sync_orchestrator: SyncTaskOrchestrator, jira_stub: JiraServiceStub, sync_context: SyncTaskContext) -> None:
+async def test_jira_creation_failure(sync_orchestrator: SyncTaskService, jira_stub: JiraServiceStub, sync_context: SyncTaskContext) -> None:
     """Test that Jira issue creation failure is reflected in the result."""
     jira_stub.created_issue_key = None
     input_data = {"confluence_page_urls": ["http://example.com/page1"]}
@@ -315,7 +315,7 @@ async def test_jira_creation_failure(sync_orchestrator: SyncTaskOrchestrator, ji
 
 @pytest.mark.asyncio
 async def test_completed_task_transition(
-    sync_orchestrator: SyncTaskOrchestrator,
+    sync_orchestrator: SyncTaskService,
     confluence_stub: ConfluenceServiceStub,
     jira_stub: JiraServiceStub,
     sample_task: ConfluenceTask,
@@ -343,7 +343,7 @@ async def test_completed_task_transition(
 
 @pytest.mark.asyncio
 async def test_dev_mode_new_task_transition(
-    sync_orchestrator: SyncTaskOrchestrator, jira_stub: JiraServiceStub, monkeypatch: Any, sync_context: SyncTaskContext
+    sync_orchestrator: SyncTaskService, jira_stub: JiraServiceStub, monkeypatch: Any, sync_context: SyncTaskContext
 ) -> None:
     """Test that in dev mode, a new task is transitioned to 'Backlog'."""
     monkeypatch.setattr(config, "DEV_ENVIRONMENT", True)
@@ -365,7 +365,7 @@ async def test_dev_mode_new_task_transition(
 
 @pytest.mark.asyncio
 async def test_prod_mode_new_task_no_transition(
-    sync_orchestrator: SyncTaskOrchestrator, jira_stub: JiraServiceStub, monkeypatch: Any, sync_context: SyncTaskContext
+    sync_orchestrator: SyncTaskService, jira_stub: JiraServiceStub, monkeypatch: Any, sync_context: SyncTaskContext
 ) -> None:
     """Test that in production mode, a new task is not transitioned."""
     monkeypatch.setattr(config, "DEV_ENVIRONMENT", False)
@@ -382,7 +382,7 @@ async def test_prod_mode_new_task_no_transition(
 
 @pytest.mark.asyncio
 async def test_assign_jira_task_from_work_package_when_confluence_task_unassigned(
-    sync_orchestrator: SyncTaskOrchestrator,
+    sync_orchestrator: SyncTaskService,
     confluence_stub: ConfluenceServiceStub,
     jira_stub: JiraServiceStub,
     issue_finder_stub: IssueFinderServiceStub,
@@ -406,7 +406,7 @@ async def test_assign_jira_task_from_work_package_when_confluence_task_unassigne
 
 @pytest.mark.asyncio
 async def test_jira_task_retains_confluence_assignee_even_if_work_package_has_assignee(
-    sync_orchestrator: SyncTaskOrchestrator,
+    sync_orchestrator: SyncTaskService,
     confluence_stub: ConfluenceServiceStub,
     jira_stub: JiraServiceStub,
     issue_finder_stub: IssueFinderServiceStub,
@@ -430,7 +430,7 @@ async def test_jira_task_retains_confluence_assignee_even_if_work_package_has_as
 
 @pytest.mark.asyncio
 async def test_jira_task_retains_confluence_assignee_when_work_package_unassigned(
-    sync_orchestrator: SyncTaskOrchestrator,
+    sync_orchestrator: SyncTaskService,
     confluence_stub: ConfluenceServiceStub,
     jira_stub: JiraServiceStub,
     issue_finder_stub: IssueFinderServiceStub,
@@ -454,7 +454,7 @@ async def test_jira_task_retains_confluence_assignee_when_work_package_unassigne
 
 @pytest.mark.asyncio
 async def test_unassign_jira_task_when_both_confluence_task_and_work_package_unassigned(
-    sync_orchestrator: SyncTaskOrchestrator,
+    sync_orchestrator: SyncTaskService,
     confluence_stub: ConfluenceServiceStub,
     jira_stub: JiraServiceStub,
     issue_finder_stub: IssueFinderServiceStub,
@@ -554,7 +554,7 @@ async def test_update_confluence_page_update_call_returns_false(
 
 @pytest.mark.asyncio
 async def test_completed_task_transition_failure(
-    sync_orchestrator: SyncTaskOrchestrator,
+    sync_orchestrator: SyncTaskService,
     confluence_stub: ConfluenceServiceStub,
     jira_stub: JiraServiceStub,
     sample_task: ConfluenceTask,
@@ -582,7 +582,7 @@ async def test_completed_task_transition_failure(
 
 @pytest.mark.asyncio
 async def test_assign_issue_failure_is_logged(
-    sync_orchestrator: SyncTaskOrchestrator,
+    sync_orchestrator: SyncTaskService,
     confluence_stub: ConfluenceServiceStub,
     jira_stub: JiraServiceStub,
     issue_finder_stub: IssueFinderServiceStub,
@@ -675,7 +675,7 @@ async def test_collect_tasks_handles_none_page_details(
 
 @pytest.mark.asyncio
 async def test_run_handles_unproccesable_url_and_returns_partial_status(
-    sync_orchestrator: SyncTaskOrchestrator,
+    sync_orchestrator: SyncTaskService,
     sync_context: SyncTaskContext,
     caplog,
 ):

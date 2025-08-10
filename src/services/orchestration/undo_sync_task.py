@@ -18,7 +18,7 @@ from src.models.api_models import (
 logger = logging.getLogger(__name__)
 
 
-class UndoSyncTaskOrchestrator:
+class UndoSyncService:
     """
     Orchestrates the undo process by coordinating service interactions.
     """

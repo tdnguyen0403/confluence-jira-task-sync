@@ -14,8 +14,8 @@ from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.models.data_models import JiraIssue, JiraIssueStatus
 
 # Now import the service and models using the correct, updated path
-from src.services.orchestration.confluence_issue_updater_service import (
-    ConfluenceIssueUpdaterService,
+from src.services.orchestration.sync_project import (
+    SyncProjectService,
 )
 
 logging.disable(logging.CRITICAL)
@@ -45,7 +45,7 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
             "version": {"number": 1},
         }
 
-    # This method is actually called by the ConfluenceIssueUpdaterService
+    # This method is actually called by the SyncProjectService
     async def update_page(self, page_id: str, new_title: str, new_body: str) -> bool:
         self._updated_pages[page_id] = {"title": new_title, "body": new_body}
         return self._update_success
@@ -102,7 +102,7 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
     async def create_page(self, **kwargs) -> dict:
         return {}
 
-    async def get_user_details_by_username(self, username: str) -> dict:
+    async def get_user_by_username(self, username: str) -> dict:
         return {}
 
 
@@ -180,7 +180,7 @@ class JiraServiceStub(JiraApiServiceInterface):
             )
         return None
 
-    async def get_issue_type_details_by_id(
+    async def get_issue_type_by_id(
         self, type_id: str
     ) -> Optional[Dict[str, Any]]:
         return self._issue_types.get(type_id)
@@ -242,7 +242,7 @@ async def issue_finder_updater_stub():
 async def confluence_issue_updater_service(
     confluence_updater_stub, jira_updater_stub, issue_finder_updater_stub
 ):
-    return ConfluenceIssueUpdaterService(
+    return SyncProjectService(
         confluence_api=confluence_updater_stub,
         jira_api=jira_updater_stub,
         issue_finder_service=issue_finder_updater_stub,
@@ -286,7 +286,7 @@ async def test_update_confluence_hierarchy_success(
 
     jira_updater_stub.add_jql_result(jql, [candidate_issue])
 
-    results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
+    results = await confluence_issue_updater_service.sync_project_to_confluence(
         project_page_url=root_url, project_key=root_project_key
     )
 
@@ -347,7 +347,7 @@ async def test_update_confluence_hierarchy_no_candidate_issues(
     )
     jira_updater_stub.add_jql_result(jql_query_for_candidates, {"issues": []})
 
-    results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
+    results = await confluence_issue_updater_service.sync_project_to_confluence(
         project_page_url=root_url, project_key=root_project_key
     )
 
@@ -423,7 +423,7 @@ async def test_update_confluence_hierarchy_no_macros_on_page(
         },
     )
 
-    results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
+    results = await confluence_issue_updater_service.sync_project_to_confluence(
         project_page_url=root_url, project_key=root_project_key
     )
 
@@ -511,7 +511,7 @@ async def test_update_confluence_hierarchy_macro_no_match(
         },
     )
 
-    results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
+    results = await confluence_issue_updater_service.sync_project_to_confluence(
         project_page_url=root_url, project_key=root_project_key
     )
 
@@ -557,7 +557,7 @@ async def test_update_confluence_hierarchy_update_page_fails(
 
     jira_updater_stub.add_jql_result(jql, [candidate_issue])
 
-    results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
+    results = await confluence_issue_updater_service.sync_project_to_confluence(
         project_page_url=root_url, project_key=root_project_key
     )
 
@@ -573,7 +573,7 @@ async def test_update_confluence_hierarchy_update_page_fails(
 
 
 @pytest.mark.asyncio
-async def test_find_and_replace_jira_macros_on_page_jira_bulk_fetch_fails(
+async def test_replace_macros_on_page_jira_bulk_fetch_fails(
     confluence_issue_updater_service,
     confluence_updater_stub,
     jira_updater_stub,
@@ -632,7 +632,7 @@ async def test_find_and_replace_jira_macros_on_page_jira_bulk_fetch_fails(
     (
         modified_html,
         did_modify,
-    ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
+    ) = await confluence_issue_updater_service._replace_macros_on_page(
         page_title=page_title,
         html_content=html_content,
         candidate_new_issues=candidate_new_issues,
@@ -689,7 +689,7 @@ async def test_update_confluence_hierarchy_page_details_none(
     )
     jira_updater_stub.add_jql_result(jql_query_for_candidates, {"issues": []})
 
-    results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
+    results = await confluence_issue_updater_service.sync_project_to_confluence(
         project_page_url=root_url, project_key=root_project_key
     )
     assert results == []
@@ -738,14 +738,14 @@ async def test_update_confluence_hierarchy_page_content_empty(
     )
     jira_updater_stub.add_jql_result(jql_query_for_candidates, {"issues": []})
 
-    results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
+    results = await confluence_issue_updater_service.sync_project_to_confluence(
         project_page_url=root_url, project_key=root_project_key
     )
     assert results == []
 
 
 @pytest.mark.asyncio
-async def test_find_and_replace_jira_macros_on_page_macro_no_key_param(
+async def test_replace_macros_on_page_macro_no_key_param(
     confluence_issue_updater_service,
     confluence_updater_stub,
     jira_updater_stub,
@@ -761,7 +761,7 @@ async def test_find_and_replace_jira_macros_on_page_macro_no_key_param(
     (
         modified_html,
         did_modify,
-    ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
+    ) = await confluence_issue_updater_service._replace_macros_on_page(
         page_title=page_title,
         html_content=html_content,
         candidate_new_issues=candidate_new_issues,
@@ -772,7 +772,7 @@ async def test_find_and_replace_jira_macros_on_page_macro_no_key_param(
 
 
 @pytest.mark.asyncio
-async def test_find_and_replace_jira_macros_on_page_macro_key_empty(
+async def test_replace_macros_on_page_macro_key_empty(
     confluence_issue_updater_service,
     confluence_updater_stub,
     jira_updater_stub,
@@ -788,7 +788,7 @@ async def test_find_and_replace_jira_macros_on_page_macro_key_empty(
     (
         modified_html,
         did_modify,
-    ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
+    ) = await confluence_issue_updater_service._replace_macros_on_page(
         page_title=page_title,
         html_content=html_content,
         candidate_new_issues=candidate_new_issues,
@@ -799,7 +799,7 @@ async def test_find_and_replace_jira_macros_on_page_macro_key_empty(
 
 
 @pytest.mark.asyncio
-async def test_find_and_replace_jira_macros_on_page_macro_issue_type_not_target(
+async def test_replace_macros_on_page_macro_issue_type_not_target(
     confluence_issue_updater_service,
     confluence_updater_stub,
     jira_updater_stub,
@@ -826,7 +826,7 @@ async def test_find_and_replace_jira_macros_on_page_macro_issue_type_not_target(
     (
         modified_html,
         did_modify,
-    ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
+    ) = await confluence_issue_updater_service._replace_macros_on_page(
         page_title=page_title,
         html_content=html_content,
         candidate_new_issues=candidate_new_issues,
@@ -837,7 +837,7 @@ async def test_find_and_replace_jira_macros_on_page_macro_issue_type_not_target(
 
 
 @pytest.mark.asyncio
-async def test_find_best_new_issue_match_candidate_type_mismatch(
+async def test_find_best_match_candidate_type_mismatch(
     confluence_issue_updater_service, monkeypatch
 ):
     old_issue_details = {
@@ -855,14 +855,14 @@ async def test_find_best_new_issue_match_candidate_type_mismatch(
         }
     ]
     monkeypatch.setattr(config, "FUZZY_MATCH_THRESHOLD", 0.75)
-    result = confluence_issue_updater_service._find_best_new_issue_match(
+    result = confluence_issue_updater_service._find_best_match(
         old_issue_details, candidate_new_issues
     )
     assert result is None
 
 
 @pytest.mark.asyncio
-async def test_find_best_new_issue_match_both_summaries_empty(
+async def test_find_best_match_both_summaries_empty(
     confluence_issue_updater_service, monkeypatch
 ):
     old_issue_details = {
@@ -875,14 +875,14 @@ async def test_find_best_new_issue_match_both_summaries_empty(
         {"fields": {"issuetype": {"id": "10000", "name": "Project"}, "summary": ""}}
     ]
     monkeypatch.setattr(config, "FUZZY_MATCH_THRESHOLD", 0.75)
-    result = confluence_issue_updater_service._find_best_new_issue_match(
+    result = confluence_issue_updater_service._find_best_match(
         old_issue_details, candidate_new_issues
     )
     assert result is not None
 
 
 @pytest.mark.asyncio
-async def test_find_and_replace_jira_macros_on_page_best_match_no_key(
+async def test_replace_macros_on_page_best_match_no_key(
     confluence_issue_updater_service,
     confluence_updater_stub,
     jira_updater_stub,
@@ -912,8 +912,8 @@ async def test_find_and_replace_jira_macros_on_page_best_match_no_key(
             },
         },
     )
-    # Patch _find_best_new_issue_match to return candidate with no 'key'
-    orig_find_best = confluence_issue_updater_service._find_best_new_issue_match
+    # Patch _find_best_match to return candidate with no 'key'
+    orig_find_best = confluence_issue_updater_service._find_best_match
 
     def fake_find_best(*args, **kwargs):
         return {
@@ -923,23 +923,23 @@ async def test_find_and_replace_jira_macros_on_page_best_match_no_key(
             }
         }
 
-    confluence_issue_updater_service._find_best_new_issue_match = fake_find_best
+    confluence_issue_updater_service._find_best_match = fake_find_best
     (
         modified_html,
         did_modify,
-    ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
+    ) = await confluence_issue_updater_service._replace_macros_on_page(
         page_title=page_title,
         html_content=html_content,
         candidate_new_issues=candidate_new_issues,
         target_issue_type_ids=target_issue_type_ids,
     )
-    confluence_issue_updater_service._find_best_new_issue_match = orig_find_best
+    confluence_issue_updater_service._find_best_match = orig_find_best
     assert did_modify is False
     assert "ISSUE-1" in modified_html
 
 
 @pytest.mark.asyncio
-async def test_find_and_replace_jira_macros_on_page_no_macros(
+async def test_replace_macros_on_page_no_macros(
     confluence_issue_updater_service,
     confluence_updater_stub,
     jira_updater_stub,
@@ -955,7 +955,7 @@ async def test_find_and_replace_jira_macros_on_page_no_macros(
     (
         modified_html,
         did_modify,
-    ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
+    ) = await confluence_issue_updater_service._replace_macros_on_page(
         page_title=page_title,
         html_content=html_content,
         candidate_new_issues=candidate_new_issues,
@@ -966,13 +966,13 @@ async def test_find_and_replace_jira_macros_on_page_no_macros(
 
 
 @pytest.mark.asyncio
-async def test_find_and_replace_jira_macros_on_page_candidates_none(
+async def test_replace_macros_on_page_candidates_none(
     confluence_issue_updater_service,
     confluence_updater_stub,
     jira_updater_stub,
     monkeypatch,
 ):
-    """Test _find_and_replace_jira_macros_on_page with candidate_new_issues=None."""
+    """Test _replace_macros_on_page with candidate_new_issues=None."""
     page_id = "page1"
     html_content = '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">ISSUE-1</ac:parameter></ac:structured-macro>'
     page_title = f"Page {page_id}"
@@ -994,7 +994,7 @@ async def test_find_and_replace_jira_macros_on_page_candidates_none(
     (
         modified_html,
         did_modify,
-    ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
+    ) = await confluence_issue_updater_service._replace_macros_on_page(
         page_title=page_title,
         html_content=html_content,
         candidate_new_issues=[], # Set to empty list as per method signature
@@ -1005,7 +1005,7 @@ async def test_find_and_replace_jira_macros_on_page_candidates_none(
 
 
 @pytest.mark.asyncio
-async def test_find_best_new_issue_match_candidate_summary_none(
+async def test_find_best_match_candidate_summary_none(
     confluence_issue_updater_service, monkeypatch
 ):
     old_issue_details = {
@@ -1018,7 +1018,7 @@ async def test_find_best_new_issue_match_candidate_summary_none(
         {"fields": {"issuetype": {"id": "10000", "name": "Project"}, "summary": None}}
     ]
     monkeypatch.setattr(config, "FUZZY_MATCH_THRESHOLD", 0.75)
-    result = confluence_issue_updater_service._find_best_new_issue_match(
+    result = confluence_issue_updater_service._find_best_match(
         old_issue_details, candidate_new_issues
     )
     assert result is None
@@ -1062,7 +1062,7 @@ async def test_update_confluence_hierarchy_with_empty_candidates(
         f"AND issue in relation('{root_project_key}', '', 'all')"
     )
     jira_updater_stub.add_jql_result(jql_query_for_candidates, {"issues": []})
-    results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
+    results = await confluence_issue_updater_service.sync_project_to_confluence(
         project_page_url=root_url, project_key=root_project_key
     )
     assert results == []
@@ -1086,7 +1086,7 @@ async def test_replace_macros_skips_macro_with_no_key(
     (
         modified_html,
         did_modify,
-    ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
+    ) = await confluence_issue_updater_service._replace_macros_on_page(
         page_title="Test Page",
         html_content=html_with_malformed_macro,
         candidate_new_issues=[{"key": "NEW-123", "fields": {}}],
@@ -1109,7 +1109,7 @@ async def test_update_hierarchy_raises_error_for_invalid_root_url(
     invalid_url = "http://example.com/invalid-page"
 
     with pytest.raises(InvalidInputError, match="Could not find page ID for URL"):
-        await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
+        await confluence_issue_updater_service.sync_project_to_confluence(
             project_page_url=invalid_url, project_key="ANY-PROJ"
         )
 
@@ -1126,7 +1126,7 @@ async def test_get_relevant_issues_with_no_valid_type_ids(
 
     with caplog.at_level(logging.WARNING):
         # Pass an empty set for the target IDs
-        candidates = await confluence_issue_updater_service._get_relevant_jira_issues_under_root(
+        candidates = await confluence_issue_updater_service._get_project_issues(
             root_key="ANY-PROJ", target_issue_type_ids=set()
         )
 

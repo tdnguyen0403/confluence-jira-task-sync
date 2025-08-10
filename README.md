@@ -61,7 +61,7 @@ The tool is designed with a clear separation of concerns, making it easy to unde
   - `main.py`: The FastAPI application entry point.
   - `dependencies.py`: Decouple services from FastAPI application using built in Depend module for dependency injection.
   - `exceptions.py`: custom exception class to be used throughout applcation.
-  - `scripts/`: Contains auxiliary script such as generate_confluence_tree.pu for generating Confluence test data, to be run in CLI, or end_to_end_test script to test the overall API workflow
+  - `scripts/`: Contains auxiliary script such as generate_page_tre.pu for generating Confluence test data, to be run in CLI, or end_to_end_test script to test the overall API workflow
 - `tests/`: Contains unit and integration tests.
 - `Dockerfile`: Defines the multi-stage build process for development and production containers.
 - `docker-compose.yml`: Defines the services for production deployment test - build & run the container in developer machine

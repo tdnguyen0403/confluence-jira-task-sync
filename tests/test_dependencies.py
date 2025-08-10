@@ -24,13 +24,13 @@ from src.dependencies import (
 )
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
-from src.services.business_logic.issue_finder_service import IssueFinderService
-from src.services.orchestration.confluence_issue_updater_service import (
-    ConfluenceIssueUpdaterService,
+from src.services.business.issue_finder_service import IssueFinderService
+from src.services.orchestration.sync_project import (
+    SyncProjectService,
 )
-from src.services.orchestration.sync_task_orchestrator import SyncTaskOrchestrator
-from src.services.orchestration.undo_sync_task_orchestrator import (
-    UndoSyncTaskOrchestrator,
+from src.services.orchestration.sync_task import SyncTaskService
+from src.services.orchestration.undo_sync_task import (
+    UndoSyncService,
 )
 
 
@@ -180,7 +180,7 @@ async def test_get_confluence_issue_updater_service(mock_https_helper):
         jira_service=jira_service,
         issue_finder_service=issue_finder,
     )
-    assert isinstance(service, ConfluenceIssueUpdaterService)
+    assert isinstance(service, SyncProjectService)
     assert service.confluence_api is confluence_service
     assert service.jira_api is jira_service
     assert service.issue_finder_service is issue_finder
@@ -207,7 +207,7 @@ async def test_get_sync_task_orchestrator(mock_https_helper):
     )
 
     # Assert: Check the instance type and that dependencies were injected correctly
-    assert isinstance(orchestrator, SyncTaskOrchestrator)
+    assert isinstance(orchestrator, SyncTaskService)
     assert orchestrator.confluence_service is confluence_service
     assert orchestrator.jira_service is jira_service
     assert orchestrator.issue_finder_service is issue_finder_service
@@ -242,7 +242,7 @@ async def test_get_undo_sync_task_orchestrator(mock_https_helper):
     )
 
     # Assert: Check the instance type and that dependencies were injected correctly
-    assert isinstance(orchestrator, UndoSyncTaskOrchestrator)
+    assert isinstance(orchestrator, UndoSyncService)
     assert orchestrator.confluence_service is confluence_service
     assert orchestrator.jira_service is jira_service
     assert orchestrator.issue_finder_service is issue_finder_service
