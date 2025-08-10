@@ -20,12 +20,12 @@ from src.api.https_helper import HTTPSHelper
 from src.api.safe_confluence_api import SafeConfluenceAPI
 from src.api.safe_jira_api import SafeJiraAPI
 from src.config import config
-from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
-from src.interfaces.issue_finder_service_interface import IssueFinderServiceInterface
-from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.interfaces.confluence_interface import IConfluenceService
+from src.interfaces.issue_finder_interface import IFindIssue
+from src.interfaces.jira_interface import IJiraService
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
-from src.services.business.issue_finder_service import IssueFinderService
+from src.services.business.issue_finder import IssueFinderService
 from src.services.orchestration.sync_project import (
     SyncProjectService,
 )
@@ -114,7 +114,7 @@ def get_safe_confluence_api(
 @lru_cache(maxsize=None)
 def get_jira_service(
     safe_jira_api: SafeJiraAPI = Depends(get_safe_jira_api),
-) -> JiraApiServiceInterface:
+) -> IJiraService:
     """Provides a singleton instance of the JiraService."""
     return JiraService(safe_jira_api)
 
@@ -122,55 +122,49 @@ def get_jira_service(
 @lru_cache(maxsize=None)
 def get_confluence_service(
     safe_confluence_api: SafeConfluenceAPI = Depends(get_safe_confluence_api),
-) -> ConfluenceApiServiceInterface:
+) -> IConfluenceService:
     """Provides a singleton instance of the ConfluenceService."""
     return ConfluenceService(safe_confluence_api)
 
 
 @lru_cache(maxsize=None)
 def get_issue_finder_service(
-    jira_service: JiraApiServiceInterface = Depends(get_jira_service),
-    confluence_service: ConfluenceApiServiceInterface = Depends(get_confluence_service),
-) -> IssueFinderServiceInterface:
+    jira_service: IJiraService = Depends(get_jira_service),
+    confluence_service: IConfluenceService = Depends(get_confluence_service),
+) -> IFindIssue:
     """Provides a singleton instance of the IssueFinderService."""
     return IssueFinderService(jira_service, confluence_service)
 
 
 @lru_cache(maxsize=None)
 def get_sync_project(
-    confluence_service: ConfluenceApiServiceInterface = Depends(get_confluence_service),
-    jira_service: JiraApiServiceInterface = Depends(get_jira_service),
-    issue_finder_service: IssueFinderServiceInterface = Depends(
-        get_issue_finder_service
-    ),
+    confluence_service: IConfluenceService = Depends(get_confluence_service),
+    jira_service: IJiraService = Depends(get_jira_service),
+    issue_finder: IFindIssue = Depends(get_issue_finder_service),
 ) -> SyncProjectService:
     """Provides a singleton instance of the SyncProjectService."""
-    return SyncProjectService(confluence_service, jira_service, issue_finder_service)
+    return SyncProjectService(confluence_service, jira_service, issue_finder)
 
 
 @lru_cache(maxsize=None)
 def get_sync_task(
-    confluence_service: ConfluenceApiServiceInterface = Depends(get_confluence_service),
-    jira_service: JiraApiServiceInterface = Depends(get_jira_service),
-    issue_finder_service: IssueFinderServiceInterface = Depends(
-        get_issue_finder_service
-    ),
+    confluence_service: IConfluenceService = Depends(get_confluence_service),
+    jira_service: IJiraService = Depends(get_jira_service),
+    issue_finder: IFindIssue = Depends(get_issue_finder_service),
 ) -> SyncTaskService:
     """Provides a singleton instance of the SyncTaskService."""
     return SyncTaskService(
         confluence_service,
         jira_service,
-        issue_finder_service,
+        issue_finder,
     )
 
 
 @lru_cache(maxsize=None)
 def get_undo_sync_task(
-    confluence_service: ConfluenceApiServiceInterface = Depends(get_confluence_service),
-    jira_service: JiraApiServiceInterface = Depends(get_jira_service),
-    issue_finder_service: IssueFinderServiceInterface = Depends(
-        get_issue_finder_service
-    ),
+    confluence_service: IConfluenceService = Depends(get_confluence_service),
+    jira_service: IJiraService = Depends(get_jira_service),
+    issue_finder: IFindIssue = Depends(get_issue_finder_service),
 ) -> UndoSyncService:
     """Provides a singleton instance of the UndoSyncService."""
-    return UndoSyncService(confluence_service, jira_service, issue_finder_service)
+    return UndoSyncService(confluence_service, jira_service, issue_finder)

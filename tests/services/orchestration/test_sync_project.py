@@ -8,9 +8,9 @@ import pytest_asyncio
 
 from src.config import config
 from src.exceptions import InvalidInputError
-from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
-from src.interfaces.issue_finder_service_interface import IssueFinderServiceInterface
-from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.interfaces.confluence_interface import IConfluenceService
+from src.interfaces.issue_finder_interface import IFindIssue
+from src.interfaces.jira_interface import IJiraService
 from src.models.data_models import JiraIssue, JiraIssueStatus
 
 # Now import the service and models using the correct, updated path
@@ -22,7 +22,7 @@ logging.disable(logging.CRITICAL)
 # --- Stub Implementations for Dependencies ---
 
 
-class ConfluenceServiceStub(ConfluenceApiServiceInterface):
+class ConfluenceServiceStub(IConfluenceService):
     def __init__(self):
         self._pages_content = {}
         self._updated_pages = {}  # To track updates
@@ -50,7 +50,7 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
         self._updated_pages[page_id] = {"title": new_title, "body": new_body}
         return self._update_success
 
-    # If ConfluenceApiServiceInterface defines update_page_content as abstract,
+    # If IConfluenceService defines update_page_content as abstract,
     # we must implement it. Delegating to update_page as a practical stub.
     async def update_page_content(
         self, page_id: str, new_title: str, new_body: str
@@ -106,7 +106,7 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
         return {}
 
 
-class JiraServiceStub(JiraApiServiceInterface):
+class JiraServiceStub(IJiraService):
     def __init__(self):
         self._issues = {}
         self._issue_types = {}
@@ -203,7 +203,7 @@ class JiraServiceStub(JiraApiServiceInterface):
         return {"issues": []}
 
 
-class IssueFinderServiceStub(IssueFinderServiceInterface):
+class IssueFinderServiceStub(IFindIssue):
     def __init__(self):
         self.mock = AsyncMock()
 
@@ -245,7 +245,7 @@ async def confluence_issue_updater_service(
     return SyncProjectService(
         confluence_api=confluence_updater_stub,
         jira_api=jira_updater_stub,
-        issue_finder_service=issue_finder_updater_stub,
+        issue_finder=issue_finder_updater_stub,
     )
 
 

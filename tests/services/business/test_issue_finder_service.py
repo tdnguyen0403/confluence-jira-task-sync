@@ -5,17 +5,17 @@ from unittest.mock import AsyncMock
 import pytest
 import pytest_asyncio
 
-from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
-from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.interfaces.confluence_interface import IConfluenceService
+from src.interfaces.jira_interface import IJiraService
 from src.models.data_models import ConfluenceTask, JiraIssue, JiraIssueStatus
 from src.models.api_models import SyncTaskContext
-from src.services.business.issue_finder_service import IssueFinderService
+from src.services.business.issue_finder import IssueFinderService
 
 
 # --- Stubs for Dependencies ---
 
 
-class ConfluenceApiStub(ConfluenceApiServiceInterface):
+class ConfluenceApiStub(IConfluenceService):
     """A complete stub that implements the Confluence interface for tests."""
 
     def __init__(self):
@@ -65,8 +65,8 @@ class ConfluenceApiStub(ConfluenceApiServiceInterface):
         pass
 
 
-class JiraApiStub(JiraApiServiceInterface):
-    """A complete stub that implements the JiraApiServiceInterface."""
+class JiraApiStub(IJiraService):
+    """A complete stub that implements the IJiraService."""
     def __init__(self):
         self.mock = AsyncMock()
 
@@ -125,7 +125,7 @@ async def mock_jira_api() -> JiraApiStub:
 
 
 @pytest_asyncio.fixture
-async def issue_finder_service(
+async def issue_finder(
     mock_jira_api: JiraApiStub,
     mock_confluence_api: ConfluenceApiStub,
 ) -> IssueFinderService:
@@ -149,7 +149,7 @@ def parse_jql_in_clause(jql_query: str) -> Optional[List[str]]:
 # --- Tests for find_issues_and_macros_on_page ---
 @pytest.mark.asyncio
 async def test_find_issues_and_macros_on_page_success(
-    issue_finder_service, mock_jira_api
+    issue_finder, mock_jira_api
 ):
     html_content = (
         '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">PROJ-1</ac:parameter></ac:structured-macro>'
@@ -161,7 +161,7 @@ async def test_find_issues_and_macros_on_page_success(
         {"key": "PROJ-2", "fields": {"summary": "Summary 2", "status": {"name": "Done", "statusCategory": {"key": "done"}}, "issuetype": {"name": "Bug"}}},
     ]
 
-    result = await issue_finder_service.find_issues_and_macros_on_page(html_content)
+    result = await issue_finder.find_issues_and_macros_on_page(html_content)
 
     assert len(result["fetched_issues_map"]) == 2
     # FIX: Call assertion on the internal mock object
@@ -173,29 +173,29 @@ async def test_find_issues_and_macros_on_page_success(
 
 @pytest.mark.asyncio
 async def test_find_issues_and_macros_on_page_no_macros(
-    issue_finder_service, mock_jira_api
+    issue_finder, mock_jira_api
 ):
-    await issue_finder_service.find_issues_and_macros_on_page("<p>No content</p>")
+    await issue_finder.find_issues_and_macros_on_page("<p>No content</p>")
     # FIX: Call assertion on the internal mock object
     mock_jira_api.mock.search_by_jql.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_find_issues_and_macros_on_page_jira_api_error(
-    issue_finder_service, mock_jira_api
+    issue_finder, mock_jira_api
 ):
     html_content = '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">PROJ-ERR</ac:parameter></ac:structured-macro>'
     # FIX: Set attributes on the internal mock object
     mock_jira_api.mock.search_by_jql.side_effect = Exception("Jira API Down")
 
     with pytest.raises(Exception, match="Jira API Down"):
-        await issue_finder_service.find_issues_and_macros_on_page(html_content)
+        await issue_finder.find_issues_and_macros_on_page(html_content)
     mock_jira_api.mock.search_by_jql.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_find_issue_on_page_match_found(
-    issue_finder_service, mock_confluence_api, mock_jira_api
+    issue_finder, mock_confluence_api, mock_jira_api
 ):
     page_id = "page123"
     issue_type_map = {"Work Package": "10000"}
@@ -205,7 +205,7 @@ async def test_find_issue_on_page_match_found(
     mock_jira_api.mock.search_by_jql.return_value = [{"key": "WP-ABC", "fields": {"issuetype": {"name": "Work Package"}, "summary": "s", "status": {"name":"d", "statusCategory": {"key":"d"}}}}]
     mock_jira_api.mock.get_issue.return_value = {"key": "WP-ABC"}
 
-    found_issue = await issue_finder_service.find_issue_on_page(page_id, issue_type_map)
+    found_issue = await issue_finder.find_issue_on_page(page_id, issue_type_map)
 
     assert found_issue["key"] == "WP-ABC"
     # FIX: Call assertion on the internal mock object
@@ -214,7 +214,7 @@ async def test_find_issue_on_page_match_found(
 
 @pytest.mark.asyncio
 async def test_find_issue_on_page_no_match_found(
-    issue_finder_service, mock_confluence_api, mock_jira_api
+    issue_finder, mock_confluence_api, mock_jira_api
 ):
     page_id = "page123"
     issue_type_map = {"Epic": "10001"}
@@ -223,7 +223,7 @@ async def test_find_issue_on_page_no_match_found(
     # FIX: Set attributes on the internal mock object
     mock_jira_api.mock.search_by_jql.return_value = [{"key": "TASK-1", "fields": {"issuetype": {"name": "Task"}, "summary":"s", "status": {"name":"d", "statusCategory": {"key":"d"}}}}]
 
-    found_issue = await issue_finder_service.find_issue_on_page(page_id, issue_type_map)
+    found_issue = await issue_finder.find_issue_on_page(page_id, issue_type_map)
 
     assert found_issue is None
     mock_jira_api.mock.search_by_jql.assert_awaited_once()
@@ -232,21 +232,21 @@ async def test_find_issue_on_page_no_match_found(
 
 @pytest.mark.asyncio
 async def test_find_issue_on_page_no_page_content(
-    issue_finder_service, mock_confluence_api, mock_jira_api
+    issue_finder, mock_confluence_api, mock_jira_api
 ):
     page_id = "page123"
     mock_confluence_api.set_page_content(page_id, None)
-    await issue_finder_service.find_issue_on_page(page_id, {})
+    await issue_finder.find_issue_on_page(page_id, {})
     # FIX: Call assertion on the internal mock object
     mock_jira_api.mock.search_by_jql.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_find_issue_on_page_empty_html_content(
-    issue_finder_service, mock_confluence_api, mock_jira_api
+    issue_finder, mock_confluence_api, mock_jira_api
 ):
     page_id = "page123"
     mock_confluence_api.set_page_content(page_id, "")
-    await issue_finder_service.find_issue_on_page(page_id, {})
+    await issue_finder.find_issue_on_page(page_id, {})
     # FIX: Call assertion on the internal mock object
     mock_jira_api.mock.search_by_jql.assert_not_awaited()

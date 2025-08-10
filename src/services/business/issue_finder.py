@@ -12,13 +12,13 @@ from typing import Any, Dict, List, Optional
 
 from bs4 import BeautifulSoup, Tag
 
-from src.interfaces.confluence_service_interface import (
-    ConfluenceApiServiceInterface,
+from src.interfaces.confluence_interface import (
+    IConfluenceService,
 )
-from src.interfaces.issue_finder_service_interface import (
-    IssueFinderServiceInterface,
+from src.interfaces.issue_finder_interface import (
+    IFindIssue,
 )
-from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.interfaces.jira_interface import IJiraService
 from src.models.data_models import (
     JiraIssue,
     JiraIssueMacro,
@@ -28,7 +28,7 @@ from src.models.data_models import (
 logger = logging.getLogger(__name__)
 
 
-class IssueFinderService(IssueFinderServiceInterface):
+class IssueFinderService(IFindIssue):
     """
     A dedicated service for finding specific Jira issues on Confluence pages.
 
@@ -39,16 +39,16 @@ class IssueFinderService(IssueFinderServiceInterface):
 
     def __init__(
         self,
-        jira_api: JiraApiServiceInterface,
-        confluence_api: ConfluenceApiServiceInterface,
+        jira_api: IJiraService,
+        confluence_api: IConfluenceService,
     ):
         """
         Initializes the IssueFinderService.
 
         Args:
-            jira_api (JiraApiServiceInterface): An instance of the Jira API
+            jira_api (IJiraService): An instance of the Jira API
                 service interface for validating issue details.
-            confluence_api (ConfluenceApiServiceInterface):
+            confluence_api (IConfluenceService):
                 An instance of the Confluence API service interface
                 for fetching page content.
         """

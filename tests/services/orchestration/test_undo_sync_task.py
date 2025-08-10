@@ -7,9 +7,9 @@ import pytest_asyncio
 
 from src.config import config
 from src.exceptions import InvalidInputError
-from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
-from src.interfaces.issue_finder_service_interface import IssueFinderServiceInterface
-from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.interfaces.confluence_interface import IConfluenceService
+from src.interfaces.issue_finder_interface import IFindIssue
+from src.interfaces.jira_interface import IJiraService
 from src.models.api_models import SyncTaskContext, UndoSyncTaskRequest
 from src.models.data_models import ConfluenceTask, JiraIssueStatus
 from src.services.orchestration.undo_sync_task import (
@@ -44,7 +44,7 @@ def sample_completed_item() -> UndoSyncTaskRequest:
 # --- Stubs for Service Dependencies ---
 
 
-class ConfluenceServiceStub(ConfluenceApiServiceInterface):
+class ConfluenceServiceStub(IConfluenceService):
     def __init__(self, initial_html: str = ""):
         self._page_content = initial_html
         self.page_updated_count = 0
@@ -95,7 +95,7 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
         return f"mock macro for {jira_key}"
 
 
-class JiraServiceStub(JiraApiServiceInterface):
+class JiraServiceStub(IJiraService):
     def __init__(self):
         self.transitioned_issues: Dict[str, str] = {}
 
@@ -134,7 +134,7 @@ class JiraServiceStub(JiraApiServiceInterface):
     async def assign_issue(self, issue_key: str, assignee_name: Optional[str]) -> bool:
         return True
 
-class IssueFinderServiceStub(IssueFinderServiceInterface):
+class IssueFinderServiceStub(IFindIssue):
     async def find_issue_on_page(
         self,
         page_id: str,
@@ -172,7 +172,7 @@ async def undo_orchestrator(
     return UndoSyncService(
         confluence_service=confluence_undo_stub,
         jira_service=jira_undo_stub,
-        issue_finder_service=issue_finder_undo_stub,
+        issue_finder=issue_finder_undo_stub,
     )
 
 

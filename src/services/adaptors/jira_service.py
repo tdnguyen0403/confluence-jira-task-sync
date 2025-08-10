@@ -2,7 +2,7 @@
 Provides a high-level service for interacting with Jira.
 
 This module contains the `JiraService`, which acts as the business logic
-layer for Jira operations. It implements the unified `JiraApiServiceInterface`
+layer for Jira operations. It implements the unified `IJiraService`
 and uses the `SafeJiraAPI` for its underlying calls.
 
 The service is responsible for preparing and creating Jira issues based on
@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 from src.api.safe_jira_api import SafeJiraAPI
 from src.config import config
 from src.exceptions import JiraApiError
-from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.interfaces.jira_interface import IJiraService
 from src.models.api_models import SyncTaskContext
 from src.models.data_models import (
     ConfluenceTask,
@@ -29,7 +29,7 @@ from src.models.data_models import (
 logger = logging.getLogger(__name__)
 
 
-class JiraService(JiraApiServiceInterface):
+class JiraService(IJiraService):
     """
     A concrete implementation of the Jira service interface.
 

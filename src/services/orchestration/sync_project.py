@@ -14,8 +14,8 @@ from bs4 import BeautifulSoup, Tag
 
 from src.config import config
 from src.exceptions import ConfluenceApiError, InvalidInputError
-from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
-from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.interfaces.confluence_interface import IConfluenceService
+from src.interfaces.jira_interface import IJiraService
 from src.models.api_models import SinglePageResult
 
 logger = logging.getLogger(__name__)
@@ -28,13 +28,13 @@ class SyncProjectService:
 
     def __init__(
         self,
-        confluence_api: ConfluenceApiServiceInterface,
-        jira_api: JiraApiServiceInterface,
-        issue_finder_service: Any,
+        confluence_api: IConfluenceService,
+        jira_api: IJiraService,
+        issue_finder: Any,
     ):
         self.confluence_api = confluence_api
         self.jira_api = jira_api
-        self.issue_finder_service = issue_finder_service
+        self.issue_finder = issue_finder
 
     async def sync_project(
         self,

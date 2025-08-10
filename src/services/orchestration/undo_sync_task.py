@@ -6,9 +6,9 @@ from typing import Any, Callable, Coroutine, Dict, List, Set, Tuple
 
 from src.config import config
 from src.exceptions import InvalidInputError
-from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
-from src.interfaces.issue_finder_service_interface import IssueFinderServiceInterface
-from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.interfaces.confluence_interface import IConfluenceService
+from src.interfaces.issue_finder_interface import IFindIssue
+from src.interfaces.jira_interface import IJiraService
 from src.models.api_models import (
     UndoActionResult,
     UndoSyncTaskRequest,
@@ -25,13 +25,13 @@ class UndoSyncService:
 
     def __init__(
         self,
-        confluence_service: ConfluenceApiServiceInterface,
-        jira_service: JiraApiServiceInterface,
-        issue_finder_service: IssueFinderServiceInterface,
+        confluence_service: IConfluenceService,
+        jira_service: IJiraService,
+        issue_finder: IFindIssue,
     ):
         self.confluence_service = confluence_service
         self.jira_service = jira_service
-        self.issue_finder_service = issue_finder_service
+        self.issue_finder = issue_finder
 
     async def run(
         self, undo_requests: List[UndoSyncTaskRequest], request_id: str
