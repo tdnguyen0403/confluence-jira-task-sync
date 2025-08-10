@@ -2,7 +2,7 @@
 
 import logging
 from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
@@ -474,3 +474,255 @@ async def test_unassign_jira_task_when_both_confluence_task_and_work_package_una
     await sync_orchestrator.run(input_data, sync_context, request_id="test-13")
 
     jira_stub.mock.assign_issue.assert_awaited_once_with("JIRA-600", None)
+
+@pytest.mark.asyncio
+async def test_process_single_task_empty_summary(
+    sync_orchestrator, sample_task, sync_context
+):
+    """
+    Tests that a task with an empty or whitespace summary is skipped.
+    This covers the `if not task.task_summary...` branch in `_process_single_task`.
+    """
+    sample_task.task_summary = "   "  # Whitespace only
+
+    result = await sync_orchestrator._process_single_task(sample_task, sync_context)
+
+    assert result.status_text == "Skipped - Empty Task"
+    assert result.new_jira_task_key is None
+
+
+@pytest.mark.asyncio
+async def test_process_tasks_no_successes(
+    sync_orchestrator, issue_finder_stub, sync_context, sample_task
+):
+    """
+    Tests the scenario where tasks are processed but none succeed, so no Confluence update is attempted.
+    This covers the `else` branch of `if tasks_to_update:`.
+    """
+    # Make all tasks fail by having no parent work package
+    issue_finder_stub.found_issue_key = None
+
+    jira_results, confluence_results = await sync_orchestrator._process_tasks(
+        [sample_task], sync_context
+    )
+
+    assert len(jira_results) == 1
+    assert jira_results[0].success is False
+    # Crucially, confluence_results should be empty as no update should be triggered
+    assert len(confluence_results) == 0
+
+
+@pytest.mark.asyncio
+async def test_update_confluence_page_get_page_fails(
+    sync_orchestrator, confluence_stub
+):
+    """
+    Tests the failure path when get_page_by_id returns None inside _update_confluence_page.
+    This covers the `if not page_details:` branch.
+    """
+    # Make get_page_by_id return None for the specific page
+    confluence_stub.get_page_by_id = AsyncMock(return_value=None)
+    page_id = "nonexistent_page"
+    mappings = [{"confluence_task_id": "t1", "jira_key": "KEY-1"}]
+
+    result = await sync_orchestrator._update_confluence_page(page_id, mappings)
+
+    assert result.updated is False
+    assert result.page_id == page_id
+    assert f"Could not find page {page_id} for update" in result.error_message
+
+
+@pytest.mark.asyncio
+async def test_update_confluence_page_update_call_returns_false(
+    sync_orchestrator, confluence_stub
+):
+    """
+    Tests failure when the final update_page_with_jira_links call returns False.
+    This covers the `else` branch for `if success:` in `_update_confluence_page`.
+    """
+    # Make the update call itself fail by returning False
+    confluence_stub.update_page_with_jira_links = AsyncMock(return_value=False)
+    page_id = "page123"
+    mappings = [{"confluence_task_id": "t1", "jira_key": "KEY-1"}]
+
+    result = await sync_orchestrator._update_confluence_page(page_id, mappings)
+
+    assert result.updated is False
+    assert result.page_id == page_id
+    assert "Update failed for page" in result.error_message
+
+
+@pytest.mark.asyncio
+async def test_completed_task_transition_failure(
+    sync_orchestrator: SyncTaskOrchestrator,
+    confluence_stub: ConfluenceServiceStub,
+    jira_stub: JiraServiceStub,
+    sample_task: ConfluenceTask,
+    sync_context: SyncTaskContext,
+):
+    """Test that a failure to transition a completed task is handled gracefully."""
+    sample_task.status = "complete"
+    confluence_stub._task = sample_task
+    jira_stub.created_issue_key = "JIRA-201"
+    # Simulate the transition failing
+    jira_stub.transition_issue = AsyncMock(return_value=False)
+
+    input_data = {"confluence_page_urls": ["http://example.com/page1"]}
+    results = await sync_orchestrator.run(
+        input_data, sync_context, request_id="test-transition-fail"
+    )
+
+    jira_result = results.jira_task_creation_results[0]
+    assert jira_result.success is True # Creation itself was a success
+    assert jira_result.creation_status_text == "Success - Task Created (Transition Failed)"
+    jira_stub.transition_issue.assert_awaited_once_with(
+        "JIRA-201", config.JIRA_TARGET_STATUSES["completed_task"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_assign_issue_failure_is_logged(
+    sync_orchestrator: SyncTaskOrchestrator,
+    confluence_stub: ConfluenceServiceStub,
+    jira_stub: JiraServiceStub,
+    issue_finder_stub: IssueFinderServiceStub,
+    sample_task: ConfluenceTask,
+    sync_context: SyncTaskContext,
+    caplog
+):
+    """
+    Test that a failure to unassign an issue is logged but does not fail the whole process.
+    This covers the `if not await self.jira_service.assign_issue` branch.
+    """
+    caplog.set_level(logging.WARNING)
+    # Task and WP are unassigned
+    sample_task.assignee_name = None
+    issue_finder_stub.wp_assignee = None
+    confluence_stub._task = sample_task
+
+    jira_stub.created_issue_key = "JIRA-800"
+    # Simulate assign_issue failing
+    jira_stub.assign_issue = AsyncMock(return_value=False)
+
+    input_data = {"confluence_page_urls": ["http://example.com/page1"]}
+    await sync_orchestrator.run(input_data, sync_context, request_id="test-assign-fail")
+
+    # Check that the warning was logged
+    assert "Failed to explicitly unassign issue JIRA-800." in caplog.text
+    jira_stub.assign_issue.assert_awaited_once_with("JIRA-800", None)
+
+@pytest.mark.asyncio
+async def test_run_handles_exception_in_hierarchy_processing(
+    sync_orchestrator, sync_context, caplog
+):
+    """
+    Tests that the main 'run' method gracefully handles an exception raised
+    by `process_page_hierarchy` and continues processing other URLs.
+    """
+    caplog.set_level(logging.ERROR)
+
+    with patch.object(
+        sync_orchestrator, "process_page_hierarchy", new_callable=AsyncMock
+    ) as mock_process:
+
+        async def mock_side_effect(url, context):
+            if "fail" in url:
+                raise RuntimeError("Simulated processing error")
+            else:
+                # Successful call returns an empty result tuple
+                return ([], [])
+
+        mock_process.side_effect = mock_side_effect
+
+        input_data = {
+            "confluence_page_urls": ["http://fail.com", "http://succeed.com"]
+        }
+
+        response = await sync_orchestrator.run(input_data, sync_context, "req-123")
+
+        # The error should be logged
+        assert "Error processing page hierarchy: Simulated processing error" in caplog.text
+        # The overall status should reflect that something was skipped/failed
+        assert response.overall_status != "Success"
+        # The successful result from the second URL should still be processed
+        assert response.overall_jira_task_creation_status == "Skipped - No actions processed"
+
+
+@pytest.mark.asyncio
+async def test_collect_tasks_handles_none_page_details(
+    sync_orchestrator, confluence_stub, caplog
+):
+    """
+    Tests that `_collect_tasks` correctly skips a page if `get_page_by_id` returns None.
+    This covers the `else` path of `if page_details:` at line 114.
+    """
+    page_ids = ["page123", "nonexistent_page"]
+
+    # Mock `get_page_by_id` to return None for one of the pages
+    original_get_page = confluence_stub.get_page_by_id
+    async def side_effect(page_id, **kwargs):
+        if page_id == "nonexistent_page":
+            return None
+        return await original_get_page(page_id, **kwargs)
+
+    confluence_stub.get_page_by_id = side_effect
+
+    tasks = await sync_orchestrator._collect_tasks(page_ids)
+
+    # Only the task from the valid page should be collected
+    assert len(tasks) == 1
+    assert tasks[0].confluence_page_id == "page123"
+
+@pytest.mark.asyncio
+async def test_run_handles_unproccesable_url_and_returns_partial_status(
+    sync_orchestrator: SyncTaskOrchestrator,
+    sync_context: SyncTaskContext,
+    caplog,
+):
+    """
+    Tests that if processing one URL hierarchy fails with an exception, the
+    orchestrator catches it, continues processing other URLs, and sets the
+    overall status to reflect a partial success.
+    """
+    # ARRANGE: Set up the test to log errors
+    caplog.set_level(logging.ERROR)
+
+    # Use patch to temporarily replace the `process_page_hierarchy` method
+    with patch.object(
+        sync_orchestrator, "process_page_hierarchy", new_callable=AsyncMock
+    ) as mock_process:
+
+        # Define an async helper to control the mock's behavior
+        async def mock_side_effect(url, context):
+            if "fail" in url:
+                # Raise an exception for the "un-processable" URL
+                raise ValueError("Simulated processing error for this URL")
+            else:
+                # Return a normal, empty result for the valid URL
+                return ([], [])
+
+        mock_process.side_effect = mock_side_effect
+
+        input_data = {
+            "confluence_page_urls": [
+                "http://example.com/fail", # This URL will trigger the exception
+                "http://example.com/succeed" # This one will be processed
+            ]
+        }
+
+        # ACT: Run the orchestrator with the mixed input
+        response = await sync_orchestrator.run(
+            input_data, sync_context, request_id="test-partial-fail"
+        )
+
+        # ASSERT
+        # 1. The overall status should be the special partial success message.
+        #    (Note: There's a small typo "come" in your source code, the test reflects this)
+        assert response.overall_status == "Partial Success - some URLs cannot be processed"
+
+        # 2. An error for the failed URL should have been logged.
+        assert "Error processing page hierarchy: Simulated processing error for this URL" in caplog.text
+
+        # 3. The sub-statuses should reflect that the successful URL found no tasks to process.
+        assert response.overall_jira_task_creation_status == "Skipped - No actions processed"
+        assert response.overall_confluence_page_update_status == "Skipped - No actions processed"

@@ -8,6 +8,7 @@ from src.config import config
 from src.api.https_helper import (
     HTTPSHelper,
     HTTPXClientError,
+    HTTPXServerError,
     HTTPXCustomError,
 )
 
@@ -427,3 +428,101 @@ async def test_make_request_unhandled_exception(
 
     mock_build_request.assert_called_once()
     mock_send.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_make_request_unhandled_exception(
+    https_helper_instance: HTTPSHelper, mock_httpx_client: AsyncMock
+) -> None:
+    """Tests _make_request handling of an unhandled exception."""
+    mock_send = mock_httpx_client.send
+    mock_build_request = mock_httpx_client.build_request
+
+    mock_send.side_effect = Exception("An unexpected error occurred")
+    mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
+
+    with pytest.raises(
+        HTTPXCustomError,
+        match=r"A critical unexpected error occurred for http://test\.com",
+    ):
+        await https_helper_instance._make_request("GET", "http://test.com")
+
+    mock_build_request.assert_called_once()
+    mock_send.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_make_request_server_error(
+    https_helper_instance: HTTPSHelper, mock_httpx_client: AsyncMock
+) -> None:
+    """Tests _make_request handling of HTTPStatusError for 5xx errors."""
+    mock_send = mock_httpx_client.send
+    mock_build_request = mock_httpx_client.build_request
+
+    mock_response = AsyncMock(spec=httpx.Response)
+    mock_response.status_code = 503
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "Service Unavailable",
+        request=httpx.Request("GET", "http://test.com"),
+        response=mock_response,
+    )
+    mock_send.return_value = mock_response
+    mock_build_request.return_value = httpx.Request(method="GET", url="http://test.com")
+
+    with pytest.raises(HTTPXServerError):
+        await https_helper_instance._make_request("GET", "http://test.com", timeout=config.API_REQUEST_TIMEOUT_SECONDS)
+    # Assert that the request was attempted mutiple time due to retry
+    assert mock_build_request.call_count > 1
+    assert mock_send.call_count > 1
+
+@pytest.mark.asyncio
+async def test_close_method_client_is_none(https_helper_instance: HTTPSHelper):
+    """Tests the close method when _client is None."""
+    https_helper_instance._client = None
+    with patch("logging.Logger.info") as mock_log_info:
+        await https_helper_instance.close()
+        mock_log_info.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_make_request_timeout_error(
+    https_helper_instance: HTTPSHelper, mock_httpx_client: AsyncMock
+) -> None:
+    """
+    Tests _make_request handling of TimeoutException to cover the timeout-specific except block.
+    This covers lines 250-251 in https_helper.py.
+    """
+    mock_send = mock_httpx_client.send
+    mock_build_request = mock_httpx_client.build_request
+    request = httpx.Request("GET", "http://test.com")
+    mock_build_request.return_value = request
+
+    # Simulate a timeout exception
+    mock_send.side_effect = httpx.TimeoutException("Timeout occurred", request=request)
+
+    # The context manager should catch the TimeoutException and re-raise it as a custom error
+    with pytest.raises(HTTPXCustomError, match="Request timed out"):
+        await https_helper_instance._make_request("GET", "http://test.com")
+
+    # Assert that the request was attempted exactly once
+    assert mock_build_request.call_count == 1
+    assert mock_send.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_put_method_with_200_ok_and_body(https_helper_instance: HTTPSHelper) -> None:
+    """
+    Tests the put method for a 200 OK response that includes a JSON body.
+    This covers the `else` branch of `if response.status_code != 204:` in the put method.
+    This covers the missed branch at line 424.
+    """
+    with patch.object(
+        https_helper_instance, "_make_request", new_callable=AsyncMock
+    ) as mock_make_request:
+        mock_response = AsyncMock(spec=httpx.Response)
+        mock_response.status_code = 200  # Not 204
+        mock_response.json.return_value = {"status": "updated", "id": "123"}
+        mock_make_request.return_value = mock_response
+
+        result = await https_helper_instance.put("http://test.com/123", json_data={"key": "value"})
+
+        # The result should be the JSON body, not an empty dict
+        assert result == {"status": "updated", "id": "123"}
+        mock_make_request.assert_awaited_once()

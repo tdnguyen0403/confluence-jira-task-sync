@@ -223,3 +223,25 @@ def test_get_task_context_malformed_html() -> None:
     assert task_element is not None
     context = get_task_context(task_element)
     assert isinstance(context, str)
+
+def test_get_context_for_malformed_task_with_no_body(soup: BeautifulSoup):
+    """
+    Tests that the function handles a malformed <ac:task> element that is
+    missing its <ac:task-body>. It should not raise an error.
+    This covers the `if isinstance(task_body, Tag):` False branch at line 117.
+    """
+    # Find a task that is known to have a body
+    task_element = _get_task_element_by_id(soup, "32")
+    assert task_element is not None
+
+    # Manually remove the task-body to simulate malformed content
+    task_body = task_element.find("ac:task-body")
+    if task_body:
+        task_body.decompose()
+
+    # The function should now execute the branch for a missing body
+    # and fall back to other context-finding methods without error.
+    context = get_task_context(task_element)
+
+    # It should find the preceding paragraph as the next best context
+    assert context == "This is the preceding paragraph"
