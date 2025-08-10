@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 import uuid
 
 from src.api.https_helper import HTTPSHelper, HTTPXClientError, HTTPXCustomError
-from src.api.safe_confluence_api import SafeConfluenceApi
+from src.api.safe_confluence_api import SafeConfluenceAPI
 from src.config import config
 from src.exceptions import ConfluenceApiError
 
@@ -24,7 +24,7 @@ def mock_https_helper():
 
 @pytest.fixture
 def safe_confluence_api(mock_https_helper):
-    """Provides a SafeConfluenceApi instance with a mocked HTTPSHelper."""
+    """Provides a SafeConfluenceAPI instance with a mocked HTTPSHelper."""
     # Ensure all relevant config values are patched for isolated testing
     with (
         patch.object(config, "CONFLUENCE_API_TOKEN", "test_token"),
@@ -33,7 +33,7 @@ def safe_confluence_api(mock_https_helper):
         patch.object(config, "JIRA_MACRO_SERVER_ID", "server-123"),
         patch.object(config, "AGGREGATION_CONFLUENCE_MACRO", ["jira", "info"]),
     ):  # This line is crucial
-        return SafeConfluenceApi(
+        return SafeConfluenceAPI(
             base_url="http://confluence.example.com",
             https_helper=mock_https_helper,
             jira_macro_server_name="TestJira",  # These are passed to init, but internal uses config directly
@@ -123,12 +123,12 @@ async def test_get_page_by_id_with_version_success(
 
 
 @pytest.mark.asyncio
-async def test_get_page_child_by_type_success(safe_confluence_api, mock_https_helper):
+async def test_get_children_by_type_success(safe_confluence_api, mock_https_helper):
     """Tests successful retrieval of child pages."""
     mock_child_pages = [{"id": "c1", "title": "Child 1"}]
     mock_https_helper.get.return_value = {"results": mock_child_pages, "size": 1}
 
-    children = await safe_confluence_api.get_page_child_by_type("parent123")
+    children = await safe_confluence_api.get_children_by_type("parent123")
 
     assert children == mock_child_pages
     mock_https_helper.get.assert_awaited_once_with(
@@ -187,14 +187,14 @@ async def test_get_user_by_username_success(
 
 
 @pytest.mark.asyncio
-async def test_get_user_details_by_userkey_success(
+async def test_get_user_by_key_success(
     safe_confluence_api, mock_https_helper
 ):
     """Tests successful retrieval of user details by userkey."""
     mock_user_details = {"userkey": "user123", "displayName": "User Key Test"}
     mock_https_helper.get.return_value = mock_user_details
 
-    user_details = await safe_confluence_api.get_user_details_by_userkey("user123")
+    user_details = await safe_confluence_api.get_user_by_key("user123")
 
     assert user_details == mock_user_details
     mock_https_helper.get.assert_awaited_once_with(
@@ -230,7 +230,7 @@ async def test_get_all_descendants_success(safe_confluence_api, mock_https_helpe
 
 
 @pytest.mark.asyncio
-async def test_update_page_with_jira_links_success(
+async def test_add_jira_links_to_page_success(
     safe_confluence_api, mock_https_helper
 ):
     """Tests successful replacement of tasks with Jira links."""
@@ -250,7 +250,7 @@ async def test_update_page_with_jira_links_success(
     }
     mock_https_helper.put.return_value = {"id": page_id, "version": {"number": 2}}
 
-    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+    await safe_confluence_api.add_jira_links_to_page(page_id, mappings)
 
     assert mock_https_helper.put.called
     put_args, put_kwargs = mock_https_helper.put.call_args
@@ -306,7 +306,7 @@ async def test_get_page_id_from_url_short_url_http_error(
     with pytest.raises(ConfluenceApiError) as excinfo: # Expect ConfluenceApiError
         await safe_confluence_api.get_page_id_from_url(short_url)
 
-    assert "API call failed in SafeConfluenceApi.get_page_id_from_url" in str(excinfo.value)
+    assert "API call failed in SafeConfluenceAPI.get_page_id_from_url" in str(excinfo.value)
     assert excinfo.value.status_code == 404
     mock_https_helper._make_request.assert_awaited_once()
 
@@ -338,23 +338,23 @@ async def test_get_page_by_id_http_error(safe_confluence_api, mock_https_helper)
     with pytest.raises(ConfluenceApiError) as excinfo: # Expect ConfluenceApiError
         await safe_confluence_api.get_page_by_id(page_id)
 
-    assert "API call failed in SafeConfluenceApi.get_page_by_id" in str(excinfo.value)
+    assert "API call failed in SafeConfluenceAPI.get_page_by_id" in str(excinfo.value)
     assert excinfo.value.status_code == 404
     mock_https_helper.get.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_get_page_child_by_type_pagination(
+async def test_get_children_by_type_pagination(
     safe_confluence_api, mock_https_helper
 ):
-    """Tests get_page_child_by_type with multiple pages of results."""
+    """Tests get_children_by_type with multiple pages of results."""
     mock_https_helper.get.side_effect = [
         {"results": [{"id": f"c{i}"} for i in range(50)], "size": 100},
         {"results": [{"id": f"c{i}"} for i in range(50, 100)], "size": 100},
         {"results": [], "size": 100},
     ]
 
-    children = await safe_confluence_api.get_page_child_by_type("parent123")
+    children = await safe_confluence_api.get_children_by_type("parent123")
 
     assert len(children) == 100
     assert mock_https_helper.get.call_count == 3
@@ -369,29 +369,29 @@ async def test_get_page_child_by_type_pagination(
 
 
 @pytest.mark.asyncio
-async def test_get_page_child_by_type_http_error(
+async def test_get_children_by_type_http_error(
     safe_confluence_api, mock_https_helper
 ):
-    """Tests get_page_child_by_type when https_helper.get raises an error."""
+    """Tests get_children_by_type when https_helper.get raises an error."""
     mock_https_helper.get.side_effect = HTTPXCustomError(
         "Connection error", request=httpx.Request("GET", "url")
     )
 
     with pytest.raises(ConfluenceApiError) as excinfo: # Expect ConfluenceApiError
-        await safe_confluence_api.get_page_child_by_type("parent123")
+        await safe_confluence_api.get_children_by_type("parent123")
 
-    assert "API call failed in SafeConfluenceApi.get_page_child_by_type" in str(excinfo.value)
+    assert "API call failed in SafeConfluenceAPI.get_children_by_type" in str(excinfo.value)
     mock_https_helper.get.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_get_page_child_by_type_no_results_key(
+async def test_get_children_by_type_no_results_key(
     safe_confluence_api, mock_https_helper
 ):
-    """Tests get_page_child_by_type when response data is missing 'results' key."""
+    """Tests get_children_by_type when response data is missing 'results' key."""
     mock_https_helper.get.return_value = {"not_results": []}
 
-    children = await safe_confluence_api.get_page_child_by_type("parent123")
+    children = await safe_confluence_api.get_children_by_type("parent123")
     assert children == []
     mock_https_helper.get.assert_awaited_once()
 
@@ -482,27 +482,27 @@ async def test_get_user_by_username_http_error(
 
 
 @pytest.mark.asyncio
-async def test_get_user_details_by_userkey_http_error(
+async def test_get_user_by_key_http_error(
     safe_confluence_api, mock_https_helper
 ):
-    """Tests get_user_details_by_userkey when https_helper.get raises an error."""
+    """Tests get_user_by_key when https_helper.get raises an error."""
     mock_https_helper.get.side_effect = HTTPXCustomError(
         "Connection error", request=httpx.Request("GET", "url")
     )
 
     with pytest.raises(ConfluenceApiError):
-        await safe_confluence_api.get_user_details_by_userkey(
+        await safe_confluence_api.get_user_by_key(
             "nonexistent_key"
         )
     mock_https_helper.get.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_get_all_descendants_concurrently_error_handling(
+async def test__fetch_descendants_concurrently_error_handling(
     safe_confluence_api, mock_https_helper
 ):
     """
-    Tests get_all_descendants_concurrently when one of the child fetches fails.
+    Tests _fetch_descendants_concurrently when one of the child fetches fails.
     The list of all_pages returned should only include pages successfully retrieved.
     """
     mock_https_helper.get.side_effect = [
@@ -514,7 +514,7 @@ async def test_get_all_descendants_concurrently_error_handling(
             ],
             "size": 2,
         },
-        # Call 2: for page_id "2". This simulates an error. get_page_child_by_type will return [].
+        # Call 2: for page_id "2". This simulates an error. get_children_by_type will return [].
         HTTPXCustomError(
             "Simulated connection error for page 2",
             request=httpx.Request("GET", "url_page_2"),
@@ -523,7 +523,7 @@ async def test_get_all_descendants_concurrently_error_handling(
         {"results": [], "size": 0},
     ]
 
-    descendant_pages = await safe_confluence_api.get_all_descendants_concurrently("1")
+    descendant_pages = await safe_confluence_api._fetch_descendants_concurrently("1")
 
     assert len(descendant_pages) == 2
     assert {"id": "2", "title": "Child 2"} in descendant_pages
@@ -562,7 +562,7 @@ async def test_get_tasks_from_page_with_aggregation_macro(
 ):
     """Tests get_tasks_from_page skips tasks within aggregation macros.
     The fix is to properly patch config.AGGREGATION_CONFLUENCE_MACRO
-    for the SafeConfluenceApi instance being tested.
+    for the SafeConfluenceAPI instance being tested.
     """
     page_details = {
         "id": "123",
@@ -595,7 +595,7 @@ async def test_get_tasks_from_page_with_aggregation_macro(
         assert tasks[0].confluence_task_id == "task1"
         assert "Task in Jira macro" not in tasks[0].task_summary
         assert "Task in Info macro" not in tasks[0].task_summary
-        mock_https_helper.get.assert_not_called()  # No user in task1, so get_user_details_by_userkey should not be called.
+        mock_https_helper.get.assert_not_called()  # No user in task1, so get_user_by_key should not be called.
 
 
 @pytest.mark.asyncio
@@ -726,22 +726,22 @@ async def test_parse_single_task_assignee_userkey_no_username(
 
 
 @pytest.mark.asyncio
-async def test_update_page_with_jira_links_page_not_found(
+async def test_add_jira_links_to_page_page_not_found(
     safe_confluence_api, mock_https_helper
 ):
-    """Tests update_page_with_jira_links when get_page_by_id returns None."""
+    """Tests add_jira_links_to_page when get_page_by_id returns None."""
     mock_https_helper.get.return_value = None
 
-    await safe_confluence_api.update_page_with_jira_links("nonexistent_id", [])
+    await safe_confluence_api.add_jira_links_to_page("nonexistent_id", [])
     mock_https_helper.get.assert_awaited_once()
     mock_https_helper.put.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_update_page_with_jira_links_no_tasks_to_replace(
+async def test_add_jira_links_to_page_no_tasks_to_replace(
     safe_confluence_api, mock_https_helper
 ):
-    """Tests update_page_with_jira_links when no tasks match mappings."""
+    """Tests add_jira_links_to_page when no tasks match mappings."""
     page_id = "123"
     mappings = [{"confluence_task_id": "non_existent_task", "jira_key": "PROJ-2"}]
 
@@ -756,17 +756,17 @@ async def test_update_page_with_jira_links_no_tasks_to_replace(
         },
         "version": {"number": 1},
     }
-    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+    await safe_confluence_api.add_jira_links_to_page(page_id, mappings)
 
     mock_https_helper.get.assert_awaited_once()
     mock_https_helper.put.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_update_page_with_jira_links_multiple_tasks_and_lists(
+async def test_add_jira_links_to_page_multiple_tasks_and_lists(
     safe_confluence_api, mock_https_helper
 ):
-    """Tests update_page_with_jira_links with multiple tasks and task lists."""
+    """Tests add_jira_links_to_page with multiple tasks and task lists."""
     page_id = "123"
     mappings = [
         {"confluence_task_id": "task1", "jira_key": "PROJ-1"},
@@ -786,7 +786,7 @@ async def test_update_page_with_jira_links_multiple_tasks_and_lists(
     }
     mock_https_helper.put.return_value = {"id": page_id, "version": {"number": 2}}
 
-    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+    await safe_confluence_api.add_jira_links_to_page(page_id, mappings)
 
     mock_https_helper.put.assert_awaited_once()
     put_args, put_kwargs = mock_https_helper.put.call_args
@@ -806,7 +806,7 @@ async def test_update_page_with_jira_links_multiple_tasks_and_lists(
 
 
 @pytest.mark.asyncio
-async def test_update_page_with_jira_links_empty_task_list_cleanup(
+async def test_add_jira_links_to_page_empty_task_list_cleanup(
     safe_confluence_api, mock_https_helper
 ):
     """Tests that empty task lists are cleaned up after replacement."""
@@ -825,7 +825,7 @@ async def test_update_page_with_jira_links_empty_task_list_cleanup(
     }
     mock_https_helper.put.return_value = {"id": page_id, "version": {"number": 2}}
 
-    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+    await safe_confluence_api.add_jira_links_to_page(page_id, mappings)
 
     put_args, put_kwargs = mock_https_helper.put.call_args
     updated_body = put_kwargs["json_data"]["body"]["storage"]["value"]
@@ -888,7 +888,7 @@ async def test_get_page_id_from_url_short_url_unresolvable_no_id(
 
 
 @pytest.mark.asyncio
-async def test_update_page_with_jira_links_aggregation_macro(
+async def test_add_jira_links_to_page_aggregation_macro(
     safe_confluence_api, mock_https_helper
 ):
     """
@@ -910,17 +910,17 @@ async def test_update_page_with_jira_links_aggregation_macro(
         "version": {"number": 1},
     }
 
-    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+    await safe_confluence_api.add_jira_links_to_page(page_id, mappings)
 
     mock_https_helper.get.assert_awaited_once()
     mock_https_helper.put.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_update_page_with_jira_links_empty_mappings(
+async def test_add_jira_links_to_page_empty_mappings(
     safe_confluence_api, mock_https_helper
 ):
-    """Test update_page_with_jira_links with empty mappings."""
+    """Test add_jira_links_to_page with empty mappings."""
     page_id = "123"
     mock_https_helper.get.return_value = {
         "id": page_id,
@@ -933,7 +933,7 @@ async def test_update_page_with_jira_links_empty_mappings(
         },
         "version": {"number": 1},
     }
-    await safe_confluence_api.update_page_with_jira_links(page_id, [])
+    await safe_confluence_api.add_jira_links_to_page(page_id, [])
     mock_https_helper.put.assert_not_called()
 
 
@@ -1022,17 +1022,17 @@ async def test_get_page_id_from_url_with_redirect(
 
 
 @pytest.mark.asyncio
-async def test_get_all_descendants_concurrently_handles_exceptions(
+async def test__fetch_descendants_concurrently_handles_exceptions(
     safe_confluence_api,
 ):
     """
-    Tests that get_all_descendants_concurrently handles exceptions raised by child tasks.
+    Tests that _fetch_descendants_concurrently handles exceptions raised by child tasks.
     This covers the `isinstance(res, Exception)` branch.
     """
-    # We patch `get_page_child_by_type` directly on the instance for this test
+    # We patch `get_children_by_type` directly on the instance for this test
     # to simulate a failure that `asyncio.gather` will capture as an exception.
     with patch.object(
-        safe_confluence_api, "get_page_child_by_type", new_callable=AsyncMock
+        safe_confluence_api, "get_children_by_type", new_callable=AsyncMock
     ) as mock_get_children:
         mock_get_children.side_effect = [
             # First call for the root page '1' is successful
@@ -1045,11 +1045,11 @@ async def test_get_all_descendants_concurrently_handles_exceptions(
         ]
 
         # Expected call sequence:
-        # 1. get_page_child_by_type("1") -> returns [{"id": "2"}, {"id": "3"}]
-        # 2. asyncio.gather(get_page_child_by_type("2"), get_page_child_by_type("3"))
-        # 3. asyncio.gather(get_page_child_by_type("4"))
+        # 1. get_children_by_type("1") -> returns [{"id": "2"}, {"id": "3"}]
+        # 2. asyncio.gather(get_children_by_type("2"), get_children_by_type("3"))
+        # 3. asyncio.gather(get_children_by_type("4"))
 
-        all_descendants = await safe_confluence_api.get_all_descendants_concurrently(
+        all_descendants = await safe_confluence_api._fetch_descendants_concurrently(
             "1"
         )
 
@@ -1095,11 +1095,11 @@ async def test_get_page_id_from_url_resolves_to_query_param_format(
     )
 
 @pytest.mark.asyncio
-async def test_get_page_child_by_type_fails_on_second_page(
+async def test_get_children_by_type_fails_on_second_page(
     safe_confluence_api, mock_https_helper
 ):
     """
-    Tests that get_page_child_by_type returns partial results if pagination fails mid-way.
+    Tests that get_children_by_type returns partial results if pagination fails mid-way.
     This covers the `except Exception` block inside the `while` loop.
     """
     # First page of results is successful
@@ -1115,14 +1115,14 @@ async def test_get_page_child_by_type_fails_on_second_page(
     ]
 
     with pytest.raises(ConfluenceApiError) as excinfo:
-        await safe_confluence_api.get_page_child_by_type("parent123")
+        await safe_confluence_api.get_children_by_type("parent123")
 
-    assert "API call failed in SafeConfluenceApi.get_page_child_by_type" in str(excinfo.value)
+    assert "API call failed in SafeConfluenceAPI.get_children_by_type" in str(excinfo.value)
     assert mock_https_helper.get.call_count == 2 # First successful call + second failing call
 
 
 @pytest.mark.asyncio
-async def test_update_page_with_jira_links_fails_on_final_update(
+async def test_add_jira_links_to_page_fails_on_final_update(
     safe_confluence_api, mock_https_helper, caplog
 ):
     """
@@ -1152,8 +1152,8 @@ async def test_update_page_with_jira_links_fails_on_final_update(
     )
 
     with pytest.raises(ConfluenceApiError): # Expect ConfluenceApiError
-        await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
-    assert "API call failed in SafeConfluenceApi.update_page" in caplog.text
+        await safe_confluence_api.add_jira_links_to_page(page_id, mappings)
+    assert "API call failed in SafeConfluenceAPI.update_page" in caplog.text
 
     # The first GET is for the initial fetch, the second is inside the `update_page` call
     assert mock_https_helper.get.call_count == 2
@@ -1182,7 +1182,7 @@ async def test_get_page_by_id_no_version_no_expand(
     )
 
 @pytest.mark.asyncio
-async def test_generate_jira_macro_html_with_summary(safe_confluence_api):
+async def test_create_macro_html_with_summary(safe_confluence_api):
     """
     Tests that the generated Jira macro HTML is correctly formatted to show a summary.
     """
@@ -1190,7 +1190,7 @@ async def test_generate_jira_macro_html_with_summary(safe_confluence_api):
 
     # Mock uuid.uuid4() to have a predictable macro ID
     with patch.object(uuid, 'uuid4', return_value=MagicMock(hex='mock-macro-id')):
-        macro_html = safe_confluence_api._generate_jira_macro_html_with_summary(
+        macro_html = safe_confluence_api._create_macro_html_with_summary(
             jira_key
         )
 
@@ -1323,7 +1323,7 @@ async def test_parse_single_task_missing_datetime_attr(safe_confluence_api):
     )
 
 @pytest.mark.asyncio
-async def test_update_page_with_jira_links_no_parent_task_list(
+async def test_add_jira_links_to_page_no_parent_task_list(
     safe_confluence_api, mock_https_helper
 ):
     """
@@ -1344,14 +1344,14 @@ async def test_update_page_with_jira_links_no_parent_task_list(
         "version": {"number": 1},
     }
 
-    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+    await safe_confluence_api.add_jira_links_to_page(page_id, mappings)
 
     # The page should not be updated because the task was not in a valid list
     mock_https_helper.put.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_update_page_with_jira_links_no_task_body(
+async def test_add_jira_links_to_page_no_task_body(
     safe_confluence_api, mock_https_helper
 ):
     """
@@ -1370,13 +1370,13 @@ async def test_update_page_with_jira_links_no_task_body(
         "version": {"number": 1},
     }
 
-    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+    await safe_confluence_api.add_jira_links_to_page(page_id, mappings)
 
     # The page should not be updated as there's no summary to preserve
     mock_https_helper.put.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_update_page_with_jira_links_preserves_non_empty_task_lists(
+async def test_add_jira_links_to_page_preserves_non_empty_task_lists(
     safe_confluence_api, mock_https_helper
 ):
     """
@@ -1399,7 +1399,7 @@ async def test_update_page_with_jira_links_preserves_non_empty_task_lists(
     }
     mock_https_helper.put.return_value = {"id": page_id, "version": {"number": 2}}
 
-    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+    await safe_confluence_api.add_jira_links_to_page(page_id, mappings)
 
     mock_https_helper.put.assert_awaited_once()
     put_args, put_kwargs = mock_https_helper.put.call_args
@@ -1414,11 +1414,11 @@ async def test_update_page_with_jira_links_preserves_non_empty_task_lists(
     assert soup.find("ac:task-id", string="task1") is None
 
 @pytest.mark.asyncio
-async def test_update_page_with_jira_links_no_matching_tasks(
+async def test_add_jira_links_to_page_no_matching_tasks(
     safe_confluence_api, mock_https_helper, caplog
 ):
     """
-    Tests that a warning is logged when update_page_with_jira_links is called
+    Tests that a warning is logged when add_jira_links_to_page is called
     but no tasks match the provided mappings.
     This covers the `else` branch of `if modified:`.
     """
@@ -1437,7 +1437,7 @@ async def test_update_page_with_jira_links_no_matching_tasks(
     }
 
     # The method now returns a boolean, we expect False as no update occurred
-    result = await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+    result = await safe_confluence_api.add_jira_links_to_page(page_id, mappings)
 
     assert result is False
     # Assert that no update was attempted
@@ -1466,13 +1466,13 @@ async def test_get_all_descendants_handles_duplicate_child(
         {"results": [], "size": 0},
     ]
 
-    # The function get_all_descendants uses get_all_descendants_concurrently internally.
+    # The function get_all_descendants uses _fetch_descendants_concurrently internally.
     # We call the public method to test the integrated behavior.
     all_ids = await safe_confluence_api.get_all_descendants("root")
 
     # The final list should not contain duplicates.
     assert sorted(all_ids) == sorted(["1", "2", "3"])
 
-    # get_page_child_by_type (which uses https_helper.get) should have been called
+    # get_children_by_type (which uses https_helper.get) should have been called
     # for "root", "1", "2", and "3". The duplicate processing of "3" should be skipped.
     assert mock_https_helper.get.call_count == 4

@@ -204,7 +204,7 @@ class SyncTaskService:
                 raise ConfluenceApiError(f"Could not find page {page_id} for update.")
             page_title = page_details.get("title", page_title)
 
-            success = await self.confluence_service.update_page_with_jira_links(
+            success = await self.confluence_service.add_jira_links_to_page(
                 page_id, mappings
             )
             if success:
@@ -260,7 +260,7 @@ class SyncTaskService:
         self._determine_task_assignee(task, parent_wp)
 
         try:
-            new_key, status_text = await self._create_and_transition_issue(
+            new_key, status_text = await self._create_and_transition(
                 task, parent_wp_key, context
             )
         except JiraApiError as e:
@@ -296,7 +296,7 @@ class SyncTaskService:
             logger.info("Task has no assignee in Confluence or parent WP.")
             task.assignee_name = None
 
-    async def _create_and_transition_issue(
+    async def _create_and_transition(
         self, task: ConfluenceTask, parent_key: str, context: SyncTaskContext
     ) -> Tuple[Optional[str], str]:
         """

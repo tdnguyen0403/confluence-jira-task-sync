@@ -7,14 +7,14 @@ layer abstracting the low-level API calls. It implements the unified
 services.
 
 The primary role of this class is to delegate Confluence-specific operations
-to the underlying `SafeConfluenceApi`, providing a clean and simple interface
+to the underlying `SafeConfluenceAPI`, providing a clean and simple interface
 for the rest of the application.
 """
 
 import logging
 from typing import Any, Dict, List, Optional
 
-from src.api.safe_confluence_api import SafeConfluenceApi
+from src.api.safe_confluence_api import SafeConfluenceAPI
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.models.data_models import ConfluenceTask
 
@@ -26,17 +26,17 @@ class ConfluenceService(ConfluenceApiServiceInterface):
     A concrete implementation of the Confluence service interface.
 
     This class serves as a pass-through layer that delegates all its
-    operations to an instance of `SafeConfluenceApi`. It provides a clean
+    operations to an instance of `SafeConfluenceAPI`. It provides a clean
     separation between the business logic and the low-level API interaction
     code.
     """
 
-    def __init__(self, safe_confluence_api: SafeConfluenceApi):
+    def __init__(self, safe_confluence_api: SafeConfluenceAPI):
         """
         Initializes the ConfluenceService.
 
         Args:
-            safe_confluence_api (SafeConfluenceApi): An instance of the safe,
+            safe_confluence_api (SafeConfluenceAPI): An instance of the safe,
                 low-level Confluence API wrapper.
         """
         self._api = safe_confluence_api
@@ -110,7 +110,7 @@ class ConfluenceService(ConfluenceApiServiceInterface):
         """
         return await self._api.get_tasks_from_page(page_details)
 
-    async def update_page_with_jira_links(
+    async def add_jira_links_to_page(
         self, page_id: str, mappings: List[Dict[str, str]]
     ) -> bool:
         """
@@ -122,7 +122,7 @@ class ConfluenceService(ConfluenceApiServiceInterface):
         Returns:
             bool: True if the update was successful, False otherwise.
         """
-        return await self._api.update_page_with_jira_links(page_id, mappings)
+        return await self._api.add_jira_links_to_page(page_id, mappings)
 
     async def create_page(self, **kwargs: Any) -> Optional[Dict[str, Any]]:
         """
@@ -154,8 +154,8 @@ class ConfluenceService(ConfluenceApiServiceInterface):
         Delegates generating Jira macro HTML to the API layer.
         """
         if with_summary:
-            return self._api._generate_jira_macro_html_with_summary(jira_key)
-        return self._api._generate_jira_macro_html(jira_key)
+            return self._api._create_macro_html_with_summary(jira_key)
+        return self._api._create_macro_html(jira_key)
 
     async def health_check(self) -> None:
         """Delegates health check to the API layer by getting all spaces."""

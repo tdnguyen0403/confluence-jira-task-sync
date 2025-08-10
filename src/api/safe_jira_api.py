@@ -1,7 +1,7 @@
 """
 Provides a resilient, low-level API wrapper for Jira operations.
 
-This module contains the SafeJiraApi class, which is responsible for all
+This module contains the SafeJiraAPI class, which is responsible for all
 direct communication with the Jira REST API. It is designed for robustness and
 high performance by using the asynchronous `HTTPSHelper` for all its network
 interactions. This ensures that calls to the Jira API are fault-tolerant,
@@ -30,7 +30,7 @@ from src.exceptions import JiraApiError
 logger = logging.getLogger(__name__)
 
 
-class SafeJiraApi:
+class SafeJiraAPI:
     """
     Provides a safe and resilient wrapper for Jira API interactions using an
     asynchronous HTTPS helper. This class abstracts the direct API calls for
@@ -46,7 +46,7 @@ class SafeJiraApi:
 
     def __init__(self, base_url: str, https_helper: HTTPSHelper):
         """
-        Initializes the SafeJiraApi.
+        Initializes the SafeJiraAPI.
 
         Args:
             base_url (str): The base URL of the Jira instance (e.g.,
@@ -180,7 +180,7 @@ class SafeJiraApi:
         return response_data.get("transitions", [])
 
     @handle_api_errors(JiraApiError)
-    async def find_transition_id_by_name(
+    async def get_transition_id(
         self, issue_key: str, transition_name: str
     ) -> Optional[str]:
         """
@@ -234,9 +234,7 @@ class SafeJiraApi:
             Exception: Propagates exceptions from the `HTTPSHelper` if the API
                        request fails.
         """
-        transition_id = await self.find_transition_id_by_name(
-            issue_key, transition_name
-        )
+        transition_id = await self.get_transition_id(issue_key, transition_name)
 
         if not transition_id:
             raise ValueError(

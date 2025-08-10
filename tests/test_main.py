@@ -8,12 +8,12 @@ from fastapi.testclient import TestClient
 
 from src.dependencies import (
     get_api_key,
-    get_confluence_issue_updater_service,
+    get_sync_project,
     get_https_helper,
     get_safe_confluence_api,
     get_safe_jira_api,
-    get_sync_task_orchestrator,
-    get_undo_sync_task_orchestrator,
+    get_sync_task,
+    get_undo_sync_task,
 )
 from src.exceptions import (
     InvalidInputError,
@@ -80,7 +80,7 @@ def mock_undo_orchestrator():
 def mock_confluence_issue_updater_service():
     """Mocks the SyncProjectService."""
     mock_service = AsyncMock()
-    mock_service.sync_project_to_confluence.return_value = [
+    mock_service.sync_project.return_value = [
         SinglePageResult(
             page_id="123",
             page_title="sample title",
@@ -122,9 +122,9 @@ def common_dependencies_override(
 
         app.dependency_overrides = {
             get_api_key: lambda: "valid_key",
-            get_sync_task_orchestrator: lambda: mock_sync_orchestrator,
-            get_undo_sync_task_orchestrator: lambda: mock_undo_orchestrator,
-            get_confluence_issue_updater_service: (
+            get_sync_task: lambda: mock_sync_orchestrator,
+            get_undo_sync_task: lambda: mock_undo_orchestrator,
+            get_sync_project: (
                 lambda: mock_confluence_issue_updater_service
             ),
             get_safe_jira_api: lambda: mock_jira_api,

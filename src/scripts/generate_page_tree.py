@@ -12,8 +12,8 @@ from typing import AsyncIterator, Dict, List, Optional
 import httpx
 
 from src.api.https_helper import HTTPSHelper
-from src.api.safe_confluence_api import SafeConfluenceApi
-from src.api.safe_jira_api import SafeJiraApi
+from src.api.safe_confluence_api import SafeConfluenceAPI
+from src.api.safe_jira_api import SafeJiraAPI
 from src.config import config
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
@@ -215,8 +215,8 @@ async def main_async() -> None:
 
     try:
         async with resource_manager() as https_helper:
-            safe_jira_api = SafeJiraApi(config.JIRA_URL, https_helper)
-            safe_confluence_api = SafeConfluenceApi(config.CONFLUENCE_URL, https_helper)
+            safe_jira_api = SafeJiraAPI(config.JIRA_URL, https_helper)
+            safe_confluence_api = SafeConfluenceAPI(config.CONFLUENCE_URL, https_helper)
             jira_service = JiraService(safe_jira_api)
             confluence_service = ConfluenceService(safe_confluence_api)
             issue_finder_service = IssueFinderService(

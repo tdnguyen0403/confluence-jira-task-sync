@@ -36,7 +36,7 @@ class SyncProjectService:
         self.jira_api = jira_api
         self.issue_finder_service = issue_finder_service
 
-    async def sync_project_to_confluence(
+    async def sync_project(
         self,
         project_page_url: str,
         project_key: str,
@@ -120,7 +120,7 @@ class SyncProjectService:
             (
                 modified_html,
                 did_modify,
-            ) = await self._replace_macros_on_page(
+            ) = await self._replace_page_macros(
                 page_title, original_html, candidate_new_issues, target_issue_type_ids
             )
 
@@ -208,9 +208,9 @@ class SyncProjectService:
         logger.info(f"Searching Jira with JQL: {jql}")
 
         fields_to_get = "key,issuetype,summary"
-        return await self.jira_api.search_issues_by_jql(jql, fields=fields_to_get)
+        return await self.jira_api.search_by_jql(jql, fields=fields_to_get)
 
-    async def _get_macro_issue_details(
+    async def _get_macro_details(
         self, soup: BeautifulSoup
     ) -> Dict[str, Dict[str, Any]]:
         """Finds all Jira macro keys on a page and fetches their details in bulk."""
@@ -227,10 +227,10 @@ class SyncProjectService:
 
         jql = f"issue in ({','.join(sorted(keys_on_page))})"
         fields_to_get = "issuetype,summary"
-        issues = await self.jira_api.search_issues_by_jql(jql, fields=fields_to_get)
+        issues = await self.jira_api.search_by_jql(jql, fields=fields_to_get)
         return {issue["key"]: issue for issue in issues}
 
-    async def _replace_macros_on_page(
+    async def _replace_page_macros(
         self,
         page_title: str,
         html_content: str,
@@ -244,7 +244,7 @@ class SyncProjectService:
         modified = False
 
         try:
-            old_issues_map = await self._get_macro_issue_details(soup)
+            old_issues_map = await self._get_macro_details(soup)
         except Exception as e:
             logger.error(
                 f"Could not fetch Jira macro details for page '{page_title}': {e}"

@@ -82,7 +82,7 @@ class JiraApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def prepare_jira_task_fields(
+    async def build_jira_task_payload(
         self,
         task: ConfluenceTask,
         parent_key: str,
@@ -106,7 +106,7 @@ class JiraApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_current_user_display_name(self) -> str:
+    async def get_user_display_name(self) -> str:
         """
         Retrieves the display name of the currently authenticated user.
 
@@ -116,7 +116,7 @@ class JiraApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def search_issues_by_jql(
+    async def search_by_jql(
         self, jql_query: str, fields: str = "*all"
     ) -> List[Dict[str, Any]]:
         """
@@ -132,7 +132,7 @@ class JiraApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_issue_type_name_by_id(self, type_id: str) -> Optional[str]:
+    async def get_issue_type_name(self, type_id: str) -> Optional[str]:
         """
         Retrieves the name of a Jira issue type by its ID asynchronously.
 

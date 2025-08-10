@@ -3,7 +3,7 @@ Provides a high-level service for interacting with Jira.
 
 This module contains the `JiraService`, which acts as the business logic
 layer for Jira operations. It implements the unified `JiraApiServiceInterface`
-and uses the `SafeJiraApi` for its underlying calls.
+and uses the `SafeJiraAPI` for its underlying calls.
 
 The service is responsible for preparing and creating Jira issues based on
 Confluence task data, handling issue transitions, and retrieving user
@@ -15,7 +15,7 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from src.api.safe_jira_api import SafeJiraApi
+from src.api.safe_jira_api import SafeJiraAPI
 from src.config import config
 from src.exceptions import JiraApiError
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
@@ -35,15 +35,15 @@ class JiraService(JiraApiServiceInterface):
 
     This class orchestrates Jira-specific business logic, such as constructing
     the necessary fields to create a new Jira issue from a Confluence task. It
-    delegates the actual API communication to the `SafeJiraApi` layer.
+    delegates the actual API communication to the `SafeJiraAPI` layer.
     """
 
-    def __init__(self, safe_jira_api: SafeJiraApi):
+    def __init__(self, safe_jira_api: SafeJiraAPI):
         """
         Initializes the JiraService.
 
         Args:
-            safe_jira_api (SafeJiraApi): An instance of the safe, low-level
+            safe_jira_api (SafeJiraAPI): An instance of the safe, low-level
                 Jira API wrapper.
         """
         self._api = safe_jira_api
@@ -83,7 +83,7 @@ class JiraService(JiraApiServiceInterface):
         Returns:
             Optional[str]: The key of the newly created issue, or None on failure.
         """
-        issue_fields = await self.prepare_jira_task_fields(task, parent_key, context)
+        issue_fields = await self.build_jira_task_payload(task, parent_key, context)
         logger.debug(
             "Attempting to create Jira issue with payload: "
             f"{json.dumps(issue_fields, indent=2)}"
@@ -111,7 +111,7 @@ class JiraService(JiraApiServiceInterface):
             )
             return False
 
-    async def get_current_user_display_name(self) -> str:
+    async def get_user_display_name(self) -> str:
         """
         Gets the display name of the logged-in user, with caching.
 
@@ -128,7 +128,7 @@ class JiraService(JiraApiServiceInterface):
         else:
             return "Unknown User"
 
-    async def prepare_jira_task_fields(
+    async def build_jira_task_payload(
         self,
         task: ConfluenceTask,
         parent_key: str,
@@ -149,7 +149,7 @@ class JiraService(JiraApiServiceInterface):
         Returns:
             Dict[str, Any]: A dictionary of fields ready for the API.
         """
-        user_name = await self.get_current_user_display_name()
+        user_name = await self.get_user_display_name()
         creation_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         project_key = parent_key.split("-")[0]
@@ -237,7 +237,7 @@ class JiraService(JiraApiServiceInterface):
             fields["assignee"] = {"name": task.assignee_name}
         return fields
 
-    async def search_issues_by_jql(
+    async def search_by_jql(
         self, jql_query: str, fields: str = "*all"
     ) -> List[Dict[str, Any]]:
         """
@@ -254,7 +254,7 @@ class JiraService(JiraApiServiceInterface):
         search_results = await self._api.search_issues(jql_query, fields=field_list)
         return search_results.get("issues", []) if search_results else []
 
-    async def get_issue_type_name_by_id(self, type_id: str) -> Optional[str]:
+    async def get_issue_type_name(self, type_id: str) -> Optional[str]:
         """
         Retrieves the name of a Jira issue type by its ID asynchronously.
 
@@ -324,7 +324,7 @@ class JiraService(JiraApiServiceInterface):
     async def assign_issue(self, issue_key: str, assignee_name: Optional[str]) -> bool:
         """
         Assigns a Jira issue to a specified user or unassigns it.
-        Exposes SafeJiraApi's assign_issue method.
+        Exposes SafeJiraAPI's assign_issue method.
         """
         try:
             await self._api.assign_issue(issue_key, assignee_name)

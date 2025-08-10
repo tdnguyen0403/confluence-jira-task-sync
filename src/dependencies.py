@@ -17,8 +17,8 @@ from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 
 from src.api.https_helper import HTTPSHelper
-from src.api.safe_confluence_api import SafeConfluenceApi
-from src.api.safe_jira_api import SafeJiraApi
+from src.api.safe_confluence_api import SafeConfluenceAPI
+from src.api.safe_jira_api import SafeJiraAPI
 from src.config import config
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.issue_finder_service_interface import IssueFinderServiceInterface
@@ -90,9 +90,9 @@ def get_https_helper() -> HTTPSHelper:
 @lru_cache(maxsize=None)
 def get_safe_jira_api(
     https_helper: HTTPSHelper = Depends(get_https_helper),
-) -> SafeJiraApi:
-    """Provides a singleton instance of the SafeJiraApi client."""
-    return SafeJiraApi(
+) -> SafeJiraAPI:
+    """Provides a singleton instance of the SafeJiraAPI client."""
+    return SafeJiraAPI(
         base_url=config.JIRA_URL,
         https_helper=https_helper,
     )
@@ -101,9 +101,9 @@ def get_safe_jira_api(
 @lru_cache(maxsize=None)
 def get_safe_confluence_api(
     https_helper: HTTPSHelper = Depends(get_https_helper),
-) -> SafeConfluenceApi:
-    """Provides a singleton instance of the SafeConfluenceApi client."""
-    return SafeConfluenceApi(
+) -> SafeConfluenceAPI:
+    """Provides a singleton instance of the SafeConfluenceAPI client."""
+    return SafeConfluenceAPI(
         base_url=config.CONFLUENCE_URL,
         https_helper=https_helper,
         jira_macro_server_name=config.JIRA_MACRO_SERVER_NAME,
@@ -113,7 +113,7 @@ def get_safe_confluence_api(
 
 @lru_cache(maxsize=None)
 def get_jira_service(
-    safe_jira_api: SafeJiraApi = Depends(get_safe_jira_api),
+    safe_jira_api: SafeJiraAPI = Depends(get_safe_jira_api),
 ) -> JiraApiServiceInterface:
     """Provides a singleton instance of the JiraService."""
     return JiraService(safe_jira_api)
@@ -121,7 +121,7 @@ def get_jira_service(
 
 @lru_cache(maxsize=None)
 def get_confluence_service(
-    safe_confluence_api: SafeConfluenceApi = Depends(get_safe_confluence_api),
+    safe_confluence_api: SafeConfluenceAPI = Depends(get_safe_confluence_api),
 ) -> ConfluenceApiServiceInterface:
     """Provides a singleton instance of the ConfluenceService."""
     return ConfluenceService(safe_confluence_api)
@@ -137,7 +137,7 @@ def get_issue_finder_service(
 
 
 @lru_cache(maxsize=None)
-def get_confluence_issue_updater_service(
+def get_sync_project(
     confluence_service: ConfluenceApiServiceInterface = Depends(get_confluence_service),
     jira_service: JiraApiServiceInterface = Depends(get_jira_service),
     issue_finder_service: IssueFinderServiceInterface = Depends(
@@ -149,7 +149,7 @@ def get_confluence_issue_updater_service(
 
 
 @lru_cache(maxsize=None)
-def get_sync_task_orchestrator(
+def get_sync_task(
     confluence_service: ConfluenceApiServiceInterface = Depends(get_confluence_service),
     jira_service: JiraApiServiceInterface = Depends(get_jira_service),
     issue_finder_service: IssueFinderServiceInterface = Depends(
@@ -165,7 +165,7 @@ def get_sync_task_orchestrator(
 
 
 @lru_cache(maxsize=None)
-def get_undo_sync_task_orchestrator(
+def get_undo_sync_task(
     confluence_service: ConfluenceApiServiceInterface = Depends(get_confluence_service),
     jira_service: JiraApiServiceInterface = Depends(get_jira_service),
     issue_finder_service: IssueFinderServiceInterface = Depends(

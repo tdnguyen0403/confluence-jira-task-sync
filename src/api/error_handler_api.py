@@ -18,7 +18,7 @@ def handle_api_errors(api_error_class: Type[ApiError]) -> Callable[..., Any]:
     into a specific, domain-level ApiError.
 
     This decorator centralizes the error translation logic for all methods
-    in the SafeJiraApi and SafeConfluenceApi wrappers.
+    in the SafeJiraAPI and SafeConfluenceAPI wrappers.
 
     Args:
         api_error_class (Type[ApiError]): The specific ApiError subclass
