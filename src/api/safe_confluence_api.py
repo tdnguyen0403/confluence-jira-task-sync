@@ -366,11 +366,11 @@ class SafeConfluenceApi:
         Returns:
             List[str]: A flat list of all descendant page IDs.
         """
-        all_ids = []
+        all_ids = set()
         descendant_pages_data = await self.get_all_descendants_concurrently(page_id)
         for page_data in descendant_pages_data:
-            all_ids.append(page_data["id"])
-        return all_ids
+            all_ids.add(page_data["id"])
+        return list(all_ids)
 
     async def get_all_descendants_concurrently(
         self, page_id: str

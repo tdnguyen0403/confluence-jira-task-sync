@@ -62,10 +62,12 @@ class SyncTaskOrchestrator:
 
         all_jira_results: List[JiraTaskCreationResult] = []
         all_confluence_results: List[ConfluencePageUpdateResult] = []
+        any_processing_errors = False
 
         for res in results:
             if isinstance(res, Exception):
                 logger.error(f"Error processing page hierarchy: {res}", exc_info=res)
+                any_processing_errors = True
                 continue
             # Cast res to the expected tuple type after checking for Exception
             typed_res = cast(
@@ -82,15 +84,17 @@ class SyncTaskOrchestrator:
             all_confluence_results, lambda r: r.updated
         )
         overall_status = self._get_final_status(jira_status, confluence_status)
+        if any_processing_errors and overall_status == "Success":
+            overall_status = "Partial Success - some URLs cannot be processed"
 
         logging.info("\n--- Script Finished ---")
         return SyncTaskResponse(
             request_id=request_id,
-            overall_status=overall_status,
-            overall_jira_task_creation_status=jira_status,
-            overall_confluence_page_update_status=confluence_status,
             jira_task_creation_results=all_jira_results,
             confluence_page_update_results=all_confluence_results,
+            overall_jira_task_creation_status=jira_status,
+            overall_confluence_page_update_status=confluence_status,
+            overall_status=overall_status,
         )
 
     async def process_page_hierarchy(
@@ -346,6 +350,6 @@ class SyncTaskOrchestrator:
         if all_successful:
             return "Success"
         elif any_successful:
-            return "Partial Success"
+            return "Partial Succes - some pages cannot be updated"
         else:
             return "Failed"

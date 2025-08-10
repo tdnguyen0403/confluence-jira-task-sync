@@ -150,175 +150,175 @@ async def run_end_to_end_test() -> None:
             )
             return
 
-    #     # 4. Sync Task
-    #     logger.info("\n--- Testing /sync_task endpoint ---")
-    #     sync_task_payload = {
-    #         "confluence_page_urls": [
-    #             "https://pfteamspace.pepperl-fuchs.com/x/W-T3GQ", #normal test page
-    #             "https://pfteamspace.pepperl-fuchs.com/x/cDDsGg"  #locked test page
-    #         ],
-    #         "context": {"request_user": TEST_USER, "days_to_due_date": 7},
-    #     }
-    #     try:
-    #         response = await client.post(
-    #             "/sync_task", headers=headers, json=sync_task_payload
-    #         )
-    #         response.raise_for_status()
-    #         # This is now the comprehensive SyncTaskResponse dictionary
-    #         sync_task_full_response = response.json()
+        # 4. Sync Task
+        logger.info("\n--- Testing /sync_task endpoint ---")
+        sync_task_payload = {
+            "confluence_page_urls": [
+                "https://pfteamspace.pepperl-fuchs.com/x/W-T3GQ", #normal test page
+                "https://pfteamspace.pepperl-fuchs.com/x/cDDsGg"  #locked test page
+            ],
+            "context": {"request_user": TEST_USER, "days_to_due_date": 7},
+        }
+        try:
+            response = await client.post(
+                "/sync_task", headers=headers, json=sync_task_payload
+            )
+            response.raise_for_status()
+            # This is now the comprehensive SyncTaskResponse dictionary
+            sync_task_full_response = response.json()
 
-    #         logger.info(
-    #             f"Sync Task Response: {json.dumps(sync_task_full_response, indent=2)}"
-    #         )
+            logger.info(
+                f"Sync Task Response: {json.dumps(sync_task_full_response, indent=2)}"
+            )
 
-    #         # Assertions for the comprehensive SyncTaskResponse structure
-    #         assert "request_id" in sync_task_full_response
-    #         assert "overall_jira_task_creation_status" in sync_task_full_response
-    #         assert "overall_confluence_page_update_status" in sync_task_full_response
-    #         assert "jira_task_creation_results" in sync_task_full_response
-    #         assert "confluence_page_update_results" in sync_task_full_response
+            # Assertions for the comprehensive SyncTaskResponse structure
+            assert "request_id" in sync_task_full_response
+            assert "overall_jira_task_creation_status" in sync_task_full_response
+            assert "overall_confluence_page_update_status" in sync_task_full_response
+            assert "jira_task_creation_results" in sync_task_full_response
+            assert "confluence_page_update_results" in sync_task_full_response
 
-    #         # Access the lists from within the full response object
-    #         sync_task_responses_list = sync_task_full_response["jira_task_creation_results"]
-    #         confluence_update_list = sync_task_full_response["confluence_page_update_results"]
+            # Access the lists from within the full response object
+            sync_task_responses_list = sync_task_full_response["jira_task_creation_results"]
+            confluence_update_list = sync_task_full_response["confluence_page_update_results"]
 
-    #         assert isinstance(sync_task_responses_list, list) # This assertion now correctly checks the inner list
-    #         assert isinstance(confluence_update_list, list)
+            assert isinstance(sync_task_responses_list, list) # This assertion now correctly checks the inner list
+            assert isinstance(confluence_update_list, list)
 
-    #         if sync_task_responses_list:
-    #             # Check the structure of each item in the jira_task_creation_results list
-    #             assert "confluence_page_id" in sync_task_responses_list[0]
-    #             assert "new_jira_task_key" in sync_task_responses_list[0]
-    #             assert "success" in sync_task_responses_list[0]
+            if sync_task_responses_list:
+                # Check the structure of each item in the jira_task_creation_results list
+                assert "confluence_page_id" in sync_task_responses_list[0]
+                assert "new_jira_task_key" in sync_task_responses_list[0]
+                assert "success" in sync_task_responses_list[0]
 
-    #         # This will now store lists of dictionaries that directly match UndoSyncTaskRequest
-    #         undo_payload: List[Dict[str, Any]] = []
-    #         # Extract results that are eligible for undo (i.e., successful Jira creations)
-    #         # and format them into the simplified UndoSyncTaskRequest structure
-    #         undo_payload = [
-    #             {
-    #                 "confluence_page_id": res["confluence_page_id"],
-    #                 "original_page_version": res["original_page_version"],
-    #                 "new_jira_task_key": res["new_jira_task_key"],
-    #                 "request_user": res["request_user"],
-    #             }
-    #             for res in sync_task_responses_list if res["success"]
-    #         ]
+            # This will now store lists of dictionaries that directly match UndoSyncTaskRequest
+            undo_payload: List[Dict[str, Any]] = []
+            # Extract results that are eligible for undo (i.e., successful Jira creations)
+            # and format them into the simplified UndoSyncTaskRequest structure
+            undo_payload = [
+                {
+                    "confluence_page_id": res["confluence_page_id"],
+                    "original_page_version": res["original_page_version"],
+                    "new_jira_task_key": res["new_jira_task_key"],
+                    "request_user": res["request_user"],
+                }
+                for res in sync_task_responses_list if res["success"]
+            ]
 
-    #         if not undo_payload:
-    #             logger.warning(
-    #                 """No successful tasks were processed by /sync_task.
-    #                 Cannot proceed with undo test."""
-    #             )
-    #             return
+            if not undo_payload:
+                logger.warning(
+                    """No successful tasks were processed by /sync_task.
+                    Cannot proceed with undo test."""
+                )
+                return
 
-    #         for result_for_undo in undo_payload:
-    #             assert "new_jira_task_key" in result_for_undo and result_for_undo["new_jira_task_key"] is not None
-    #             assert "confluence_page_id" in result_for_undo
-    #             assert "original_page_version" in result_for_undo
-    #             assert result_for_undo["original_page_version"] is not None
+            for result_for_undo in undo_payload:
+                assert "new_jira_task_key" in result_for_undo and result_for_undo["new_jira_task_key"] is not None
+                assert "confluence_page_id" in result_for_undo
+                assert "original_page_version" in result_for_undo
+                assert result_for_undo["original_page_version"] is not None
 
-    #             logger.info(
-    #                 f"Successfully prepared for undo: Jira Key {result_for_undo.get('new_jira_task_key', 'N/A')} "
-    #                 f"on Confluence Page ID {result_for_undo.get('confluence_page_id', 'N/A')} "
-    #                 f"version {result_for_undo.get('original_page_version', 'N/A')}"
-    #             )
-    #             assert sync_task_full_response["overall_jira_task_creation_status"] in ["Success", "Partial Success"]
+                logger.info(
+                    f"Successfully prepared for undo: Jira Key {result_for_undo.get('new_jira_task_key', 'N/A')} "
+                    f"on Confluence Page ID {result_for_undo.get('confluence_page_id', 'N/A')} "
+                    f"version {result_for_undo.get('original_page_version', 'N/A')}"
+                )
+                assert sync_task_full_response["overall_jira_task_creation_status"] in ["Success", "Partial Success"]
 
-    #         logger.info("""Sync Task call successful. Verifying Jira issues "
-    #                     "and Confluence page content manually or via API.""")
-    #     except httpx.HTTPStatusError as e:
-    #         logger.error(
-    #             f"Request failed with HTTP error: "
-    #             f"{e.response.status_code} - {e.response.text}"
-    #         )
-    #         logger.error(f"Request URL: {e.request.url}")
-    #         logger.error(f"Request Headers: {e.request.headers}")
-    #         logger.error(
-    #             f"Request Content (truncated if large): "
-    #             f"{e.request.content[:500] if e.request.content else 'N/A'}"
-    #         )
-    #         logger.error(f"Response Headers: {e.response.headers}")
-    #         logger.error(
-    #             f"Response Content (truncated if large): "
-    #             f"{e.response.text[:500] if e.response.text else 'N/A'}"
-    #         )
-    #         return
-    #     except httpx.RequestError as e:
-    #         logger.error(f"Request failed with network/request error: {e}")
-    #         logger.error(f"Request URL: {e.request.url if e.request else 'N/A'}")
-    #         logger.error(
-    #             f"Request Headers: {e.request.headers if e.request else 'N/A'}"
-    #         )
-    #         logger.error(
-    #             f"Request Content (truncated if large): "
-    #             f"{e.request.content[:500] if e.request and e.request.content else 'N/A'}"
-    #         )
-    #         return
+            logger.info("""Sync Task call successful. Verifying Jira issues "
+                        "and Confluence page content manually or via API.""")
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"Request failed with HTTP error: "
+                f"{e.response.status_code} - {e.response.text}"
+            )
+            logger.error(f"Request URL: {e.request.url}")
+            logger.error(f"Request Headers: {e.request.headers}")
+            logger.error(
+                f"Request Content (truncated if large): "
+                f"{e.request.content[:500] if e.request.content else 'N/A'}"
+            )
+            logger.error(f"Response Headers: {e.response.headers}")
+            logger.error(
+                f"Response Content (truncated if large): "
+                f"{e.response.text[:500] if e.response.text else 'N/A'}"
+            )
+            return
+        except httpx.RequestError as e:
+            logger.error(f"Request failed with network/request error: {e}")
+            logger.error(f"Request URL: {e.request.url if e.request else 'N/A'}")
+            logger.error(
+                f"Request Headers: {e.request.headers if e.request else 'N/A'}"
+            )
+            logger.error(
+                f"Request Content (truncated if large): "
+                f"{e.request.content[:500] if e.request and e.request.content else 'N/A'}"
+            )
+            return
 
-    #     # 5. Undo Sync Task
-    #     logger.info("\n--- Testing /undo_sync_task endpoint ---")
-    #     if not undo_payload:
-    #         logger.info(
-    #             "Skipping /undo_sync_task as no tasks were synced successfully."
-    #         )
-    #         return
+        # 5. Undo Sync Task
+        logger.info("\n--- Testing /undo_sync_task endpoint ---")
+        if not undo_payload:
+            logger.info(
+                "Skipping /undo_sync_task as no tasks were synced successfully."
+            )
+            return
 
-    #     try:
-    #         response = await client.post(
-    #             "/undo_sync_task", headers=headers, json=undo_payload
-    #         )
-    #         response.raise_for_status()
-    #         # The response is now UndoSyncTaskResponse with results and overall status
-    #         undo_sync_response = response.json()
-    #         logger.info(
-    #             f"Undo Sync Task Response: {json.dumps(undo_sync_response, indent=2)}"
-    #         )
+        try:
+            response = await client.post(
+                "/undo_sync_task", headers=headers, json=undo_payload
+            )
+            response.raise_for_status()
+            # The response is now UndoSyncTaskResponse with results and overall status
+            undo_sync_response = response.json()
+            logger.info(
+                f"Undo Sync Task Response: {json.dumps(undo_sync_response, indent=2)}"
+            )
 
-    #         assert "request_id" in undo_sync_response
-    #         assert "results" in undo_sync_response
-    #         assert isinstance(undo_sync_response["results"], list)
-    #         assert "overall_status" in undo_sync_response
-    #         assert undo_sync_response["overall_status"] in ["Success", "Partial Success", "Failed", "Skipped - No actions processed"]
+            assert "request_id" in undo_sync_response
+            assert "results" in undo_sync_response
+            assert isinstance(undo_sync_response["results"], list)
+            assert "overall_status" in undo_sync_response
+            assert undo_sync_response["overall_status"] in ["Success", "Partial Success", "Failed", "Skipped - No actions processed"]
 
-    #         if undo_sync_response["results"]:
-    #             assert "action_type" in undo_sync_response["results"][0]
-    #             assert "target_id" in undo_sync_response["results"][0]
-    #             assert "success" in undo_sync_response["results"][0]
-    #             assert "status_message" in undo_sync_response["results"][0]
+            if undo_sync_response["results"]:
+                assert "action_type" in undo_sync_response["results"][0]
+                assert "target_id" in undo_sync_response["results"][0]
+                assert "success" in undo_sync_response["results"][0]
+                assert "status_message" in undo_sync_response["results"][0]
 
-    #         logger.info("""Undo Sync Task call successful. Verifying Jira issues and
-    #         Confluence page content manually or via API.""")
-    #     except httpx.HTTPStatusError as e:
-    #         logger.error(
-    #             f"Request failed with HTTP error: "
-    #             f"{e.response.status_code} - {e.response.text}"
-    #         )
-    #         logger.error(f"Request URL: {e.request.url}")
-    #         logger.error(f"Request Headers: {e.request.headers}")
-    #         logger.error(
-    #             f"Request Content (truncated if large): "
-    #             f"{e.request.content[:500] if e.request.content else 'N/A'}"
-    #         )
-    #         logger.error(f"Response Headers: {e.response.headers}")
-    #         logger.error(
-    #             f"Response Content (truncated if large): "
-    #             f"{e.response.text[:500] if e.response.text else 'N/A'}"
-    #         )
-    #         return
-    #     except httpx.RequestError as e:
-    #         logger.error(f"Request failed with network/request error: {e}")
-    #         logger.error(f"Request URL: {e.request.url if e.request else 'N/A'}")
-    #         logger.error(
-    #             f"Request Headers: {e.request.headers if e.request else 'N/A'}"
-    #         )
-    #         logger.error(
-    #             f"Request Content (truncated if large): "
-    #             f"{e.request.content[:500] if e.request and e.request.content else 'N/A'}"
-    #         )
-    #         return
+            logger.info("""Undo Sync Task call successful. Verifying Jira issues and
+            Confluence page content manually or via API.""")
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"Request failed with HTTP error: "
+                f"{e.response.status_code} - {e.response.text}"
+            )
+            logger.error(f"Request URL: {e.request.url}")
+            logger.error(f"Request Headers: {e.request.headers}")
+            logger.error(
+                f"Request Content (truncated if large): "
+                f"{e.request.content[:500] if e.request.content else 'N/A'}"
+            )
+            logger.error(f"Response Headers: {e.response.headers}")
+            logger.error(
+                f"Response Content (truncated if large): "
+                f"{e.response.text[:500] if e.response.text else 'N/A'}"
+            )
+            return
+        except httpx.RequestError as e:
+            logger.error(f"Request failed with network/request error: {e}")
+            logger.error(f"Request URL: {e.request.url if e.request else 'N/A'}")
+            logger.error(
+                f"Request Headers: {e.request.headers if e.request else 'N/A'}"
+            )
+            logger.error(
+                f"Request Content (truncated if large): "
+                f"{e.request.content[:500] if e.request and e.request.content else 'N/A'}"
+            )
+            return
 
-    # logger.info("\n--- End-to-End Test Sequence Completed ---")
+    logger.info("\n--- End-to-End Test Sequence Completed ---")
 
 
 if __name__ == "__main__":

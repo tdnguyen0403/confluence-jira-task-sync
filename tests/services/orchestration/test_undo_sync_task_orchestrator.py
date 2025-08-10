@@ -322,3 +322,179 @@ async def test_undo_confluence_rollback_failure(
     assert confluence_result is not None
     assert confluence_result.success is False
     assert "Simulated Confluence API Error" in confluence_result.error_message
+
+
+@pytest.mark.asyncio
+async def test_parse_undo_requests_with_partial_data(
+    undo_orchestrator, caplog
+):
+    """
+    Tests that _parse_undo_requests correctly handles a mix of valid and invalid items.
+    It should parse the valid ones and log a warning for the invalid ones.
+    This covers the `else` branch in `_parse_undo_requests`.
+    """
+    caplog.set_level(logging.WARNING)
+    requests_data = [
+        UndoSyncTaskRequest(  # Valid item
+            confluence_page_id="page1",
+            original_page_version=10,
+            new_jira_task_key="JIRA-1",
+            request_user="user"
+        ),
+        UndoSyncTaskRequest(  # Item missing page version
+            confluence_page_id="page1",
+            original_page_version=None,
+            new_jira_task_key="JIRA-2",
+            request_user="user"
+        ),
+        UndoSyncTaskRequest(  # Item with only a Jira key
+            confluence_page_id=None,
+            original_page_version=None,
+            new_jira_task_key="JIRA-3",
+            request_user="user"
+        )
+    ]
+
+    jira_keys, pages = undo_orchestrator._parse_undo_requests(requests_data)
+
+    assert jira_keys == {"JIRA-1", "JIRA-2", "JIRA-3"}
+    assert pages == {"page1": 10}
+    assert "Skipping undo item with missing data" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_rollback_confluence_page_fetch_fails(
+    undo_orchestrator, confluence_undo_stub
+):
+    """
+    Tests the failure path in _rollback_confluence_page when get_page_by_id returns None.
+    This covers the `if not page...` branch.
+    """
+    # Make the stub return None for the specific page and version
+    confluence_undo_stub.get_page_by_id = AsyncMock(return_value=None)
+    page_id = "nonexistent_page"
+    version = 5
+
+    result = await undo_orchestrator._rollback_confluence_page(page_id, version)
+
+    assert result.success is False
+    assert result.action_type == "confluence_rollback"
+    assert result.target_id == page_id
+    assert f"Failed to get historical content for v{version}" in result.status_message
+
+
+@pytest.mark.asyncio
+async def test_rollback_confluence_page_malformed_content(
+    undo_orchestrator, confluence_undo_stub
+):
+    """
+    Tests the failure path in _rollback_confluence_page when the fetched page is malformed.
+    This covers the `...or "body" not in page...` branch.
+    """
+    page_id = "435680347"
+    version = 213
+    # Return a page object that's missing the 'body' key
+    malformed_page = {"id": page_id, "title": "Malformed Page"}
+    confluence_undo_stub.get_page_by_id = AsyncMock(return_value=malformed_page)
+
+    result = await undo_orchestrator._rollback_confluence_page(page_id, version)
+
+    assert result.success is False
+    assert result.action_type == "confluence_rollback"
+    assert f"Failed to get historical content for v{version}" in result.status_message
+
+
+@pytest.mark.asyncio
+async def test_determine_overall_status_no_results(undo_orchestrator):
+    """
+    Tests the _determine_overall_status method with an empty list of results.
+    This covers the `if not results:` branch.
+    """
+    status = undo_orchestrator._determine_overall_status([], lambda r: r.success)
+    assert status == "Skipped - No actions processed"
+
+@pytest.mark.asyncio
+async def test_parse_undo_requests_handles_duplicate_pages(
+    undo_orchestrator, caplog
+):
+    """
+    Tests that _parse_undo_requests correctly identifies the *earliest* page
+    version when multiple requests for the same page exist.
+    This covers the `else` branch of `if page_id not in pages or version < pages[page_id]:`
+    at line 86.
+    """
+    requests_data = [
+        UndoSyncTaskRequest(
+            confluence_page_id="page1", original_page_version=10,
+            new_jira_task_key="JIRA-1", request_user="user"
+        ),
+        # This one is for the same page but an OLDER version, so it should become the target
+        UndoSyncTaskRequest(
+            confluence_page_id="page1", original_page_version=8,
+            new_jira_task_key="JIRA-2", request_user="user"
+        ),
+        # This one is for the same page but a NEWER version, so it should be ignored
+        UndoSyncTaskRequest(
+            confluence_page_id="page1", original_page_version=12,
+            new_jira_task_key="JIRA-3", request_user="user"
+        ),
+        UndoSyncTaskRequest(
+            confluence_page_id="page2", original_page_version=5,
+            new_jira_task_key="JIRA-4", request_user="user"
+        ),
+    ]
+
+    jira_keys, pages = undo_orchestrator._parse_undo_requests(requests_data)
+
+    # All Jira keys should be collected
+    assert jira_keys == {"JIRA-1", "JIRA-2", "JIRA-3", "JIRA-4"}
+
+    # For "page1", only the lowest version number (8) should be stored
+    assert pages == {"page1": 8, "page2": 5}
+
+@pytest.mark.asyncio
+async def test_parse_undo_requests_handles_duplicates_and_missing_data(
+    undo_orchestrator, caplog
+):
+    """
+    Tests that _parse_undo_requests correctly identifies the *earliest* page
+    version when multiple requests for the same page exist and handles items with
+    missing page data.
+    This covers the `else` branch of the version check at line 86 and the `else`
+    branch for missing page data at line 210.
+    """
+    caplog.set_level(logging.WARNING)
+
+    requests_data = [
+        # Base item for page1
+        UndoSyncTaskRequest(
+            confluence_page_id="page1", original_page_version=10,
+            new_jira_task_key="JIRA-1", request_user="user"
+        ),
+        # A newer version for page1, should be ignored
+        UndoSyncTaskRequest(
+            confluence_page_id="page1", original_page_version=12,
+            new_jira_task_key="JIRA-2", request_user="user"
+        ),
+        # An older version for page1, should be selected
+        UndoSyncTaskRequest(
+            confluence_page_id="page1", original_page_version=8,
+            new_jira_task_key="JIRA-3", request_user="user"
+        ),
+        # An item with a missing page ID, should be logged and partially processed
+        UndoSyncTaskRequest(
+            confluence_page_id=None, original_page_version=None,
+            new_jira_task_key="JIRA-4", request_user="user"
+        )
+    ]
+
+    jira_keys, pages = undo_orchestrator._parse_undo_requests(requests_data)
+
+    # All Jira keys should still be collected
+    assert jira_keys == {"JIRA-1", "JIRA-2", "JIRA-3", "JIRA-4"}
+
+    # For "page1", only the lowest version number (8) should be stored
+    assert pages == {"page1": 8}
+
+    # A warning should be logged for the item with missing data
+    assert "Skipping undo item with missing data" in caplog.text

@@ -13,7 +13,7 @@ from typing import (
 from bs4 import BeautifulSoup, Tag
 
 from src.config import config
-from src.exceptions import InvalidInputError
+from src.exceptions import ConfluenceApiError, InvalidInputError
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
 from src.interfaces.jira_service_interface import JiraApiServiceInterface
 from src.models.api_models import SinglePageResult
@@ -81,8 +81,7 @@ class ConfluenceIssueUpdaterService:
             for page_id in all_page_ids
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        updated_summary = []
+        updated_summary: List[SinglePageResult] = []
         for res in results:
             if isinstance(res, SinglePageResult):
                 updated_summary.append(res)
@@ -98,32 +97,52 @@ class ConfluenceIssueUpdaterService:
         candidate_new_issues: List[Dict[str, Any]],
         target_issue_type_ids: Set[str],
         project_key: str,
-    ) -> Optional[SinglePageResult]:
+    ) -> SinglePageResult:
         """
         Processes a single Confluence page to find and replace Jira macros.
         """
-        page_details = await self.confluence_api.get_page_by_id(
-            page_id, expand="body.storage,version"
-        )
-        if not page_details:
-            logger.warning(f"Could not get content for page '{page_id}'. Skipping.")
-            return None
+        try:
+            page_details = await self.confluence_api.get_page_by_id(
+                page_id, expand="body.storage,version"
+            )
+            if not page_details or not page_details.get("body", {}).get(
+                "storage", {}
+            ).get("value"):  # noqa E501
+                logger.info(
+                    f"Page '{page_id}' has no content or could not be fetched. Skipping."  # noqa E501
+                )
+                return SinglePageResult(
+                    page_id=page_id,
+                    page_title=f"Unknown Title (ID: {page_id})",
+                    status="Failed - No Content retreived",
+                    new_jira_keys=[],
+                    project_linked=project_key,
+                )
 
-        original_html = page_details.get("body", {}).get("storage", {}).get("value", "")
-        if not original_html:
-            logger.info(f"Page '{page_id}' has no content. Skipping.")
-            return None
+            page_title = page_details.get("title", page_id)
+            original_html = page_details["body"]["storage"]["value"]
+            (
+                modified_html,
+                did_modify,
+            ) = await self._find_and_replace_jira_macros_on_page(  # noqa E501
+                page_title, original_html, candidate_new_issues, target_issue_type_ids
+            )
 
-        page_title = page_details.get("title", page_id)
-        modified_html, did_modify = await self._find_and_replace_jira_macros_on_page(
-            page_title, original_html, candidate_new_issues, target_issue_type_ids
-        )
+            if not did_modify:
+                logger.info(f"No relevant macros found to replace on '{page_title}'.")
+                return SinglePageResult(
+                    page_id=page_id,
+                    page_title=page_title,
+                    status="Skipped - No relevant macros found",
+                    new_jira_keys=[],
+                    project_linked=project_key,
+                )
 
-        if did_modify:
             logger.info(f"Updating page '{page_title}' (ID: {page_id}).")
             success = await self.confluence_api.update_page_content(
                 page_id, page_details["title"], modified_html
             )
+
             if success:
                 new_keys = [
                     issue_key
@@ -137,13 +156,43 @@ class ConfluenceIssueUpdaterService:
                     page_title=page_details.get("title", "N/A"),
                     new_jira_keys=new_keys,
                     project_linked=project_key,
+                    status="Success",
                 )
             else:
-                logger.error(f"Failed to update page '{page_title}' (ID: {page_id}).")
-        else:
-            logger.info(f"No relevant macros found to replace on '{page_title}'.")
+                return SinglePageResult(
+                    page_id=page_id,
+                    page_title="Page with ID: {page_id}",
+                    status="Failed - updating failed unexpectedly",
+                    new_jira_keys=[],
+                    project_linked=project_key,
+                )
+        except ConfluenceApiError as e:
+            # Catch the API error from the update call, can be due to permission
+            logger.error(
+                f"An API error occurred while processing page '{page_id}': {e}",
+                exc_info=True,
+            )
+            return SinglePageResult(
+                page_id=page_id,
+                page_title="Page with ID: {page_id}",
+                status=f"Failed - API Error ({e.status_code})",
+                new_jira_keys=[],
+                project_linked=project_key,
+            )
 
-        return None
+        except Exception as e:
+            # Catch any other unexpected errors during processing
+            logger.error(
+                f"An unexpected error occurred while processing page '{page_id}': {e}",
+                exc_info=True,
+            )
+            return SinglePageResult(
+                page_id=page_id,
+                page_title="Page with ID: {page_id}",
+                status="Failed - Unexpected Error",
+                new_jira_keys=[],
+                project_linked=project_key,
+            )
 
     async def _get_relevant_jira_issues_under_root(
         self, root_key: str, target_issue_type_ids: Set[str]
@@ -151,19 +200,13 @@ class ConfluenceIssueUpdaterService:
         """
         Fetches all Jira issues of target types under a given root project.
         """
-        type_name_tasks = [
-            self.jira_api.get_issue_type_name_by_id(t_id)
-            for t_id in target_issue_type_ids
-        ]
-        type_names = await asyncio.gather(*type_name_tasks)
-        valid_type_names = sorted([f'"{name}"' for name in type_names if name])
-
-        if not valid_type_names:
-            logger.warning("No valid issue type names found for JQL.")
+        if not target_issue_type_ids:
+            logger.warning("No target issue type IDs provided for JQL search.")
             return []
 
+        type_ids_str = ", ".join(sorted(list(target_issue_type_ids)))
         jql = (
-            f"issuetype in ({', '.join(valid_type_names)}) "
+            f"issuetype in ({type_ids_str}) "
             f"AND issue in relation('{root_key}', 'Project Children', 'all')"
         )
         logger.info(f"Searching Jira with JQL: {jql}")

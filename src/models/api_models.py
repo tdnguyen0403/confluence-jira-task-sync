@@ -163,8 +163,13 @@ class SyncTaskResponse(BaseModel):
     request_id: str = Field(
         ..., description="A unique identifier for the synchronization request."
     )
-    overall_status: str = Field(
-        ..., description="Overall status of both Jira & Confluence update"
+    jira_task_creation_results: List[JiraTaskCreationResult] = Field(
+        default_factory=list,
+        description="Detailed results for each Jira task creation attempt.",
+    )
+    confluence_page_update_results: List[ConfluencePageUpdateResult] = Field(
+        default_factory=list,
+        description="Detailed results for each Confluence page update attempt.",
     )
     overall_jira_task_creation_status: str = Field(
         ...,
@@ -176,13 +181,9 @@ class SyncTaskResponse(BaseModel):
         description="""Overall status of Confluence page updates
             (Success, Partial Success, Failed, Skipped - No updates needed).""",
     )
-    jira_task_creation_results: List[JiraTaskCreationResult] = Field(
-        default_factory=list,
-        description="Detailed results for each Jira task creation attempt.",
-    )
-    confluence_page_update_results: List[ConfluencePageUpdateResult] = Field(
-        default_factory=list,
-        description="Detailed results for each Confluence page update attempt.",
+    overall_status: str = Field(
+        ...,
+        description="Overall status of both Jira & Confluence update",
     )
 
 
@@ -197,11 +198,13 @@ class UndoActionResult(BaseModel):
         description="Type of undo action ('jira_transition', 'confluence_rollback').",
     )
     target_id: str = Field(
-        ..., description="ID of item targeted (Jira Key or Confluence Page ID)."
+        ...,
+        description="ID of item targeted (Jira Key or Confluence Page ID).",
     )
     success: bool
     status_message: str = Field(
-        ..., description="A message describing the outcome of the action."
+        ...,
+        description="A message describing the outcome of the action.",
     )
     error_message: Optional[str] = None
 
@@ -231,6 +234,7 @@ class SinglePageResult(BaseModel):
         new_jira_keys (List[str]): The Jira issue keys created/updated on this
             page.
         project_linked (str): The main project Jira key linked at the root.
+        status (str): Status of single page update operation.
     """
 
     page_id: str = Field(..., description="The ID of the Confluence page.")
@@ -240,7 +244,12 @@ class SinglePageResult(BaseModel):
         description="The Jira issue keys that were created or updated on this page.",
     )
     project_linked: str = Field(
-        ..., description="The Jira issue key of the main project linked to the root."
+        ...,
+        description="The Jira issue key of the main project linked to the root.",
+    )
+    status: str = Field(
+        ...,
+        description="Status of single page update operation.",
     )
 
 

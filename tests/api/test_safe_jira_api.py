@@ -394,3 +394,13 @@ async def test_assign_issue_error_handling(safe_jira_api, mock_https_helper):
         headers=safe_jira_api.headers,
         json_data={"name": assignee_name},
     )
+
+@pytest.mark.asyncio
+async def test_find_transition_id_by_name_no_transitions(safe_jira_api, mock_https_helper):
+    """Tests finding transition ID when the issue has no available transitions."""
+    mock_https_helper.get.return_value = {"transitions": []}
+
+    transition_id = await safe_jira_api.find_transition_id_by_name("PROJ-1", "Done")
+
+    assert transition_id is None
+    mock_https_helper.get.assert_awaited_once()

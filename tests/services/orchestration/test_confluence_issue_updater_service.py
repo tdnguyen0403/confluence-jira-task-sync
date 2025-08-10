@@ -263,23 +263,38 @@ async def test_update_confluence_hierarchy_success(
     monkeypatch.setattr(config, "FUZZY_MATCH_THRESHOLD", 0.75)
 
     confluence_updater_stub.set_page_content(root_page_id, '<p>Old macro: <ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">OLD-PHASE-1</ac:parameter></ac:structured-macro></p>')
-    jira_updater_stub.add_issue_type("10001", "Phase")
-    jira_updater_stub.add_issue_type("10002", "Work Package")
-    jira_updater_stub.add_issue_type("10003", "Work Container")
+    # No need to add issue types to the stub for the refactored code
     jira_updater_stub.add_issue("OLD-PHASE-1", {"key": "OLD-PHASE-1", "fields": {"summary": "Matchable Summary", "issuetype": {"id": "10001", "name": "Phase"}}})
     candidate_issue = {"key": "NEWPROJ-PHASE-1", "fields": {"summary": "Matchable Summary", "issuetype": {"id": "10001", "name": "Phase"}}}
 
-    jql = "issuetype in (\"Phase\", \"Work Container\", \"Work Package\") AND issue in relation('NEWPROJ-1', 'Project Children', 'all')"
-    # FIX: Pass a list directly, not a dictionary wrapping a list
+    # --- THIS IS THE FIX ---
+    # Construct the JQL query using IDs, exactly as the refactored service does.
+    raw_ids = [
+        config.JIRA_PHASE_ISSUE_TYPE_ID,
+        config.JIRA_WORK_PACKAGE_ISSUE_TYPE_ID,
+        config.JIRA_WORK_CONTAINER_ISSUE_TYPE_ID,
+    ]
+    # Then, create a new list that filters out the None values before sorting.
+    target_ids = sorted([issue_id for issue_id in raw_ids if issue_id is not None])
+
+    type_ids_str = ", ".join(target_ids)
+    jql = (
+        f"issuetype in ({type_ids_str}) "
+        f"AND issue in relation('{root_project_key}', 'Project Children', 'all')"
+    )
+    # -----------------------
+
     jira_updater_stub.add_jql_result(jql, [candidate_issue])
 
     results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
         project_page_url=root_url, project_key=root_project_key
     )
 
-    assert len(results) == 1
-    assert results[0].page_id == root_page_id
-    assert "NEWPROJ-PHASE-1" in results[0].new_jira_keys[0]
+    # After the refactor, the result will be a SinglePageResult object
+    successful_results = [r for r in results if r.status == "Success"]
+    assert len(successful_results) == 1
+    assert successful_results[0].page_id == root_page_id
+    assert "NEWPROJ-PHASE-1" in successful_results[0].new_jira_keys
     assert "NEWPROJ-PHASE-1" in confluence_updater_stub._updated_pages[root_page_id]["body"]
 
 
@@ -509,8 +524,8 @@ async def test_update_confluence_hierarchy_update_page_fails(
     confluence_issue_updater_service, confluence_updater_stub, jira_updater_stub, monkeypatch
 ):
     """
-    Tests that if confluence_api.update_page fails, the page is not included in the summary,
-    but the process continues and the attempt to update is still recorded.
+    Tests that if confluence_api.update_page_content fails, the service returns
+    a result object with a 'Failed' status.
     """
     root_url = "http://example.com/page1"
     root_page_id = "page1"
@@ -522,23 +537,38 @@ async def test_update_confluence_hierarchy_update_page_fails(
     monkeypatch.setattr(config, "FUZZY_MATCH_THRESHOLD", 0.75)
 
     confluence_updater_stub.set_page_content(root_page_id, '<p>Old macro: <ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">OLD-PHASE-TO-FAIL</ac:parameter></ac:structured-macro></p>')
+    # Configure the stub to simulate a failure on the update call
     confluence_updater_stub.set_update_success(False)
 
-    jira_updater_stub.add_issue_type("10001", "Phase")
-    jira_updater_stub.add_issue_type("10002", "Work Package")
-    jira_updater_stub.add_issue_type("10003", "Work Container")
     jira_updater_stub.add_issue("OLD-PHASE-TO-FAIL", {"key": "OLD-PHASE-TO-FAIL", "fields": {"summary": "Phase For Failure Test", "issuetype": {"id": "10001", "name": "Phase"}}})
-    candidate_issue = {"key": root_project_key, "fields": {"summary": "Phase For Failure Test", "issuetype": {"id": "10001", "name": "Phase"}}}
+    candidate_issue = {"key": "NEWPROJ-FAIL-KEY", "fields": {"summary": "Phase For Failure Test", "issuetype": {"id": "10001", "name": "Phase"}}}
 
-    jql = "issuetype in (\"Phase\", \"Work Container\", \"Work Package\") AND issue in relation('NEWPROJ-FAIL', 'Project Children', 'all')"
-    # FIX: Pass a list directly, not a dictionary wrapping a list
+    raw_ids = [
+        config.JIRA_PHASE_ISSUE_TYPE_ID,
+        config.JIRA_WORK_PACKAGE_ISSUE_TYPE_ID,
+        config.JIRA_WORK_CONTAINER_ISSUE_TYPE_ID,
+    ]
+    target_ids = sorted([issue_id for issue_id in raw_ids if issue_id is not None])
+    type_ids_str = ", ".join(target_ids)
+    jql = (
+        f"issuetype in ({type_ids_str}) "
+        f"AND issue in relation('{root_project_key}', 'Project Children', 'all')"
+    )
+
     jira_updater_stub.add_jql_result(jql, [candidate_issue])
 
     results = await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
         project_page_url=root_url, project_key=root_project_key
     )
 
-    assert len(results) == 0
+    # The service should now return one result object indicating the failure.
+    assert len(results) == 1
+
+    failed_result = results[0]
+    assert failed_result.page_id == root_page_id
+    assert failed_result.status == "Failed - updating failed unexpectedly"
+
+    # We can also still confirm that an update was *attempted*.
     assert root_page_id in confluence_updater_stub._updated_pages
 
 
@@ -1036,3 +1066,70 @@ async def test_update_confluence_hierarchy_with_empty_candidates(
         project_page_url=root_url, project_key=root_project_key
     )
     assert results == []
+
+@pytest.mark.asyncio
+async def test_replace_macros_skips_macro_with_no_key(
+    confluence_issue_updater_service,
+):
+    """
+    Tests that a Jira macro without a 'key' parameter is skipped during processing.
+    This covers the branch where `macro_key_param` is None at line 180.
+    """
+    html_with_malformed_macro = (
+        '<p>A malformed macro: '
+        '<ac:structured-macro ac:name="jira">'
+        # This parameter is not 'key'
+        '<ac:parameter ac:name="summary">Some Summary</ac:parameter>'
+        '</ac:structured-macro></p>'
+    )
+
+    (
+        modified_html,
+        did_modify,
+    ) = await confluence_issue_updater_service._find_and_replace_jira_macros_on_page(
+        page_title="Test Page",
+        html_content=html_with_malformed_macro,
+        candidate_new_issues=[{"key": "NEW-123", "fields": {}}],
+        target_issue_type_ids={"10001"},
+    )
+
+    # The service should not modify the HTML and should report no changes
+    assert did_modify is False
+    assert modified_html == html_with_malformed_macro
+
+@pytest.mark.asyncio
+async def test_update_hierarchy_raises_error_for_invalid_root_url(
+    confluence_issue_updater_service, confluence_updater_stub
+):
+    """
+    Tests that an InvalidInputError is raised if the root URL cannot be resolved.
+    This covers the `if not root_page_id:` branch.
+    """
+    # The stub returns None for any URL without "page1" in it
+    invalid_url = "http://example.com/invalid-page"
+
+    with pytest.raises(InvalidInputError, match="Could not find page ID for URL"):
+        await confluence_issue_updater_service.update_confluence_hierarchy_with_new_jira_project(
+            project_page_url=invalid_url, project_key="ANY-PROJ"
+        )
+
+@pytest.mark.asyncio
+async def test_get_relevant_issues_with_no_valid_type_ids(
+    confluence_issue_updater_service, jira_updater_stub, caplog
+):
+    """
+    Tests that the JQL query is not run if the target issue type IDs are invalid.
+    This covers the `if not target_issue_type_ids:` branch in the refactored method.
+    """
+    # Clear any previously added issue types in the stub
+    jira_updater_stub._issue_types = {}
+
+    with caplog.at_level(logging.WARNING):
+        # Pass an empty set for the target IDs
+        candidates = await confluence_issue_updater_service._get_relevant_jira_issues_under_root(
+            root_key="ANY-PROJ", target_issue_type_ids=set()
+        )
+
+    # No candidates should be returned, and a warning should be logged.
+    assert candidates == []
+    assert "No target issue type IDs provided for JQL search" in caplog.text

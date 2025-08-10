@@ -86,6 +86,7 @@ def mock_confluence_issue_updater_service():
             page_title="sample title",
             new_jira_keys=["TEST-1"],
             project_linked="PROJ",
+            status="SUCCESS",
         )
     ]
     return mock_service

@@ -1094,138 +1094,6 @@ async def test_get_page_id_from_url_resolves_to_query_param_format(
         follow_redirects=True,
     )
 
-
-@pytest.mark.asyncio
-async def test_parse_single_task_missing_datetime_attr(safe_confluence_api):
-    """
-    Tests _parse_single_task when a <time> tag exists but is missing the 'datetime' attribute.
-    This specifically covers the 'else' branch of the due_date assignment.
-    """
-    page_details = {"id": "123", "title": "Test Page", "version": {"number": 1}}
-    task_html = """
-    <ac:task>
-        <ac:task-id>task1</ac:task-id>
-        <ac:task-status>incomplete</ac:task-status>
-        <ac:task-body>Task with malformed time <time some-other-attr="value"></time></ac:task-body>
-    </ac:task>
-    """
-    task_element = BeautifulSoup(task_html, "html.parser").find("ac:task")
-
-    task = await safe_confluence_api._parse_single_task(task_element, page_details)
-
-    assert task is not None
-    assert task.due_date is None, (
-        "Due date should be None when datetime attribute is missing"
-    )
-
-
-@pytest.mark.asyncio
-async def test_update_page_with_jira_links_preserves_non_empty_task_lists(
-    safe_confluence_api, mock_https_helper
-):
-    """
-    Tests that task lists are NOT removed if they still contain tasks after an update.
-    This covers the `False` path for the condition `if not tl.find("ac:task")`.
-    """
-    page_id = "123"
-    mappings = [{"confluence_task_id": "task1", "jira_key": "PROJ-1"}]
-    initial_body = """
-    <ac:task-list>
-        <ac:task><ac:task-id>task1</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Replace Me</ac:task-body></ac:task>
-        <ac:task><ac:task-id>task2</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Keep Me</ac:task-body></ac:task>
-    </ac:task-list>
-    """
-    mock_https_helper.get.return_value = {
-        "id": page_id,
-        "title": "Test Page",
-        "body": {"storage": {"value": initial_body, "representation": "storage"}},
-        "version": {"number": 1},
-    }
-    mock_https_helper.put.return_value = {"id": page_id, "version": {"number": 2}}
-
-    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
-
-    mock_https_helper.put.assert_awaited_once()
-    put_args, put_kwargs = mock_https_helper.put.call_args
-    updated_body = put_kwargs["json_data"]["body"]["storage"]["value"]
-    soup = BeautifulSoup(updated_body, "html.parser")
-
-    # Assert that the task list still exists
-    assert soup.find("ac:task-list") is not None
-    # Assert that the remaining task is still inside the list
-    assert soup.find("ac:task-list").find("ac:task-id", string="task2") is not None
-    # Assert that the replaced task is gone
-    assert soup.find("ac:task-id", string="task1") is None
-
-
-@pytest.mark.asyncio
-async def test_get_page_id_from_url_no_redirect_location(
-    safe_confluence_api, mock_https_helper
-):
-    """
-    Tests get_page_id_from_url when a 3xx response lacks a 'Location' header.
-    This covers the `else` path of the `response.headers.get("Location")` check.
-    """
-    short_url = "http://confluence.example.com/x/brokenredirect"
-    mock_response = AsyncMock(spec=httpx.Response)
-    mock_response.status_code = 301
-    mock_response.headers = {}  # No "Location" header
-    mock_response.url = httpx.URL(short_url)
-    mock_https_helper._make_request.return_value = mock_response
-
-    page_id = await safe_confluence_api.get_page_id_from_url(short_url)
-
-    assert page_id is None
-    mock_https_helper._make_request.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_update_page_no_version_in_response(
-    safe_confluence_api, mock_https_helper
-):
-    """
-    Tests the update_page failure path when the initial GET lacks version info.
-    """
-    mock_https_helper.get.return_value = {
-        "id": "123",
-        "title": "Old Title",
-        # Missing "version" key
-    }
-
-    success = await safe_confluence_api.update_page("123", "New Title", "New Body")
-
-    assert success is False
-    mock_https_helper.get.assert_awaited_once()
-    # The PUT call should not be made if version info is missing
-    mock_https_helper.put.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_parse_single_task_user_mention_no_userkey(
-    safe_confluence_api, mock_https_helper
-):
-    """
-    Tests _parse_single_task when a <ri:user> tag is present but lacks a 'ri:userkey'.
-    This covers the `else` branch for the `if user_key := ...` assignment.
-    """
-    page_details = {"id": "123", "title": "Test Page", "version": {"number": 1}}
-    task_html = """
-    <ac:task>
-        <ac:task-id>task1</ac:task-id>
-        <ac:task-status>incomplete</ac:task-status>
-        <ac:task-body>Task with malformed user <ri:user some-other-attr="foo"></ri:user></ac:task-body>
-    </ac:task>
-    """
-    task_element = BeautifulSoup(task_html, "html.parser").find("ac:task")
-
-    task = await safe_confluence_api._parse_single_task(task_element, page_details)
-
-    assert task is not None
-    assert task.assignee_name is None, "Assignee should be None if userkey is missing"
-    # Ensure no API call was made to get user details
-    mock_https_helper.get.assert_not_called()
-
-
 @pytest.mark.asyncio
 async def test_get_page_child_by_type_fails_on_second_page(
     safe_confluence_api, mock_https_helper
@@ -1313,37 +1181,6 @@ async def test_get_page_by_id_no_version_no_expand(
         params={},  # Ensure params is an empty dict
     )
 
-
-@pytest.mark.asyncio
-async def test_update_page_with_jira_links_no_matching_tasks(
-    safe_confluence_api, mock_https_helper, caplog
-):
-    """
-    Tests that a warning is logged when update_page_with_jira_links is called
-    but no tasks match the provided mappings.
-    This covers the `else` branch of `if modified:`.
-    """
-    caplog.set_level(logging.WARNING)
-    page_id = "123"
-    # Mapping for a task that does not exist on the page
-    mappings = [{"confluence_task_id": "task_xyz", "jira_key": "PROJ-1"}]
-    initial_body = """
-    <ac:task-list><ac:task><ac:task-id>task1</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Some Task</ac:task-body></ac:task></ac:task-list>
-    """
-    mock_https_helper.get.return_value = {
-        "id": page_id,
-        "title": "Test Page",
-        "body": {"storage": {"value": initial_body, "representation": "storage"}},
-        "version": {"number": 1},
-    }
-
-    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
-
-    # Assert that no update was attempted
-    mock_https_helper.put.assert_not_called()
-    # Assert that the warning was logged
-    assert f"No tasks were replaced on page {page_id}. Skipping update." in caplog.text
-
 @pytest.mark.asyncio
 async def test_generate_jira_macro_html_with_summary(safe_confluence_api):
     """
@@ -1378,3 +1215,264 @@ async def test_generate_jira_macro_html_with_summary(safe_confluence_api):
 
         # Crucially, assert that 'showSummary' is NOT 'false'
         assert "showSummary" not in params, "showSummary should not be present to default to showing the summary."
+
+@pytest.mark.asyncio
+async def test_create_page_no_parent_id(safe_confluence_api, mock_https_helper):
+    """Tests create_page without a parent_id."""
+    mock_https_helper.post.return_value = {"id": "new_page_id", "title": "New Page"}
+
+    await safe_confluence_api.create_page(
+        space_key="SPACE", title="New Page", body="Content"
+    )
+
+    _, post_kwargs = mock_https_helper.post.call_args
+    assert "json_data" in post_kwargs
+    assert post_kwargs["json_data"]["ancestors"] == []
+
+
+@pytest.mark.asyncio
+async def test_update_page_no_version_in_response(
+    safe_confluence_api, mock_https_helper
+):
+    """
+    Tests the update_page failure path when the initial GET lacks version info.
+    This covers the `except KeyError` branch in `update_page`.
+    """
+    mock_https_helper.get.return_value = {
+        "id": "123",
+        "title": "Old Title",
+        # The "version" key is intentionally missing
+    }
+
+    success = await safe_confluence_api.update_page("123", "New Title", "New Body")
+
+    assert success is False
+    mock_https_helper.get.assert_awaited_once()
+    # The PUT call should not be made if version info is missing
+    mock_https_helper.put.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_get_page_id_from_url_no_redirect_location(
+    safe_confluence_api, mock_https_helper
+):
+    """
+    Tests get_page_id_from_url when a 3xx response lacks a 'Location' header.
+    This covers the `else` path of the `response.headers.get("Location")` check.
+    """
+    short_url = "http://confluence.example.com/x/brokenredirect"
+    mock_response = AsyncMock(spec=httpx.Response)
+    mock_response.status_code = 301
+    mock_response.headers = {}  # No "Location" header
+    mock_response.url = httpx.URL(short_url)
+    mock_https_helper._make_request.return_value = mock_response
+
+    page_id = await safe_confluence_api.get_page_id_from_url(short_url)
+
+    assert page_id is None
+    mock_https_helper._make_request.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_parse_single_task_user_mention_no_userkey(
+    safe_confluence_api, mock_https_helper
+):
+    """
+    Tests _parse_single_task when a <ri:user> tag is present but lacks a 'ri:userkey'.
+    This covers the `else` branch for the `if user_key := ...` assignment.
+    """
+    page_details = {"id": "123", "title": "Test Page", "version": {"number": 1}}
+    task_html = """
+    <ac:task>
+        <ac:task-id>task1</ac:task-id>
+        <ac:task-status>incomplete</ac:task-status>
+        <ac:task-body>Task with malformed user <ri:user some-other-attr="foo"></ri:user></ac:task-body>
+    </ac:task>
+    """
+    task_element = BeautifulSoup(task_html, "html.parser").find("ac:task")
+
+    task = await safe_confluence_api._parse_single_task(task_element, page_details)
+
+    assert task is not None
+    assert task.assignee_name is None, "Assignee should be None if userkey is missing"
+    # Ensure no API call was made to get user details
+    mock_https_helper.get.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_parse_single_task_missing_datetime_attr(safe_confluence_api):
+    """
+    Tests _parse_single_task when a <time> tag exists but is missing the 'datetime' attribute.
+    This specifically covers the 'else' branch of the due_date assignment.
+    """
+    page_details = {"id": "123", "title": "Test Page", "version": {"number": 1}}
+    task_html = """
+    <ac:task>
+        <ac:task-id>task1</ac:task-id>
+        <ac:task-status>incomplete</ac:task-status>
+        <ac:task-body>Task with malformed time <time some-other-attr="value"></time></ac:task-body>
+    </ac:task>
+    """
+    task_element = BeautifulSoup(task_html, "html.parser").find("ac:task")
+
+    task = await safe_confluence_api._parse_single_task(task_element, page_details)
+
+    assert task is not None
+    assert task.due_date is None, (
+        "Due date should be None when datetime attribute is missing"
+    )
+
+@pytest.mark.asyncio
+async def test_update_page_with_jira_links_no_parent_task_list(
+    safe_confluence_api, mock_https_helper
+):
+    """
+    Tests that a task not within a <ac:task-list> is skipped during replacement.
+    This covers the `if not parent_task_list:` branch.
+    """
+    page_id = "123"
+    mappings = [{"confluence_task_id": "task1", "jira_key": "PROJ-1"}]
+    # This task is not nested inside a <ac:task-list>
+    initial_body = """
+    <p>Some text</p>
+    <ac:task><ac:task-id>task1</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Orphan Task</ac:task-body></ac:task>
+    """
+    mock_https_helper.get.return_value = {
+        "id": page_id,
+        "title": "Test Page",
+        "body": {"storage": {"value": initial_body, "representation": "storage"}},
+        "version": {"number": 1},
+    }
+
+    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+
+    # The page should not be updated because the task was not in a valid list
+    mock_https_helper.put.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_page_with_jira_links_no_task_body(
+    safe_confluence_api, mock_https_helper
+):
+    """
+    Tests that a task with no body is skipped during replacement.
+    This covers the `if not task_body:` branch.
+    """
+    page_id = "123"
+    mappings = [{"confluence_task_id": "task1", "jira_key": "PROJ-1"}]
+    initial_body = """
+    <ac:task-list><ac:task><ac:task-id>task1</ac:task-id><ac:task-status>incomplete</ac:task-status></ac:task></ac:task-list>
+    """
+    mock_https_helper.get.return_value = {
+        "id": page_id,
+        "title": "Test Page",
+        "body": {"storage": {"value": initial_body, "representation": "storage"}},
+        "version": {"number": 1},
+    }
+
+    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+
+    # The page should not be updated as there's no summary to preserve
+    mock_https_helper.put.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_update_page_with_jira_links_preserves_non_empty_task_lists(
+    safe_confluence_api, mock_https_helper
+):
+    """
+    Tests that task lists are NOT removed if they still contain tasks after an update.
+    This covers the `False` path for the condition `if not tl.find("ac:task")`.
+    """
+    page_id = "123"
+    mappings = [{"confluence_task_id": "task1", "jira_key": "PROJ-1"}]
+    initial_body = """
+    <ac:task-list>
+        <ac:task><ac:task-id>task1</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Replace Me</ac:task-body></ac:task>
+        <ac:task><ac:task-id>task2</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Keep Me</ac:task-body></ac:task>
+    </ac:task-list>
+    """
+    mock_https_helper.get.return_value = {
+        "id": page_id,
+        "title": "Test Page",
+        "body": {"storage": {"value": initial_body, "representation": "storage"}},
+        "version": {"number": 1},
+    }
+    mock_https_helper.put.return_value = {"id": page_id, "version": {"number": 2}}
+
+    await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+
+    mock_https_helper.put.assert_awaited_once()
+    put_args, put_kwargs = mock_https_helper.put.call_args
+    updated_body = put_kwargs["json_data"]["body"]["storage"]["value"]
+    soup = BeautifulSoup(updated_body, "html.parser")
+
+    # Assert that the task list still exists
+    assert soup.find("ac:task-list") is not None
+    # Assert that the remaining task is still inside the list
+    assert soup.find("ac:task-list").find("ac:task-id", string="task2") is not None
+    # Assert that the replaced task is gone
+    assert soup.find("ac:task-id", string="task1") is None
+
+@pytest.mark.asyncio
+async def test_update_page_with_jira_links_no_matching_tasks(
+    safe_confluence_api, mock_https_helper, caplog
+):
+    """
+    Tests that a warning is logged when update_page_with_jira_links is called
+    but no tasks match the provided mappings.
+    This covers the `else` branch of `if modified:`.
+    """
+    caplog.set_level(logging.WARNING)
+    page_id = "123"
+    # Mapping for a task that does not exist on the page
+    mappings = [{"confluence_task_id": "task_xyz", "jira_key": "PROJ-1"}]
+    initial_body = """
+    <ac:task-list><ac:task><ac:task-id>task1</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>Some Task</ac:task-body></ac:task></ac:task-list>
+    """
+    mock_https_helper.get.return_value = {
+        "id": page_id,
+        "title": "Test Page",
+        "body": {"storage": {"value": initial_body, "representation": "storage"}},
+        "version": {"number": 1},
+    }
+
+    # The method now returns a boolean, we expect False as no update occurred
+    result = await safe_confluence_api.update_page_with_jira_links(page_id, mappings)
+
+    assert result is False
+    # Assert that no update was attempted
+    mock_https_helper.put.assert_not_called()
+    # Assert that the warning was logged
+    assert f"No tasks were replaced on page {page_id}. Skipping update." in caplog.text
+
+@pytest.mark.asyncio
+async def test_get_all_descendants_handles_duplicate_child(
+    safe_confluence_api, mock_https_helper
+):
+    """
+    Tests that get_all_descendants handles cases where a child page is a descendant
+    of multiple parents in the same hierarchy, ensuring it's processed only once.
+    This covers the `if p_id in processed_page_ids:` branch at line 312.
+    """
+    # page "3" is a child of both "1" and "2"
+    mock_https_helper.get.side_effect = [
+        # Children for root "root"
+        {"results": [{"id": "1"}, {"id": "2"}], "size": 2},
+        # Children for "1"
+        {"results": [{"id": "3"}], "size": 1},
+        # Children for "2"
+        {"results": [{"id": "3"}], "size": 1},
+        # Children for "3" (the duplicate)
+        {"results": [], "size": 0},
+    ]
+
+    # The function get_all_descendants uses get_all_descendants_concurrently internally.
+    # We call the public method to test the integrated behavior.
+    all_ids = await safe_confluence_api.get_all_descendants("root")
+
+    # The final list should not contain duplicates.
+    assert sorted(all_ids) == sorted(["1", "2", "3"])
+
+    # get_page_child_by_type (which uses https_helper.get) should have been called
+    # for "root", "1", "2", and "3". The duplicate processing of "3" should be skipped.
+    assert mock_https_helper.get.call_count == 4
