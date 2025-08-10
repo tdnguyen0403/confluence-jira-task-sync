@@ -48,7 +48,7 @@ class ConfluenceApiStub(ConfluenceApiServiceInterface):
     ) -> List[ConfluenceTask]:
         return []
 
-    async def update_page_with_jira_links(
+    async def add_jira_links_to_page(
         self, page_id: str, jira_task_mappings: List[Dict[str, str]]
     ) -> bool:
         return True
@@ -83,21 +83,21 @@ class JiraApiStub(JiraApiServiceInterface):
     async def transition_issue(self, issue_key: str, target_status: str) -> bool:
         return await self.mock.transition_issue(issue_key, target_status)
 
-    async def prepare_jira_task_fields(
+    async def build_jira_task_payload(
         self, task: ConfluenceTask, parent_key: str, context: SyncTaskContext
     ) -> Dict[str, Any]:
-        return await self.mock.prepare_jira_task_fields(task, parent_key, context)
+        return await self.mock.build_jira_task_payload(task, parent_key, context)
 
-    async def get_current_user_display_name(self) -> str:
-        return await self.mock.get_current_user_display_name()
+    async def get_user_display_name(self) -> str:
+        return await self.mock.get_user_display_name()
 
-    async def search_issues_by_jql(
+    async def search_by_jql(
         self, jql_query: str, fields: str = "*all"
     ) -> List[Dict[str, Any]]:
-        return await self.mock.search_issues_by_jql(jql_query, fields=fields)
+        return await self.mock.search_by_jql(jql_query, fields=fields)
 
-    async def get_issue_type_name_by_id(self, type_id: str) -> Optional[str]:
-        return await self.mock.get_issue_type_name_by_id(type_id)
+    async def get_issue_type_name(self, type_id: str) -> Optional[str]:
+        return await self.mock.get_issue_type_name(type_id)
 
     async def get_issue_status(self, issue_key: str) -> Optional[JiraIssueStatus]:
         return await self.mock.get_issue_status(issue_key)
@@ -156,7 +156,7 @@ async def test_find_issues_and_macros_on_page_success(
         '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">PROJ-2</ac:parameter></ac:structured-macro>'
     )
     # FIX: Set attributes on the internal mock object
-    mock_jira_api.mock.search_issues_by_jql.return_value = [
+    mock_jira_api.mock.search_by_jql.return_value = [
         {"key": "PROJ-1", "fields": {"summary": "Summary 1", "status": {"name": "Open", "statusCategory": {"key": "new"}}, "issuetype": {"name": "Task"}}},
         {"key": "PROJ-2", "fields": {"summary": "Summary 2", "status": {"name": "Done", "statusCategory": {"key": "done"}}, "issuetype": {"name": "Bug"}}},
     ]
@@ -165,8 +165,8 @@ async def test_find_issues_and_macros_on_page_success(
 
     assert len(result["fetched_issues_map"]) == 2
     # FIX: Call assertion on the internal mock object
-    mock_jira_api.mock.search_issues_by_jql.assert_awaited_once()
-    called_args, called_kwargs = mock_jira_api.mock.search_issues_by_jql.await_args
+    mock_jira_api.mock.search_by_jql.assert_awaited_once()
+    called_args, called_kwargs = mock_jira_api.mock.search_by_jql.await_args
     assert parse_jql_in_clause(called_args[0]) == sorted(["PROJ-1", "PROJ-2"])
     assert called_kwargs["fields"] == "summary,status,issuetype"
 
@@ -177,7 +177,7 @@ async def test_find_issues_and_macros_on_page_no_macros(
 ):
     await issue_finder_service.find_issues_and_macros_on_page("<p>No content</p>")
     # FIX: Call assertion on the internal mock object
-    mock_jira_api.mock.search_issues_by_jql.assert_not_awaited()
+    mock_jira_api.mock.search_by_jql.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -186,11 +186,11 @@ async def test_find_issues_and_macros_on_page_jira_api_error(
 ):
     html_content = '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">PROJ-ERR</ac:parameter></ac:structured-macro>'
     # FIX: Set attributes on the internal mock object
-    mock_jira_api.mock.search_issues_by_jql.side_effect = Exception("Jira API Down")
+    mock_jira_api.mock.search_by_jql.side_effect = Exception("Jira API Down")
 
     with pytest.raises(Exception, match="Jira API Down"):
         await issue_finder_service.find_issues_and_macros_on_page(html_content)
-    mock_jira_api.mock.search_issues_by_jql.assert_awaited_once()
+    mock_jira_api.mock.search_by_jql.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -202,7 +202,7 @@ async def test_find_issue_on_page_match_found(
     html = '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">WP-ABC</ac:parameter></ac:structured-macro>'
     mock_confluence_api.set_page_content(page_id, html)
     # FIX: Set attributes on the internal mock object
-    mock_jira_api.mock.search_issues_by_jql.return_value = [{"key": "WP-ABC", "fields": {"issuetype": {"name": "Work Package"}, "summary": "s", "status": {"name":"d", "statusCategory": {"key":"d"}}}}]
+    mock_jira_api.mock.search_by_jql.return_value = [{"key": "WP-ABC", "fields": {"issuetype": {"name": "Work Package"}, "summary": "s", "status": {"name":"d", "statusCategory": {"key":"d"}}}}]
     mock_jira_api.mock.get_issue.return_value = {"key": "WP-ABC"}
 
     found_issue = await issue_finder_service.find_issue_on_page(page_id, issue_type_map)
@@ -221,12 +221,12 @@ async def test_find_issue_on_page_no_match_found(
     html = '<ac:structured-macro ac:name="jira"><ac:parameter ac:name="key">TASK-1</ac:parameter></ac:structured-macro>'
     mock_confluence_api.set_page_content(page_id, html)
     # FIX: Set attributes on the internal mock object
-    mock_jira_api.mock.search_issues_by_jql.return_value = [{"key": "TASK-1", "fields": {"issuetype": {"name": "Task"}, "summary":"s", "status": {"name":"d", "statusCategory": {"key":"d"}}}}]
+    mock_jira_api.mock.search_by_jql.return_value = [{"key": "TASK-1", "fields": {"issuetype": {"name": "Task"}, "summary":"s", "status": {"name":"d", "statusCategory": {"key":"d"}}}}]
 
     found_issue = await issue_finder_service.find_issue_on_page(page_id, issue_type_map)
 
     assert found_issue is None
-    mock_jira_api.mock.search_issues_by_jql.assert_awaited_once()
+    mock_jira_api.mock.search_by_jql.assert_awaited_once()
     mock_jira_api.mock.get_issue.assert_not_awaited()
 
 
@@ -238,7 +238,7 @@ async def test_find_issue_on_page_no_page_content(
     mock_confluence_api.set_page_content(page_id, None)
     await issue_finder_service.find_issue_on_page(page_id, {})
     # FIX: Call assertion on the internal mock object
-    mock_jira_api.mock.search_issues_by_jql.assert_not_awaited()
+    mock_jira_api.mock.search_by_jql.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -249,4 +249,4 @@ async def test_find_issue_on_page_empty_html_content(
     mock_confluence_api.set_page_content(page_id, "")
     await issue_finder_service.find_issue_on_page(page_id, {})
     # FIX: Call assertion on the internal mock object
-    mock_jira_api.mock.search_issues_by_jql.assert_not_awaited()
+    mock_jira_api.mock.search_by_jql.assert_not_awaited()

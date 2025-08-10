@@ -90,7 +90,7 @@ class ConfluenceApiServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def update_page_with_jira_links(
+    async def add_jira_links_to_page(
         self, page_id: str, mappings: List[Dict[str, str]]
     ) -> bool:
         """

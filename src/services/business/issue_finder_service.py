@@ -168,7 +168,7 @@ class IssueFinderService(IssueFinderServiceInterface):
             try:
                 # Use the interface method and pass fields as a string
                 fields_to_get = "summary,status,issuetype"
-                issues_list = await self.jira_api.search_issues_by_jql(
+                issues_list = await self.jira_api.search_by_jql(
                     jql_query, fields=fields_to_get
                 )
 

@@ -85,7 +85,7 @@ class ConfluenceServiceStub(ConfluenceApiServiceInterface):
     ) -> List[ConfluenceTask]:
         return []
 
-    async def update_page_with_jira_links(self, page_id: str, mappings: List[Dict[str, str]]) -> bool:
+    async def add_jira_links_to_page(self, page_id: str, mappings: List[Dict[str, str]]) -> bool:
         return True
 
     async def health_check(self) -> None:
@@ -117,18 +117,18 @@ class JiraServiceStub(JiraApiServiceInterface):
     async def get_jira_issue(self, issue_key: str) -> None:
         pass
 
-    async def prepare_jira_task_fields(
+    async def build_jira_task_payload(
         self, task: ConfluenceTask, parent_key: str, context: SyncTaskContext
     ) -> Dict[str, Any]:
         return {}
 
-    async def get_current_user_display_name(self) -> str:
+    async def get_user_display_name(self) -> str:
         return "Stubbed User"
 
-    async def search_issues_by_jql(self, jql_query: str, fields: str = "*all") -> List[Dict[str, Any]]:
+    async def search_by_jql(self, jql_query: str, fields: str = "*all") -> List[Dict[str, Any]]:
         return []
 
-    async def get_issue_type_name_by_id(self, type_id: str) -> str:
+    async def get_issue_type_name(self, type_id: str) -> str:
         return ""
 
     async def assign_issue(self, issue_key: str, assignee_name: Optional[str]) -> bool:

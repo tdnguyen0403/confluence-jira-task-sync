@@ -45,7 +45,7 @@ class UndoSyncService:
             raise InvalidInputError("No data provided for undo operation.")
 
         jira_keys, pages = self._parse_undo_requests(undo_requests)
-        action_coroutines = self._gather_undo_actions(jira_keys, pages)
+        action_coroutines = self._prepare_undo_actions(jira_keys, pages)
 
         if not action_coroutines:
             raise InvalidInputError("No valid undo actions could be parsed.")
@@ -53,7 +53,7 @@ class UndoSyncService:
         gathered_results = await asyncio.gather(
             *action_coroutines, return_exceptions=True
         )
-        processed_results = self._process_gathered_results(gathered_results)
+        processed_results = self._process_undo_results(gathered_results)
 
         overall_status = self._determine_overall_status(
             processed_results, lambda r: r.success
@@ -66,7 +66,7 @@ class UndoSyncService:
             results=processed_results,
         )
 
-    def _gather_undo_actions(
+    def _prepare_undo_actions(
         self, jira_keys: Set[str], pages: Dict[str, int]
     ) -> List[Coroutine]:
         """Creates a list of coroutines for all undo actions."""
@@ -77,7 +77,7 @@ class UndoSyncService:
             coroutines.append(self._rollback_confluence_page(page_id, version))
         return coroutines
 
-    def _process_gathered_results(self, results: List[Any]) -> List[UndoActionResult]:
+    def _process_undo_results(self, results: List[Any]) -> List[UndoActionResult]:
         """Processes raw results from asyncio.gather into UndoActionResult list."""
         processed = []
         for res in results:

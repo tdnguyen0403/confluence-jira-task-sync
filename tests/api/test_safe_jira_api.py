@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from src.api.https_helper import HTTPSHelper, HTTPXCustomError
-from src.api.safe_jira_api import SafeJiraApi
+from src.api.safe_jira_api import SafeJiraAPI
 from src.config import config  # Assuming config is used for JIRA_API_TOKEN
 from src.exceptions import JiraApiError
 
@@ -21,13 +21,13 @@ def mock_https_helper():
 
 @pytest.fixture
 def safe_jira_api(mock_https_helper):
-    """Provides a SafeJiraApi instance with a mocked HTTPSHelper."""
+    """Provides a SafeJiraAPI instance with a mocked HTTPSHelper."""
     # Patch config.JIRA_API_TOKEN and config.JIRA_URL for testing purposes
     with (
         patch.object(config, "JIRA_API_TOKEN", "test_token"),
         patch.object(config, "JIRA_URL", "http://jira.example.com"),
     ):
-        return SafeJiraApi(
+        return SafeJiraAPI(
             base_url="http://jira.example.com", https_helper=mock_https_helper
         )
 
@@ -83,7 +83,7 @@ async def test_get_available_transitions_success(safe_jira_api, mock_https_helpe
 
 
 @pytest.mark.asyncio
-async def test_find_transition_id_by_name_found(safe_jira_api, mocker):
+async def test_get_transition_id_found(safe_jira_api, mocker):
     """Tests finding transition ID by name when found."""
     mock_transitions = [{"id": "1", "name": "To Do"}, {"id": "2", "name": "Done"}]
 
@@ -97,7 +97,7 @@ async def test_find_transition_id_by_name_found(safe_jira_api, mocker):
     )
 
     # Now, when the method under test is called, it will use our mock.
-    transition_id = await safe_jira_api.find_transition_id_by_name("PROJ-1", "Done")
+    transition_id = await safe_jira_api.get_transition_id("PROJ-1", "Done")
 
     assert transition_id == "2"
     # Verify the mocked method was called correctly.
@@ -105,12 +105,12 @@ async def test_find_transition_id_by_name_found(safe_jira_api, mocker):
 
 
 @pytest.mark.asyncio
-async def test_find_transition_id_by_name_not_found(safe_jira_api, mock_https_helper):
+async def test_get_transition_id_not_found(safe_jira_api, mock_https_helper):
     """Tests finding transition ID by name when not found."""
     mock_transitions = [{"id": "1", "name": "To Do"}]
     mock_https_helper.get.return_value = {"transitions": mock_transitions}
 
-    transition_id = await safe_jira_api.find_transition_id_by_name(
+    transition_id = await safe_jira_api.get_transition_id(
         "PROJ-1", "In Progress"
     )
 
@@ -121,7 +121,7 @@ async def test_find_transition_id_by_name_not_found(safe_jira_api, mock_https_he
 @pytest.mark.asyncio
 async def test_transition_issue_success(safe_jira_api, mock_https_helper):
     """Tests successful issue transition."""
-    # Mock for get_available_transitions (called by find_transition_id_by_name)
+    # Mock for get_available_transitions (called by get_transition_id)
     mock_https_helper.get.return_value = {"transitions": [{"id": "1", "name": "Done"}]}
     # Mock for post (transition execution)
     mock_https_helper.post.return_value = {}  # 204 No Content
@@ -129,7 +129,7 @@ async def test_transition_issue_success(safe_jira_api, mock_https_helper):
     response = await safe_jira_api.transition_issue("PROJ-1", "Done")
 
     assert response == {}
-    assert mock_https_helper.get.call_count == 1  # Called by find_transition_id_by_name
+    assert mock_https_helper.get.call_count == 1  # Called by get_transition_id
     mock_https_helper.post.assert_awaited_once_with(
         "http://jira.example.com/rest/api/2/issue/PROJ-1/transitions",  # URL matches fixture's base_url
         headers=safe_jira_api.headers,
@@ -250,7 +250,7 @@ async def test_get_available_transitions_error_handling(
 @pytest.mark.asyncio
 async def test_transition_issue_error_handling(safe_jira_api, mock_https_helper):
     """Tests transition_issue when https_helper.post raises an exception."""
-    # First, find_transition_id_by_name will call get, which should succeed
+    # First, get_transition_id will call get, which should succeed
     mock_https_helper.get.return_value = {"transitions": [{"id": "1", "name": "Done"}]}
     # Then, the post call for transition_issue should fail
     mock_https_helper.post.side_effect = Exception("Transition failed on server")
@@ -396,11 +396,11 @@ async def test_assign_issue_error_handling(safe_jira_api, mock_https_helper):
     )
 
 @pytest.mark.asyncio
-async def test_find_transition_id_by_name_no_transitions(safe_jira_api, mock_https_helper):
+async def test_get_transition_id_no_transitions(safe_jira_api, mock_https_helper):
     """Tests finding transition ID when the issue has no available transitions."""
     mock_https_helper.get.return_value = {"transitions": []}
 
-    transition_id = await safe_jira_api.find_transition_id_by_name("PROJ-1", "Done")
+    transition_id = await safe_jira_api.get_transition_id("PROJ-1", "Done")
 
     assert transition_id is None
     mock_https_helper.get.assert_awaited_once()

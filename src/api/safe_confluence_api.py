@@ -1,7 +1,7 @@
 """
 Provides a resilient, low-level API wrapper for Confluence operations.
 
-This module contains the SafeConfluenceApi class, which is designed to
+This module contains the SafeConfluenceAPI class, which is designed to
 interact with the Confluence REST API in a fault-tolerant and asynchronous
 manner. It leverages the `HTTPSHelper` for all underlying HTTP communications,
 ensuring that API calls benefit from features like connection pooling and
@@ -37,7 +37,7 @@ from src.utils.context_extractor import get_task_context
 logger = logging.getLogger(__name__)
 
 
-class SafeConfluenceApi:
+class SafeConfluenceAPI:
     """
     A resilient, low-level service for all Confluence operations.
 
@@ -62,7 +62,7 @@ class SafeConfluenceApi:
         jira_macro_server_id: str = config.JIRA_MACRO_SERVER_ID,
     ):
         """
-        Initializes the SafeConfluenceApi.
+        Initializes the SafeConfluenceAPI.
 
         Args:
             base_url (str): The base URL for the Confluence instance.
@@ -185,7 +185,7 @@ class SafeConfluenceApi:
         return await self.https_helper.get(url, headers=self.headers, params=params)
 
     @handle_api_errors(ConfluenceApiError)
-    async def get_page_child_by_type(
+    async def get_children_by_type(
         self, page_id: str, page_type: str = "page"
     ) -> List[Dict[str, Any]]:
         """
@@ -331,9 +331,7 @@ class SafeConfluenceApi:
         return await self.https_helper.get(url, headers=self.headers)
 
     @handle_api_errors(ConfluenceApiError)
-    async def get_user_details_by_userkey(
-        self, userkey: str
-    ) -> Optional[Dict[str, Any]]:
+    async def get_user_by_key(self, userkey: str) -> Optional[Dict[str, Any]]:
         """
         Retrieves Confluence user details by user key asynchronously.
 
@@ -355,7 +353,7 @@ class SafeConfluenceApi:
 
         This method builds a complete, flat list of all child pages, their
         children, and so on, down the entire hierarchy from the starting page ID.
-        It uses `get_all_descendants_concurrently` to perform the fetch operations
+        It uses `_fetch_descendants_concurrently` to perform the fetch operations
         in parallel for greater efficiency.
 
         Args:
@@ -365,12 +363,12 @@ class SafeConfluenceApi:
             List[str]: A flat list of all descendant page IDs.
         """
         all_ids = set()
-        descendant_pages_data = await self.get_all_descendants_concurrently(page_id)
+        descendant_pages_data = await self._fetch_descendants_concurrently(page_id)
         for page_data in descendant_pages_data:
             all_ids.add(page_data["id"])
         return list(all_ids)
 
-    async def get_all_descendants_concurrently(
+    async def _fetch_descendants_concurrently(
         self, page_id: str
     ) -> List[Dict[str, Any]]:
         """
@@ -402,7 +400,7 @@ class SafeConfluenceApi:
 
                 processed_page_ids.add(p_id)
                 try:
-                    children = await self.get_page_child_by_type(p_id)
+                    children = await self.get_children_by_type(p_id)
                     for child in children:
                         all_pages.append(child)
                         await queue.put(child["id"])
@@ -499,7 +497,7 @@ class SafeConfluenceApi:
         assignee_name: Optional[str] = None
         if user_mention := task_element.find("ri:user"):
             if user_key := user_mention.get("ri:userkey"):
-                user_details = await self.get_user_details_by_userkey(user_key)
+                user_details = await self.get_user_by_key(user_key)
                 if user_details:
                     assignee_name = user_details.get("username")
 
@@ -537,7 +535,7 @@ class SafeConfluenceApi:
         )
 
     @handle_api_errors(ConfluenceApiError)
-    async def update_page_with_jira_links(
+    async def add_jira_links_to_page(
         self, page_id: str, mappings: List[Dict[str, str]]
     ) -> bool:
         """
@@ -596,7 +594,7 @@ class SafeConfluenceApi:
                     task_body_copy.get_text(separator=" ").split()
                 ).strip()
 
-                jira_macro_html = self._generate_jira_macro_html(jira_key)
+                jira_macro_html = self._create_macro_html(jira_key)
                 new_p_tag = soup.new_tag("p")
                 new_p_tag.append(BeautifulSoup(jira_macro_html, "html.parser"))
                 new_p_tag.append(task_summary)
@@ -622,7 +620,7 @@ class SafeConfluenceApi:
             )
             return False  # Indicate no update was performed
 
-    def _generate_jira_macro_html(self, jira_key: str) -> str:
+    def _create_macro_html(self, jira_key: str) -> str:
         """
         Generates the Confluence storage format for a Jira issue macro.
 
@@ -649,7 +647,7 @@ class SafeConfluenceApi:
             f"</ac:structured-macro>"
         )
 
-    def _generate_jira_macro_html_with_summary(self, jira_key: str) -> str:
+    def _create_macro_html_with_summary(self, jira_key: str) -> str:
         """
         Generates the Confluence storage format for a Jira issue macro,
         ensuring the summary is displayed.

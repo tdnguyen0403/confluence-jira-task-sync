@@ -14,12 +14,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.dependencies import (
     get_api_key,
-    get_confluence_issue_updater_service,
     get_confluence_service,
     get_https_helper,
     get_jira_service,
-    get_sync_task_orchestrator,
-    get_undo_sync_task_orchestrator,
+    get_sync_project,
+    get_sync_task,
+    get_undo_sync_task,
 )
 from src.error_handler_app import register_exception_handlers
 from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
@@ -32,13 +32,9 @@ from src.models.api_models import (
     UndoSyncTaskRequest,
     UndoSyncTaskResponse,
 )
-from src.services.orchestration.sync_project import (
-    SyncProjectService,
-)
+from src.services.orchestration.sync_project import SyncProjectService
 from src.services.orchestration.sync_task import SyncTaskService
-from src.services.orchestration.undo_sync_task import (
-    UndoSyncService,
-)
+from src.services.orchestration.undo_sync_task import UndoSyncService
 from src.utils.logging_config import endpoint_var, request_id_var, setup_logging
 
 logger = logging.getLogger(__name__)
@@ -120,7 +116,7 @@ register_exception_handlers(app)
 )
 async def sync_task(
     request: SyncTaskRequest,
-    sync_orchestrator: SyncTaskService = Depends(get_sync_task_orchestrator),
+    sync_orchestrator: SyncTaskService = Depends(get_sync_task),
 ) -> SyncTaskResponse:
     """Initiates the synchronization of tasks from Confluence pages to Jira."""
     logger.info(
@@ -146,7 +142,7 @@ async def sync_task(
 )
 async def undo_sync_task(
     undo_data: List[UndoSyncTaskRequest],
-    undo_orchestrator: UndoSyncService = Depends(get_undo_sync_task_orchestrator),
+    undo_orchestrator: UndoSyncService = Depends(get_undo_sync_task),
 ) -> UndoSyncTaskResponse:
     """Reverts the actions from a previous synchronization run."""
     user = undo_data[0].request_user if undo_data else "unknown"
@@ -168,11 +164,9 @@ async def undo_sync_task(
     response_model=SyncProjectResponse,
     dependencies=[Depends(get_api_key)],
 )
-async def update_confluence_project(
+async def sync_project(
     request: SyncProjectRequest,
-    confluence_updater: SyncProjectService = Depends(
-        get_confluence_issue_updater_service
-    ),
+    confluence_updater: SyncProjectService = Depends(get_sync_project),
 ) -> SyncProjectResponse:
     """
     Updates existing Jira issue macros within a Confluence page hierarchy.
@@ -182,7 +176,7 @@ async def update_confluence_project(
         f"on root URL: {request.project_page_url}"
     )
 
-    updated_pages = await confluence_updater.sync_project_to_confluence(
+    updated_pages = await confluence_updater.sync_project(
         project_page_url=request.project_page_url,
         project_key=request.project_key,
     )
@@ -219,7 +213,7 @@ async def readiness_check(
 ) -> Dict[str, str]:
     """Provides a readiness probe endpoint."""
     logger.info("Performing readiness check...")
-    await jira_service.get_current_user_display_name()
+    await jira_service.get_user_display_name()
     logger.info("Jira service is reachable and authenticated.")
     await confluence_service.health_check()
     logger.info("Confluence service is reachable and authenticated.")

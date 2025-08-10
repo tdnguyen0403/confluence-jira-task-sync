@@ -1,7 +1,7 @@
 """
 Unit tests for the ConfluenceService class.
 This module tests the high-level ConfluenceService, ensuring that it
-correctly delegates all of its calls to the underlying SafeConfluenceApi
+correctly delegates all of its calls to the underlying SafeConfluenceAPI
 wrapper and returns the expected data.
 """
 
@@ -11,13 +11,13 @@ import pytest
 import pytest_asyncio
 
 # Assuming your project structure allows this import path
-from src.api.safe_confluence_api import SafeConfluenceApi
+from src.api.safe_confluence_api import SafeConfluenceAPI
 from src.services.adaptors.confluence_service import ConfluenceService
 
 
 # --- Stub for the underlying API ---
 # This stub replaces the real API, preventing actual network calls.
-class SafeConfluenceApiStub(SafeConfluenceApi):
+class SafeConfluenceAPIStub(SafeConfluenceAPI):
     def __init__(self):
         """
         Override the parent __init__ to prevent it from creating a real client.
@@ -50,8 +50,8 @@ class SafeConfluenceApiStub(SafeConfluenceApi):
         await self.mock.get_tasks_from_page(page_details)
         return [{"id": "task1", "status": "incomplete"}]
 
-    async def update_page_with_jira_links(self, page_id: str, mappings: list) -> dict:
-        await self.mock.update_page_with_jira_links(page_id, mappings)
+    async def add_jira_links_to_page(self, page_id: str, mappings: list) -> dict:
+        await self.mock.add_jira_links_to_page(page_id, mappings)
         return {"id": page_id, "body": {"storage": {"value": "updated_body"}}}
 
     async def create_page(self, **kwargs) -> dict:
@@ -62,7 +62,7 @@ class SafeConfluenceApiStub(SafeConfluenceApi):
         await self.mock.get_user_by_username(username)
         return {"username": username, "displayName": "Stubbed User"}
 
-    def _generate_jira_macro_html(self, jira_key: str) -> str:
+    def _create_macro_html(self, jira_key: str) -> str:
         return (
             f'<ac:structured-macro ac:name="jira" ac:schema-version="1" ac:macro-id="some-id">'
             f'<ac:parameter ac:name="key">{jira_key}</ac:parameter>'
@@ -77,7 +77,7 @@ class SafeConfluenceApiStub(SafeConfluenceApi):
 @pytest_asyncio.fixture
 async def confluence_service_with_stub():
     """Provides a ConfluenceService instance with a stubbed API for testing."""
-    safe_api_stub = SafeConfluenceApiStub()
+    safe_api_stub = SafeConfluenceAPIStub()
     service = ConfluenceService(safe_api_stub)
     yield service, safe_api_stub.mock
 
@@ -137,13 +137,13 @@ async def test_get_tasks_from_page(confluence_service_with_stub):
 
 
 @pytest.mark.asyncio
-async def test_update_page_with_jira_links(confluence_service_with_stub):
-    """Verify update_page_with_jira_links calls the api."""
+async def test_add_jira_links_to_page(confluence_service_with_stub):
+    """Verify add_jira_links_to_page calls the api."""
     service, mock_api = confluence_service_with_stub
     page_id = "12345"
     mappings = [{"confluence_task_id": "t1", "jira_key": "PROJ-1"}]
-    await service.update_page_with_jira_links(page_id, mappings)
-    mock_api.update_page_with_jira_links.assert_called_once_with(page_id, mappings)
+    await service.add_jira_links_to_page(page_id, mappings)
+    mock_api.add_jira_links_to_page.assert_called_once_with(page_id, mappings)
 
 
 @pytest.mark.asyncio
