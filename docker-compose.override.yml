@@ -18,3 +18,13 @@ services:
       # Also mounts a local log directory
       - ./src:/app/src
       - ./logs:/app/logs
+    depends_on:
+      - redis
+
+  redis:
+    image: "redis:alpine"
+    container_name: jta-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data

@@ -12,6 +12,7 @@ from src.exceptions import InvalidInputError
 from src.interfaces.confluence_interface import IConfluenceService
 from src.interfaces.issue_finder_interface import IFindIssue
 from src.interfaces.jira_interface import IJiraService
+from src.interfaces.history_service_interface import IHistoryService
 from src.models.api_models import SyncTaskContext
 from src.models.data_models import ConfluenceTask, JiraIssueStatus
 from src.services.orchestration.sync_task import SyncTaskService
@@ -149,6 +150,18 @@ class IssueFinderServiceStub(IFindIssue):
     async def find_issues_and_macros_on_page(self, page_html: str) -> Dict[str, Any]:
         return {"jira_macros": [], "fetched_issues_map": {}}
 
+class HistoryServiceStub(IHistoryService):
+    def __init__(self):
+        self.mock = AsyncMock()
+
+    async def save_run_results(self, request_id: str, results: List[Any]) -> None:
+        await self.mock.save_run_results(request_id, results)
+
+    async def get_run_results(self, request_id: str) -> List[Any]:
+        return await self.mock.get_run_results(request_id)
+
+    async def delete_run_results(self, request_id: str) -> None:
+        await self.mock.delete_run_results(request_id)
 
 # --- Pytest Fixtures ---
 @pytest.fixture
@@ -178,24 +191,31 @@ async def issue_finder_stub() -> IssueFinderServiceStub:
 
 @pytest_asyncio.fixture
 async def sync_task(
-    confluence_stub: ConfluenceServiceStub, jira_stub: JiraServiceStub, issue_finder_stub: IssueFinderServiceStub
+    confluence_stub: ConfluenceServiceStub,
+    jira_stub: JiraServiceStub,
+    issue_finder_stub: IssueFinderServiceStub,
+    history_service_stub: HistoryServiceStub
 ) -> SyncTaskService:
     """Provides a SyncTaskService instance with stubbed services."""
     return SyncTaskService(
         confluence_service=confluence_stub,
         jira_service=jira_stub,
         issue_finder=issue_finder_stub,
+        history_service=history_service_stub
     )
 
-
+@pytest_asyncio.fixture
+async def history_service_stub() -> HistoryServiceStub:
+    return HistoryServiceStub()
 # --- Pytest Test Functions ---
 
 
 @pytest.mark.asyncio
-async def test_run_success(
+async def test_run_success_and_saves_to_history(
     sync_task: SyncTaskService,
     confluence_stub: ConfluenceServiceStub,
     jira_stub: JiraServiceStub,
+    history_service_stub: HistoryServiceStub,
     sync_context: SyncTaskContext,
 ) -> None:
     """Test the main success path where a task is found and synced."""
@@ -220,12 +240,19 @@ async def test_run_success(
     assert results.overall_confluence_page_update_status == "Success"
     assert confluence_stub.updated_with_links is True
 
+    history_service_stub.mock.save_run_results.assert_awaited_once()
+    call_args, _ = history_service_stub.mock.save_run_results.call_args
+    assert call_args[0] == "test-1" # Check the request_id
+    assert len(call_args[1]) == 1 # Check that one result was saved
+    assert call_args[1][0]["new_jira_task_key"] == "JIRA-100" # Check the content
+
 
 @pytest.mark.asyncio
 async def test_run_confluence_page_update_failure(
     confluence_stub_failing_update: ConfluenceServiceStub,
     jira_stub: JiraServiceStub,
     issue_finder_stub: IssueFinderServiceStub,
+    history_service_stub: HistoryServiceStub,
     sync_context: SyncTaskContext,
 ) -> None:
     """Test the path where Jira tasks are created but page update fails."""
@@ -233,6 +260,7 @@ async def test_run_confluence_page_update_failure(
         confluence_service=confluence_stub_failing_update,
         jira_service=jira_stub,
         issue_finder=issue_finder_stub,
+        history_service=history_service_stub
     )
     jira_stub.created_issue_key = "JIRA-101"
     input_data = {"confluence_page_urls": ["http://example.com/page1"]}

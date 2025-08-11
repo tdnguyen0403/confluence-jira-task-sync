@@ -19,6 +19,7 @@ dependencies = [
     "beautifulsoup4 >= 4.13.0",
     "starlette>=0.47.2",
     "urllib3>=2.5.0",
+    "redis>=6.4.0",
 ]
 
 [dependency-groups]

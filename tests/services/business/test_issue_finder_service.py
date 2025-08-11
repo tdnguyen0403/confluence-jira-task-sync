@@ -9,7 +9,7 @@ from src.interfaces.confluence_interface import IConfluenceService
 from src.interfaces.jira_interface import IJiraService
 from src.models.data_models import ConfluenceTask, JiraIssue, JiraIssueStatus
 from src.models.api_models import SyncTaskContext
-from src.services.business.issue_finder import IssueFinderService
+from src.services.business.issue_finder import IssueFinder
 
 
 # --- Stubs for Dependencies ---
@@ -128,9 +128,9 @@ async def mock_jira_api() -> JiraApiStub:
 async def issue_finder(
     mock_jira_api: JiraApiStub,
     mock_confluence_api: ConfluenceApiStub,
-) -> IssueFinderService:
-    """Provides an IssueFinderService instance with the correct mock dependency."""
-    return IssueFinderService(jira_api=mock_jira_api, confluence_api=mock_confluence_api)
+) -> IssueFinder:
+    """Provides an IssueFinder instance with the correct mock dependency."""
+    return IssueFinder(jira_api=mock_jira_api, confluence_api=mock_confluence_api)
 
 
 # --- Test Helper ---

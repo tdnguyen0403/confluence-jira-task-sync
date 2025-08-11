@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: jta-deployment
 spec:
-  replicas: 2 # Number of identical pods you want to run
+  replicas: 1 # Number of identical pods you want to run
   selector:
     matchLabels:
       app: jta

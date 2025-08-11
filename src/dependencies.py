@@ -13,6 +13,7 @@ import logging
 import secrets
 from functools import lru_cache
 
+import redis.asyncio as redis
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 
@@ -21,11 +22,13 @@ from src.api.safe_confluence_api import SafeConfluenceAPI
 from src.api.safe_jira_api import SafeJiraAPI
 from src.config import config
 from src.interfaces.confluence_interface import IConfluenceService
+from src.interfaces.history_service_interface import IHistoryService
 from src.interfaces.issue_finder_interface import IFindIssue
 from src.interfaces.jira_interface import IJiraService
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
-from src.services.business.issue_finder import IssueFinderService
+from src.services.business.issue_finder import IssueFinder
+from src.services.business.redis_service import RedisService
 from src.services.orchestration.sync_project import (
     SyncProjectService,
 )
@@ -132,8 +135,8 @@ def get_issue_finder_service(
     jira_service: IJiraService = Depends(get_jira_service),
     confluence_service: IConfluenceService = Depends(get_confluence_service),
 ) -> IFindIssue:
-    """Provides a singleton instance of the IssueFinderService."""
-    return IssueFinderService(jira_service, confluence_service)
+    """Provides a singleton instance of the IssueFinder."""
+    return IssueFinder(jira_service, confluence_service)
 
 
 @lru_cache(maxsize=None)
@@ -147,16 +150,31 @@ def get_sync_project(
 
 
 @lru_cache(maxsize=None)
+def get_redis_client() -> redis.Redis:
+    return redis.Redis(
+        host=config.REDIS_HOST, port=config.REDIS_PORT, decode_responses=True
+    )
+
+
+@lru_cache(maxsize=None)
+def get_history_service(
+    redis_client: redis.Redis = Depends(get_redis_client),
+) -> IHistoryService:
+    return RedisService(redis_client)
+
+
+@lru_cache(maxsize=None)
 def get_sync_task(
     confluence_service: IConfluenceService = Depends(get_confluence_service),
     jira_service: IJiraService = Depends(get_jira_service),
-    issue_finder: IFindIssue = Depends(get_issue_finder_service),
+    issuer_finder: IFindIssue = Depends(get_issue_finder_service),
+    history_service: IHistoryService = Depends(get_history_service),
 ) -> SyncTaskService:
-    """Provides a singleton instance of the SyncTaskService."""
     return SyncTaskService(
         confluence_service,
         jira_service,
-        issue_finder,
+        issuer_finder,
+        history_service,
     )
 
 
