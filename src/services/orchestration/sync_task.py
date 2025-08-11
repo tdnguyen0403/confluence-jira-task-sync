@@ -6,9 +6,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 from src.config import config
 from src.exceptions import ConfluenceApiError, InvalidInputError, JiraApiError
-from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
-from src.interfaces.issue_finder_service_interface import IssueFinderServiceInterface
-from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.interfaces.confluence_interface import IConfluenceService
+from src.interfaces.issue_finder_interface import IFindIssue
+from src.interfaces.jira_interface import IJiraService
 from src.models.api_models import (
     ConfluencePageUpdateResult,
     JiraTaskCreationResult,
@@ -28,13 +28,13 @@ class SyncTaskService:
 
     def __init__(
         self,
-        confluence_service: ConfluenceApiServiceInterface,
-        jira_service: JiraApiServiceInterface,
-        issue_finder_service: IssueFinderServiceInterface,
+        confluence_service: IConfluenceService,
+        jira_service: IJiraService,
+        issue_finder: IFindIssue,
     ):
         self.confluence_service = confluence_service
         self.jira_service = jira_service
-        self.issue_finder_service = issue_finder_service
+        self.issue_finder = issue_finder
         self.request_user: Optional[str] = None
 
     async def run(
@@ -244,7 +244,7 @@ class SyncTaskService:
                 request_user=context.request_user,
             )
 
-        parent_wp = await self.issue_finder_service.find_issue_on_page(
+        parent_wp = await self.issue_finder.find_issue_on_page(
             task.confluence_page_id,
             config.PARENT_ISSUES_TYPE_ID,
         )

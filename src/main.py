@@ -22,8 +22,8 @@ from src.dependencies import (
     get_undo_sync_task,
 )
 from src.error_handler_app import register_exception_handlers
-from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
-from src.interfaces.jira_service_interface import JiraApiServiceInterface
+from src.interfaces.confluence_interface import IConfluenceService
+from src.interfaces.jira_interface import IJiraService
 from src.models.api_models import (
     SyncProjectRequest,
     SyncProjectResponse,
@@ -208,8 +208,8 @@ async def health_check() -> Dict[str, str]:
 
 @app.get("/ready", status_code=status.HTTP_200_OK)
 async def readiness_check(
-    jira_service: JiraApiServiceInterface = Depends(get_jira_service),
-    confluence_service: ConfluenceApiServiceInterface = Depends(get_confluence_service),
+    jira_service: IJiraService = Depends(get_jira_service),
+    confluence_service: IConfluenceService = Depends(get_confluence_service),
 ) -> Dict[str, str]:
     """Provides a readiness probe endpoint."""
     logger.info("Performing readiness check...")

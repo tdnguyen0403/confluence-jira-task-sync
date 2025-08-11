@@ -24,7 +24,7 @@ from src.dependencies import (
 )
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
-from src.services.business.issue_finder_service import IssueFinderService
+from src.services.business.issue_finder import IssueFinderService
 from src.services.orchestration.sync_project import (
     SyncProjectService,
 )
@@ -178,12 +178,12 @@ async def test_get_sync_project(mock_https_helper):
     service = get_sync_project(
         confluence_service=confluence_service,
         jira_service=jira_service,
-        issue_finder_service=issue_finder,
+        issue_finder=issue_finder,
     )
     assert isinstance(service, SyncProjectService)
     assert service.confluence_api is confluence_service
     assert service.jira_api is jira_service
-    assert service.issue_finder_service is issue_finder
+    assert service.issue_finder is issue_finder
 
 
 @pytest.mark.asyncio
@@ -197,26 +197,26 @@ async def test_get_sync_task(mock_https_helper):
     jira_service = get_jira_service(
         safe_jira_api=get_safe_jira_api(https_helper=get_https_helper())
     )
-    issue_finder_service = get_issue_finder_service(jira_service=jira_service)
+    issue_finder = get_issue_finder_service(jira_service=jira_service)
 
     # Act: Call the dependency provider with the correct arguments
     orchestrator = get_sync_task(
         confluence_service=confluence_service,
         jira_service=jira_service,
-        issue_finder_service=issue_finder_service,
+        issue_finder=issue_finder,
     )
 
     # Assert: Check the instance type and that dependencies were injected correctly
     assert isinstance(orchestrator, SyncTaskService)
     assert orchestrator.confluence_service is confluence_service
     assert orchestrator.jira_service is jira_service
-    assert orchestrator.issue_finder_service is issue_finder_service
+    assert orchestrator.issue_finder is issue_finder
 
     # Assert: Check that the lru_cache is working
     orchestrator2 = get_sync_task(
         confluence_service=confluence_service,
         jira_service=jira_service,
-        issue_finder_service=issue_finder_service,
+        issue_finder=issue_finder,
     )
     assert orchestrator is orchestrator2
 
@@ -232,25 +232,25 @@ async def test_get_undo_sync_task(mock_https_helper):
     jira_service = get_jira_service(
         safe_jira_api=get_safe_jira_api(https_helper=get_https_helper())
     )
-    issue_finder_service = get_issue_finder_service(jira_service=jira_service)
+    issue_finder = get_issue_finder_service(jira_service=jira_service)
 
     # Act: Call the dependency provider with the correct arguments
     orchestrator = get_undo_sync_task(
         confluence_service=confluence_service,
         jira_service=jira_service,
-        issue_finder_service=issue_finder_service,
+        issue_finder=issue_finder,
     )
 
     # Assert: Check the instance type and that dependencies were injected correctly
     assert isinstance(orchestrator, UndoSyncService)
     assert orchestrator.confluence_service is confluence_service
     assert orchestrator.jira_service is jira_service
-    assert orchestrator.issue_finder_service is issue_finder_service
+    assert orchestrator.issue_finder is issue_finder
 
     # Assert: Check that the lru_cache is working
     orchestrator2 = get_undo_sync_task(
         confluence_service=confluence_service,
         jira_service=jira_service,
-        issue_finder_service=issue_finder_service,
+        issue_finder=issue_finder,
     )
     assert orchestrator is orchestrator2

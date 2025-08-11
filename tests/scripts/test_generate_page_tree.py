@@ -8,7 +8,7 @@ import pytest_asyncio
 from src.scripts.generate_page_tree import ConfluenceTreeGenerator, main_async
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
-from src.services.business.issue_finder_service import IssueFinderService
+from src.services.business.issue_finder import IssueFinderService
 
 
 @pytest_asyncio.fixture
@@ -43,7 +43,7 @@ async def generator(
     return ConfluenceTreeGenerator(
         confluence_service=mock_confluence_service,
         jira_service=mock_jira_service,
-        issue_finder_service=mock_issue_finder_service,
+        issue_finder=mock_issue_finder_service,
         base_parent_page_id="test_base_parent_id",
         confluence_space_key="TESTSPACE",
         assignee_username="testuser",

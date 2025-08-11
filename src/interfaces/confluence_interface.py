@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from src.models.data_models import ConfluenceTask
 
 
-class ConfluenceApiServiceInterface(ABC):
+class IConfluenceService(ABC):
     """
     An abstract base class for a service that provides an interface to the
     Confluence API. This defines the contract for Confluence-related operations

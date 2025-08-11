@@ -1,7 +1,7 @@
 """
 Defines the abstract interface for Jira API services.
 
-This module provides the `JiraApiServiceInterface`, an abstract base class
+This module provides the `IJiraService`, an abstract base class
 that establishes a contract for all Jira-related operations. Any class that
 interacts with the Jira API for business logic purposes should implement this
 interface. This ensures consistency and allows for dependency injection, making
@@ -19,7 +19,7 @@ from src.models.data_models import (
 )
 
 
-class JiraApiServiceInterface(ABC):
+class IJiraService(ABC):
     """
     An abstract base class for a Jira-specific API service.
 

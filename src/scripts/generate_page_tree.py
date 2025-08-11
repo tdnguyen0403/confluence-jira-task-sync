@@ -17,7 +17,7 @@ from src.api.safe_jira_api import SafeJiraAPI
 from src.config import config
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
-from src.services.business.issue_finder_service import IssueFinderService
+from src.services.business.issue_finder import IssueFinderService
 from src.utils.logging_config import endpoint_var, request_id_var, setup_logging
 
 # Suppress insecure request warnings for local/dev environments
@@ -55,7 +55,7 @@ class ConfluenceTreeGenerator:
         self,
         confluence_service: ConfluenceService,
         jira_service: JiraService,
-        issue_finder_service: IssueFinderService,
+        issue_finder: IssueFinderService,
         base_parent_page_id: str,
         confluence_space_key: str,
         assignee_username: str,
@@ -65,7 +65,7 @@ class ConfluenceTreeGenerator:
     ):
         self.confluence = confluence_service
         self.jira = jira_service
-        self.issue_finder = issue_finder_service
+        self.issue_finder = issue_finder
         self.base_parent_page_id = base_parent_page_id
         self.confluence_space_key = confluence_space_key
         self.assignee_username = assignee_username
@@ -219,7 +219,7 @@ async def main_async() -> None:
             safe_confluence_api = SafeConfluenceAPI(config.CONFLUENCE_URL, https_helper)
             jira_service = JiraService(safe_jira_api)
             confluence_service = ConfluenceService(safe_confluence_api)
-            issue_finder_service = IssueFinderService(
+            issue_finder = IssueFinderService(
                 jira_api=jira_service, confluence_api=confluence_service
             )
 
@@ -227,7 +227,7 @@ async def main_async() -> None:
             generator = ConfluenceTreeGenerator(
                 confluence_service=confluence_service,
                 jira_service=jira_service,
-                issue_finder_service=issue_finder_service,
+                issue_finder=issue_finder,
                 base_parent_page_id=args.base_parent_page_id,
                 confluence_space_key=args.confluence_space_key,
                 assignee_username=args.assignee_username,

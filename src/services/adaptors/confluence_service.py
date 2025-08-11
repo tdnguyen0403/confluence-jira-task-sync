@@ -3,7 +3,7 @@ Provides a high-level service for interacting with Confluence.
 
 This module contains the `ConfluenceService`, which acts as a business logic
 layer abstracting the low-level API calls. It implements the unified
-`ConfluenceApiServiceInterface` to ensure a consistent contract across different
+`IConfluenceService` to ensure a consistent contract across different
 services.
 
 The primary role of this class is to delegate Confluence-specific operations
@@ -15,13 +15,13 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from src.api.safe_confluence_api import SafeConfluenceAPI
-from src.interfaces.confluence_service_interface import ConfluenceApiServiceInterface
+from src.interfaces.confluence_interface import IConfluenceService
 from src.models.data_models import ConfluenceTask
 
 logger = logging.getLogger(__name__)
 
 
-class ConfluenceService(ConfluenceApiServiceInterface):
+class ConfluenceService(IConfluenceService):
     """
     A concrete implementation of the Confluence service interface.
 

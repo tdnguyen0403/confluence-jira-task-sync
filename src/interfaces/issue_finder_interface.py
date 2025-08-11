@@ -1,7 +1,7 @@
 """
 Defines the abstract interface for the Issue Finder service.
 
-This module provides the `IssueFinderServiceInterface`, an abstract base class
+This module provides the `IFindIssue`, an abstract base class
 that outlines the contract for any service responsible for finding and
 validating Jira issues embedded within Confluence pages. Adhering to this
 interface ensures that different implementations can be used interchangeably,
@@ -16,7 +16,7 @@ from typing import (
 )
 
 
-class IssueFinderServiceInterface(ABC):
+class IFindIssue(ABC):
     """
     An abstract base class for a service that finds specific Jira issues
     embedded in Confluence pages. This service acts as a bridge between
