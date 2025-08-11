@@ -1,7 +1,7 @@
 """
 Provides a service for finding and validating Jira issues within Confluence pages.
 
-This module contains the `IssueFinderService`, which is specialized in parsing
+This module contains the `IssueFinder`, which is specialized in parsing
 Confluence page content to locate Jira issue macros. It then interacts with the
 Jira API to fetch details about these issues in a bulk, efficient manner,
 and validates them against specified criteria, such as issue type.
@@ -28,7 +28,7 @@ from src.models.data_models import (
 logger = logging.getLogger(__name__)
 
 
-class IssueFinderService(IFindIssue):
+class IssueFinder(IFindIssue):
     """
     A dedicated service for finding specific Jira issues on Confluence pages.
 
@@ -43,7 +43,7 @@ class IssueFinderService(IFindIssue):
         confluence_api: IConfluenceService,
     ):
         """
-        Initializes the IssueFinderService.
+        Initializes the IssueFinder.
 
         Args:
             jira_api (IJiraService): An instance of the Jira API

@@ -8,7 +8,7 @@ import pytest_asyncio
 from src.scripts.generate_page_tree import ConfluenceTreeGenerator, main_async
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
-from src.services.business.issue_finder import IssueFinderService
+from src.services.business.issue_finder import IssueFinder
 
 
 @pytest_asyncio.fixture
@@ -31,8 +31,8 @@ async def mock_jira_service():
 
 @pytest_asyncio.fixture
 async def mock_issue_finder_service():
-    """Provides an AsyncMock for IssueFinderService."""
-    return AsyncMock(spec=IssueFinderService)
+    """Provides an AsyncMock for IssueFinder."""
+    return AsyncMock(spec=IssueFinder)
 
 
 @pytest_asyncio.fixture

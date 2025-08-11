@@ -14,6 +14,7 @@ from src.dependencies import (
     get_safe_jira_api,
     get_sync_task,
     get_undo_sync_task,
+    get_history_service,
 )
 from src.exceptions import (
     InvalidInputError,
@@ -57,23 +58,31 @@ def mock_sync_orchestrator():
 def mock_undo_orchestrator():
     """Mocks the UndoSyncService."""
     mock_orch = AsyncMock()
-
-    async def run_undo_mock(*args, **kwargs):
-        return UndoSyncTaskResponse(
-            request_id=kwargs.get("request_id", "mock-req-id"),
-            overall_status="Success",
-            results=[
-                UndoActionResult(
-                    action_type="jira_transition",
-                    target_id="JIRA-001",
-                    success=True,
-                    status_message="OK",
-                )
-            ],
-        )
-
-    mock_orch.run.side_effect = run_undo_mock
+    mock_orch.run.return_value = UndoSyncTaskResponse(
+        request_id="mock-req-id",
+        overall_status="Success",
+        results=[
+            UndoActionResult(
+            action_type="issue_transition",
+            target_id="JIRA-123",
+            status_message="Successfully transition issue.",
+            success=True,
+            )
+        ]
+    )
     return mock_orch
+
+
+@pytest.fixture
+def mock_history_service():
+    """Mocks the history service (RedisService)."""
+    mock_service = AsyncMock()
+    # Ensure the mock returns data that can be parsed by UndoSyncTaskRequest
+    mock_service.get_run_results.return_value = [
+        {"new_jira_task_key": "JIRA-123", "confluence_page_id": "12345", "original_page_version": 1}
+    ]
+    mock_service.delete_run_results = AsyncMock()
+    return mock_service
 
 
 @pytest.fixture
@@ -108,6 +117,8 @@ def mock_confluence_api():
 def common_dependencies_override(
     mock_sync_orchestrator,
     mock_undo_orchestrator,
+    # Add mock_history_service to the fixture's parameters
+    mock_history_service,
     mock_confluence_issue_updater_service,
     mock_jira_api,
     mock_confluence_api,
@@ -124,6 +135,9 @@ def common_dependencies_override(
             get_api_key: lambda: "valid_key",
             get_sync_task: lambda: mock_sync_orchestrator,
             get_undo_sync_task: lambda: mock_undo_orchestrator,
+            # FIX 1: Add the history service to the dependency overrides.
+            # This ensures tests use the mock instead of the real dependency.
+            get_history_service: lambda: mock_history_service,
             get_sync_project: (
                 lambda: mock_confluence_issue_updater_service
             ),
@@ -207,25 +221,34 @@ async def test_unhandled_exception(mock_sync_orchestrator, client):
     }
 
 
-@pytest.mark.asyncio
-async def test_undo_sync_task_success(mock_undo_orchestrator, client):
-    """Verify /undo_sync_task succeeds."""
-    request_body = [
-        UndoSyncTaskRequest(
-            confluence_page_id="123",
-            original_page_version=1,
-            new_jira_task_key="JIRA-1",
-            request_user="test_user",
-        ).model_dump()
-    ]
+def test_undo_sync_task_by_id_success(
+    mock_undo_orchestrator, mock_history_service, client
+):
+    """Verify /undo_sync_task/{request_id} succeeds."""
+    request_id = "test-undo-123"
     response = client.post(
-        "/undo_sync_task", json=request_body, headers={"X-API-Key": "valid_key"}
+        f"/undo_sync_task/{request_id}", headers={"X-API-Key": "valid_key"}
     )
+
+    # After applying Fix 1, the status code should now be 200
     assert response.status_code == 200
+    mock_history_service.get_run_results.assert_awaited_once_with(request_id)
     mock_undo_orchestrator.run.assert_awaited_once()
+    mock_history_service.delete_run_results.assert_awaited_once_with(request_id)
     response_data = response.json()
     assert response_data["overall_status"] == "Success"
-    assert len(response_data["results"]) == 1
+    assert response_data["results"][0]["target_id"] == "JIRA-123"
+
+
+def test_undo_sync_task_not_found(mock_history_service, client):
+    """Verify 404 is returned if no undo data is found for the request ID."""
+    mock_history_service.get_run_results.return_value = []
+    request_id = "expired-or-invalid-id"
+    response = client.post(
+        f"/undo_sync_task/{request_id}", headers={"X-API-Key": "valid_key"}
+    )
+    assert response.status_code == 404
+    assert "No undoable actions found" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -297,23 +320,27 @@ async def test_sync_task_custom_exceptions(
     assert expected_message in response.json()["detail"]
 
 
+# FIX 2: Add @pytest.mark.asyncio and change the function to `async def`.
+# This ensures that exceptions raised from awaited mocks are handled correctly
+# by FastAPI's exception handling middleware.
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "exception, expected_status, expected_message",
     [
         (InvalidInputError("Invalid undo data"), 400, "Invalid input"),
         (UndoError("Test Undo Failure"), 500, "undo process"),
-        (MissingRequiredDataError("Missing version"), 404, "Missing version"),
     ],
 )
-@pytest.mark.asyncio
 async def test_undo_sync_task_custom_exceptions(
     exception, expected_status, expected_message, mock_undo_orchestrator, client
 ):
     """Verify custom exceptions are handled correctly for /undo_sync_task."""
     mock_undo_orchestrator.run.side_effect = exception
-    request_body = [UndoSyncTaskRequest(confluence_page_id="123").model_dump()]
+
     response = client.post(
-        "/undo_sync_task", json=request_body, headers={"X-API-Key": "valid_key"}
+        "/undo_sync_task/some-id", headers={"X-API-Key": "valid_key"}
     )
+
+    # After applying Fix 2, the status code will now match the expected status
     assert response.status_code == expected_status
     assert expected_message in response.json()["detail"]

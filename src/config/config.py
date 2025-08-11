@@ -116,3 +116,8 @@ DEFAULT_MAX_DEPTH: int = 10
 DEFAULT_TASKS_PER_PAGE: int = 10
 DEFAULT_NUM_WORK_PACKAGES: int = 1
 DEFAULT_DUE_DATE_FOR_TREE_GENERATION: date = date.today() + timedelta(days=14)
+
+# --- Cache Configuration ---
+REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT: int = int(os.getenv("REDIS_PORT", 6379))
+UNDO_EXPIRATION_SECONDS: int = int(os.getenv("UNDO_EXPIRATION_SECONDS", 86400))

@@ -193,20 +193,81 @@ async def run_end_to_end_test() -> None:
             )
             return
 
-        # 4. Undo Sync Task
-        logger.info("\n--- Testing /undo_sync_task endpoint ---")
-        if not jira_creation_results_for_undo:
+        # 4. Sync Task
+        logger.info("\n--- Testing /sync_task endpoint ---")
+        sync_task_payload = {
+            "confluence_page_urls": [
+                "https://pfteamspace.pepperl-fuchs.com/x/W-T3GQ", #normal test page
+                "https://pfteamspace.pepperl-fuchs.com/x/cDDsGg"  #locked test page
+            ],
+            "context": {"request_user": TEST_USER, "days_to_due_date": 7},
+        }
+        try:
+            response = await client.post(
+                "/sync_task", headers=headers, json=sync_task_payload
+            )
+            response.raise_for_status()
+            # This is now the comprehensive SyncTaskResponse dictionary
+            sync_task_full_response = response.json()
+
             logger.info(
-                "Skipping /undo_sync_task as no tasks were synced successfully."
+                f"Sync Task Response: {json.dumps(sync_task_full_response, indent=2)}"
+            )
+
+            # Assertions for the comprehensive SyncTaskResponse structure
+            assert "request_id" in sync_task_full_response
+            assert "overall_status" in sync_task_full_response
+
+            request_id_for_undo = ""
+
+            if sync_task_full_response["overall_status"] in ["Success", "Partial Success"]:
+                request_id_for_undo = sync_task_full_response["request_id"]
+                logger.info(f"Captured request_id for undo: {request_id_for_undo}")
+            else:
+                logger.warning("Sync task did not succeed, skipping undo test.")
+
+            logger.info("Sync Task call successful.")
+
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"Request failed with HTTP error: "
+                f"{e.response.status_code} - {e.response.text}"
+            )
+            logger.error(f"Request URL: {e.request.url}")
+            logger.error(f"Request Headers: {e.request.headers}")
+            logger.error(
+                f"Request Content (truncated if large): "
+                f"{(e.request.content[:500].decode()) if e.request.content else 'N/A'}"
+            )
+            logger.error(f"Response Headers: {e.response.headers}")
+            logger.error(
+                f"Response Content (truncated if large): "
+                f"{e.response.text[:500] if e.response.text else 'N/A'}"
+            )
+            return
+        except httpx.RequestError as e:
+            logger.error(f"Request failed with network/request error: {e}")
+            logger.error(f"Request URL: {e.request.url if e.request else 'N/A'}")
+            logger.error(
+                f"Request Headers: {e.request.headers if e.request else 'N/A'}"
+            )
+            logger.error(
+                f"Request Content (truncated if large): "
+                f"{(e.request.content[:500].decode()) if e.request and e.request.content else 'N/A'}"
             )
             return
 
-        undo_payload = jira_creation_results_for_undo
+        # 5. Undo Sync Task
+        logger.info("\n--- Testing /undo_sync_task endpoint ---")
+        if not request_id_for_undo:
+            logger.info(
+                "Skipping undo test as no request_id was captured from a successful sync."
+            )
+            return
 
         try:
-            response = await client.post(
-                "/undo_sync_task", headers=headers, json=undo_payload
-            )
+            undo_url = f"/undo_sync_task/{request_id_for_undo}"
+            response = await client.post(undo_url, headers=headers)
             response.raise_for_status()
             # The response is now UndoSyncTaskResponse with results and overall status
             undo_sync_response = response.json()
@@ -218,12 +279,7 @@ async def run_end_to_end_test() -> None:
             assert "results" in undo_sync_response
             assert isinstance(undo_sync_response["results"], list)
             assert "overall_status" in undo_sync_response
-            assert undo_sync_response["overall_status"] in [
-                "Success",
-                "Partial Success",
-                "Failed",
-                "Skipped - No actions processed",
-            ]
+            assert undo_sync_response["overall_status"] in ["Success", "Partial Success", "Failed", "Skipped - No actions processed"]
 
             if undo_sync_response["results"]:
                 assert "action_type" in undo_sync_response["results"][0]

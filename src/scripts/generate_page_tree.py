@@ -17,7 +17,7 @@ from src.api.safe_jira_api import SafeJiraAPI
 from src.config import config
 from src.services.adaptors.confluence_service import ConfluenceService
 from src.services.adaptors.jira_service import JiraService
-from src.services.business.issue_finder import IssueFinderService
+from src.services.business.issue_finder import IssueFinder
 from src.utils.logging_config import endpoint_var, request_id_var, setup_logging
 
 # Suppress insecure request warnings for local/dev environments
@@ -55,7 +55,7 @@ class ConfluenceTreeGenerator:
         self,
         confluence_service: ConfluenceService,
         jira_service: JiraService,
-        issue_finder: IssueFinderService,
+        issue_finder: IssueFinder,
         base_parent_page_id: str,
         confluence_space_key: str,
         assignee_username: str,
@@ -219,7 +219,7 @@ async def main_async() -> None:
             safe_confluence_api = SafeConfluenceAPI(config.CONFLUENCE_URL, https_helper)
             jira_service = JiraService(safe_jira_api)
             confluence_service = ConfluenceService(safe_confluence_api)
-            issue_finder = IssueFinderService(
+            issue_finder = IssueFinder(
                 jira_api=jira_service, confluence_api=confluence_service
             )
 

@@ -16,6 +16,17 @@ services:
     volumes:
       # Persists logs in a named volume for production
       - jta-logs:/app/logs
+    depends_on:
+      - redis
+  redis:
+    image: "redis:alpine"
+    container_name: jta-redis-prod
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
 
 volumes:
   jta-logs:
+  redis-data:

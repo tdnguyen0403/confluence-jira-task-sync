@@ -5,16 +5,17 @@ Main entry point for the Jira-Confluence Automation FastAPI application.
 import logging
 import uuid
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Callable, Dict, List
+from typing import AsyncIterator, Callable, Dict
 
 import httpx
-from fastapi import Depends, FastAPI, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.dependencies import (
     get_api_key,
     get_confluence_service,
+    get_history_service,
     get_https_helper,
     get_jira_service,
     get_sync_project,
@@ -23,6 +24,7 @@ from src.dependencies import (
 )
 from src.error_handler_app import register_exception_handlers
 from src.interfaces.confluence_interface import IConfluenceService
+from src.interfaces.history_service_interface import IHistoryService
 from src.interfaces.jira_interface import IJiraService
 from src.models.api_models import (
     SyncProjectRequest,
@@ -135,26 +137,41 @@ async def sync_task(
 
 
 @app.post(
-    "/undo_sync_task",
-    summary="Undo a previous synchronization run",
+    "/undo_sync_task/{request_id}",
+    summary="Undo a specific synchronization run by its ID",
     response_model=UndoSyncTaskResponse,
     dependencies=[Depends(get_api_key)],
 )
-async def undo_sync_task(
-    undo_data: List[UndoSyncTaskRequest],
+async def undo_sync_task_by_id(
+    request_id: str,
     undo_orchestrator: UndoSyncService = Depends(get_undo_sync_task),
+    history_service: IHistoryService = Depends(get_history_service),
 ) -> UndoSyncTaskResponse:
-    """Reverts the actions from a previous synchronization run."""
-    user = undo_data[0].request_user if undo_data else "unknown"
-    logger.info(
-        f"Received /undo_sync_task request for user {user} with {len(undo_data)} items."
-    )
+    """
+    Reverts the actions from a previous synchronization run using its unique request ID.
+    The undo data is automatically retrieved from the cache.
+    """
+    logger.info(f"Received undo request for run ID: {request_id}")
 
-    request_id = request_id_var.get()
-    assert request_id is not None
-    response = await undo_orchestrator.run(undo_data, request_id=request_id)
+    # Fetch the results from persistent storage
+    results_to_undo = await history_service.get_run_results(request_id)
+    if not results_to_undo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No undoable actions found for request ID: {request_id}. "
+            f"It may have expired or never existed.",
+        )
 
-    logger.info(f"Undo run completed with overall status: {response.overall_status}.")
+    # Convert stored data into the required request model
+    undo_requests = [UndoSyncTaskRequest(**item) for item in results_to_undo]
+
+    # Call the existing undo orchestrator with the retrieved data
+    response = await undo_orchestrator.run(undo_requests, request_id=request_id)
+
+    # Delete the results after a successful undo to prevent re-running it
+    if "Success" in response.overall_status:
+        await history_service.delete_run_results(request_id)
+
     return response
 
 

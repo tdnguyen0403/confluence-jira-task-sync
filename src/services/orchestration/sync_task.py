@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 from src.config import config
 from src.exceptions import ConfluenceApiError, InvalidInputError, JiraApiError
 from src.interfaces.confluence_interface import IConfluenceService
+from src.interfaces.history_service_interface import IHistoryService
 from src.interfaces.issue_finder_interface import IFindIssue
 from src.interfaces.jira_interface import IJiraService
 from src.models.api_models import (
@@ -31,10 +32,12 @@ class SyncTaskService:
         confluence_service: IConfluenceService,
         jira_service: IJiraService,
         issue_finder: IFindIssue,
+        history_service: IHistoryService,
     ):
         self.confluence_service = confluence_service
         self.jira_service = jira_service
         self.issue_finder = issue_finder
+        self.history_service = history_service
         self.request_user: Optional[str] = None
 
     async def run(
@@ -76,6 +79,13 @@ class SyncTaskService:
             )
             all_jira_results.extend(typed_res[0])
             all_confluence_results.extend(typed_res[1])
+
+        # Save succesful data to history service
+        successful_results_for_undo = [res for res in all_jira_results if res.success]
+        if successful_results_for_undo:
+            await self.history_service.save_run_results(
+                request_id, [res.model_dump() for res in successful_results_for_undo]
+            )
 
         jira_status = self._determine_overall_status(
             all_jira_results, lambda r: r.success
