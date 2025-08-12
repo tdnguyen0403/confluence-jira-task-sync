@@ -19,6 +19,7 @@ Before you begin, ensure you have the following installed:
 
 - [Docker](https://www.docker.com/get-started)
 - [Docker Compose](https://docs.docker.com/compose/install/)
+- [Kubernette]
 
 ---
 
@@ -77,7 +78,7 @@ The `docker-compose.yml` file is configured for a production deployment. It buil
 2. Build and run the container using the production compose file:
 
     ```bash
-    docker compose build -f docker-compose.yml
+    docker compose -f docker-compose.yml build
     docker compose -f docker-compose.yml up
     ```
 
@@ -85,7 +86,7 @@ The `docker-compose.yml` file is configured for a production deployment. It buil
 4. To stop the production containers, run:
 
     ```bash
-    docker compose down
+    docker compose -f docker-compose.yml down
     ```
 
 ### Steps to Run on Virtual Machine
@@ -93,7 +94,7 @@ The `docker-compose.yml` file is configured for a production deployment. It buil
 1. Save the Image to a .tar File
 
     ```bash
-    docker save -o jta-prod.tar jta-app:prod
+    docker save -o jta-prod.tar jta-prod:1.0.0
     ```
 
 2. Copy environment file `.env.prod` and production docker-compose file `docker-compose.prod.yml`. For deployment, you need a simpler `docker-compose.prod.yml` that only specifies how to run the image, not how to build it.
@@ -109,8 +110,102 @@ The `docker-compose.yml` file is configured for a production deployment. It buil
 5. Run the Application: start your application using the production compose file.
 
     ```bash
-    docker compose -f docker-compose.prod.yml up -d
+    docker-compose -f docker-compose.prod.yml up -d
     ```
 
 6. Your production container is now running on the new virtual machine, accessible at http://<your_vm_ip>:8080
 7. Setup SSL through reverse proxy to hide the IP of VM.
+
+## Production Environment with Kubernetes
+
+This section details how to deploy the application and its Redis dependency to a Kubernetes cluster.
+
+### 1. Create a Kubernetes Secret
+
+First, you must create a Kubernetes secret to securely store your environment variables.
+
+```bash
+kubectl create secret generic jta-secret --from-env-file=./.env.prod
+```
+
+This command reads the variables from your .env.prod file and creates a secret named jta-secret in your cluster.
+
+### 2. Deploy Redis
+
+The application uses Redis for caching and session management. Deploy Redis using the provided redis-k8s.yaml file, which creates both a Deployment and a Service for Redis.
+
+```bash
+kubectl apply -f redis-k8s.yaml
+```
+
+This sets up a Redis instance accessible within the cluster via the service name redis-service on port 6379.
+
+### 3. Build and Push the Docker Image
+
+Before deploying the application, you need to build the production Docker image and push it to a container registry that your Kubernetes cluster can access (e.g., Docker Hub, Google Container Registry, Amazon ECR).
+
+## Build the production image
+
+```bash
+docker compose -f docker-compose.yml build
+```
+
+## Tag the image for your registry
+
+```bash
+docker tag jta-prod:1.0.0 your-registry/jta-prod:1.0.0
+```
+
+## Push the image to the registry
+
+```bash
+docker push your-registry/jta-prod:1.0.0
+```
+
+Note: Remember to update the image field in jta-deployment.yaml to point to your-registry/jta-prod:1.0.0.
+
+### 4. Deploy the Application
+
+Deploy the application using the jta-deployment.yaml and jta-services.yaml files.
+
+- jta-deployment.yaml: This file defines a Deployment that runs your application container. It references the jta-secret for environment variables and includes readiness and liveness probes to ensure the application is healthy.
+- jta-services.yaml: This file defines a NodePort service, which exposes the application on a static port on each node in the cluster.
+
+Apply the deployment and service configurations:
+
+```bash
+kubectl apply -f jta-deployment.yaml
+kubectl apply -f jta-services.yaml
+```
+
+### 5. Accessing the Application
+
+The service is exposed via a NodePort. To find the port and access the application, run:
+
+```bash
+kubectl get svc jta-service
+```
+
+The output will show the port mapping. You can then access the application at http://<your_node_ip>:<node_port>. For this project, the nodePort is set to 32000.
+
+### 6. Scaling and Management
+
+You can manage your deployment using standard kubectl commands:
+
+Scale the application:
+
+```bash
+kubectl scale deployment jta-deployment --replicas=3
+```
+
+View pod logs:
+
+```bash
+kubectl logs -f <pod-name>
+```
+
+Delete the deployment:
+
+```bash
+kubectl delete -f jta-deployment.yaml -f jta-services.yaml -f redis-k8s.yaml
+```
