@@ -1,6 +1,8 @@
 # Jira Confluence Automator
 
-This Python-based tool automates the creation of Jira issues from tasks on a Confluence page and its sub-pages, linking the new Jira issue back to the Confluence page. It includes a function to sync project structure from Jira to Confluence. It also includes an administrative function to generate a tree of Confluence pages from Jira issues, which is useful for creating test data.
+Jira Confluence Automator is a Python-based automation tool for integrating Atlassian Jira and Confluence.
+It scans Confluence pages for tasks, creates linked Jira issues, and keeps the two platforms synchronized.
+The tool also supports project-structure syncing, undo operations, and generating test data for development.
 
 ---
 
@@ -41,11 +43,25 @@ The tool is designed with a clear separation of concerns, making it easy to unde
 
 ### Execution Flow
 
-1. -*Configuration**: The tool reads the configuration from environment variables and, for some operations, from JSON request bodies.
-2. -*Scanning**: The tool scans the specified Confluence page and all of its sub-pages for tasks.
-3. -*Jira Issue Creation**: For each task found, the tool creates a new Jira issue under the appropriate parent issue.
-4. -*Confluence Page Update**: The original task text in Confluence is converted to plain text with a link to the newly created Jira issue.
-5. -*Logging**: The log results of each run are stored in a common log JSON file in the `logs/` directory, which is crucial for debugging.
+1. -**Configuration**: The tool reads the configuration from environment variables and, for some operations, from JSON request bodies.
+2. -**Scanning**: The tool scans the specified Confluence page and all of its sub-pages for tasks.
+3. -**Jira Issue Creation**: For each task found, the tool creates a new Jira issue under the appropriate parent issue.
+4. -**Confluence Page Update**: The original task text in Confluence is converted to plain text with a link to the newly created Jira issue.
+5. -**Logging**: The log results of each run are stored in a common log JSON file in the `logs/` directory, which is crucial for debugging.
+
+---
+
+### Tech Stack
+
+- **Language**: Python 3.12+-
+- **Web / API**: FastAPI (for REST endpoints)
+- **Asynchronous HTTP call**: httpx
+- **Containerization**: Docker
+- **Orchestration**: Kubernetes (manifests provided)
+- **Cache / Locking**: Redis
+- **Testing framework**: pytest, pytest-asyncio
+- **Linting, Type-check & Hooks**: ruff, mypy, pre-commit
+- **Dependency management**: pyproject.toml / uv (optional)
 
 ---
 
@@ -88,13 +104,13 @@ You can run this application either locally with a Python environment or using D
 
 This tool uses environment variables to store sensitive API credentials.
 
-1. -*Create a `.env.dev` file (for development)**: Copy the provided `.env.example` file to a new file named `.env.dev` in the project's root directory.
+1. Create a `.env.dev` file (for development): Copy the provided `.env.example` file to a new file named `.env.dev` in the project's root directory.
 
     ```bash
     cp .env.example .env.dev
     ```
 
-2. -*Fill in your credentials**: Open the `.env.dev` file and replace the placeholder values with your actual Jira and Confluence API details and a secure key for the API.
+2. Fill in your credentials: Open the `.env.dev` file and replace the placeholder values with your actual Jira and Confluence API details and a secure key for the API.
 
     ```dotenv
     # .env.dev
@@ -103,57 +119,75 @@ This tool uses environment variables to store sensitive API credentials.
     CONFLUENCE_URL="[https://your-confluence-instance.atlassian.net](https://your-confluence-instance.atlassian.net)"
     CONFLUENCE_API_TOKEN="YOUR_CONFLUENCE_API_TOKEN"
     API_SECRET_KEY="your_secure_api_key_for_fastapi" #pragma: allowlist secret
+    REDIS_URL="localhost"
     # ... fill in other variables as needed from .env.example
     ```
 
 ### Local Development (Python)
 
-1. -*Clone the repository**:
+1. -Clone the repository:
 
     ```bash
     git clone [https://github.com/confluence-jira-task-sync/confluence-jira-task-sync.git](https://github.com/confluence-jira-task-sync/confluence-jira-task-sync.git)
     cd confluence-jira-task-sync
     ```
 
-2. -*Install dependencies** using uv:
+2. -Install dependencies
+    Using uv
 
     ```bash
     uv sync
     ```
 
-3. -*Run the FastAPI Application**:
+    Or with pip
+
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+    ```
+
+3. -Run the FastAPI Application:
 
     ```bash
     uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
     ```
 
-The application will be available at `http://localhost:8000`.
+    The application will be available at `http://localhost:8000`.
+
+4. -Run the official redis container for caching:
+
+    ```bash
+    docker run --name jta-redis-local -p 6379:6379 -d redis:alpine    
+    ```
 
 ## Testing
 
 The project uses `pytest` for unit and integration testing.
 
-1. -*Run all tests**:
+1. -Run all tests:
 
     ```bash
     uv run pytest
     ```
 
-2. -*Run tests with coverage**:
+2. -Run tests with coverage:
 
     ```bash
     uv run pytest --cov=src
     ```
 
-This will run the tests and generate a coverage report. A `coverage.xml` file is also generated, which shows a line rate of over 92% and a branch rate of over 82%.
+    This will run the tests and generate a coverage report. A `coverage.xml` file is also generated, which shows a line rate of over 92% and a branch rate of over 82%.
+
+3. -End to end testings: customized the e2e_*.py so it will do the actual end-to-end check (from sync_task to undo_syn_task) with your actual URL
 
 ---
 
 ## Code Quality
 
-This project uses `pre-commit` hooks to ensure code quality and consistency. The hooks automatically format code with `ruff-format` and lint with `ruff`.
+This project uses `pre-commit` hooks to ensure code quality and consistency. The hooks automatically format code with `ruff-format`, lint with `ruff`, type chekc with `mypy`
 
-1. -*Install pre-commit hooks**:
+1. -Install pre-commit hooks:
 
     ```bash
     pre-commit install
@@ -203,34 +237,14 @@ curl -X POST "http://localhost:8000/sync_task" \
 }'
 ```
 
-### Example: POST /undo_sync_task
+### Example: POST /undo_sync_task/{request_id}
 
-This endpoint reverses the changes made by a `/sync_task` run. The JSON response from `/sync_task` should be provided as the request body.
+This endpoint reverses the changes made by a `/sync_task/{request_id}` run. The request_id from `/sync_task/{request_id}` run should be provide in the endpoint.
 
 ```curl
-curl -X POST "http://localhost:8000/undo_sync_task" \
+curl -X POST "http://localhost:8000/undo_sync_task/{request_id} \
 -H "X-API-Key: YOUR_API_KEY" \
--H "Content-Type: application/json" \
--d '[
-    {
-        "status_text": "Success",
-        "new_jira_task_key": "JIRA-100",
-        "linked_work_package": "PARENT-100",
-        "request_user": "test-user",
-        "confluence_page_id": "12345",
-        "confluence_page_title": "test-page-name",
-        "confluence_page_url": "[https://test-page.com](https://test-page.com)",
-        "confluence_task_id": "1",
-        "task_summary": "Test task",
-        "status": "incomplete",
-        "assignee_name": null,
-        "due_date": "2025-01-01",
-        "original_page_version": 10,
-        "original_page_version_by": "John Doe",
-        "original_page_version_when": "2025-01-01T12:44:46.000Z",
-        "context": "Some context"
-    }
-]'
+-H "Content-Type: application/json"
 ```
 
 ### Example: POST /sync_project
@@ -250,14 +264,18 @@ curl -X POST "http://localhost:8000/sync_project" \
 
 ---
 
-## Logging
+## Observability & Logging
 
-The tool generates detailed logs for each run in the `logs/` directory. These logs are crucial for debugging and understanding the execution flow.
+- Structured JSON logs are emitted to stdout (recommended).
+- Integrate with your cluster logging (ELK/Fluentd) for production.
+- Metrics endpoints (if enabled) can be scraped by Prometheus.
+- Configure alerting on failed sync rates or API error spikes.
 
 ---
 
 ## Troubleshooting
 
-- **ResponseValidationError**: This typically means there's a mismatch between the data format your API endpoint is returning and the Pydantic `response_model` defined for that endpoint. Check `src/models/api_models.py` against the actual data returned by the service.
-- **Authentication Errors (401/403)**: Double-check your API tokens and URLs in the `.env.dev` or `.end.prod` file. Ensure the credentials have the necessary
-- **SSL Certificate Errors**: If you encounter SSL certificate validation issues, ensure your environment's certificate store is up to date, or set `VERIFY_SSL=false` in your `.env.dev` file for local development (not recommended for production).
+- **Authentication errors**: verify API tokens and base URLs for Jira/Confluence.
+- **Rate limits**: enable retries/backoff and reduce per-API concurrency settings.
+- **Redis connection issues**: check REDIS_URL and network connectivity.
+- **Kubernetes pod crashloops**: inspect pod logs and readiness probes.
