@@ -1,6 +1,6 @@
 services:
   jta:
-    image: jta-app:dev
+    image: jta-dev:1.0.0
     build:
       # Overrides the build target to use the development stage
       target: development

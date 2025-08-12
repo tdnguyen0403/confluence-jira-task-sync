@@ -1,6 +1,6 @@
 services:
   jta:
-    image: jta-app:prod
+    image: jta-prod:1.0.0
     build:
       context: .
       target: production
