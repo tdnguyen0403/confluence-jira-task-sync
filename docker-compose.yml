@@ -1,31 +1,49 @@
 services:
   jta:
-    image: jta-prod:1.0.0
+    # Build from the 'production' stage
     build:
       context: .
       target: production
+    image: jta-prod:1.0.0
     container_name: jta-prod
     restart: unless-stopped
+    # Loads environment variables from the .env.prod file
     env_file:
       - .env.prod
+    # Exposes port 8080 to the host machine
     ports:
-      # Maps port 8080 in the container to port 8080 on the host machine
       - "8080:8080"
     environment:
       - RUNNING_IN_CONTAINER=true
     volumes:
-      # Persists logs in a named volume for production
+      # Persists application logs in a named volume
       - jta-logs:/app/logs
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Check service health and API readiness
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/ready"]
+      interval: 10s
+      timeout: 30s
+      retries: 5
+      start_period: 15s
+
   redis:
     image: "redis:alpine"
     container_name: jta-redis-prod
     restart: unless-stopped
     ports:
+      # Exposes port 6379 to the host machine
       - "6379:6379"
     volumes:
+      # Persists Redis data in a named volume
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
 volumes:
   jta-logs:

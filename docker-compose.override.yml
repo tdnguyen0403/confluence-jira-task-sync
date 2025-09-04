@@ -1,30 +1,37 @@
 services:
   jta:
-    image: jta-dev:1.0.0
+    # Overrides the build target to use the 'development' stage from your Dockerfile
     build:
-      # Overrides the build target to use the development stage
       target: development
+    image: jta-dev:1.0.0
     container_name: jta-dev
+    # Uses development-specific environment variables
     env_file:
-      # Overrides the env_file to use your development secrets
       - .env.dev
+    # Overrides the port for the development server (which runs on 8000 with --reload)
     ports:
-      # Overrides the ports for the development server
       - "8000:8000"
-    environment:
-      - RUNNING_IN_CONTAINER=true
     volumes:
-      # Mounts your local source code for live-reloading
-      # Also mounts a local log directory
+      # Mounts your local source code into the container for live-reloading
       - ./src:/app/src
+      # Mounts a local logs directory
       - ./logs:/app/logs
+    # Waits for the redis service to report a 'healthy' status before starting
     depends_on:
-      - redis
-
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Check service health and API readiness
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/ready"]
+      interval: 10s
+      timeout: 30s
+      retries: 5
+      start_period: 15s
   redis:
-    image: "redis:alpine"
     container_name: jta-redis-dev
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
+    # The healthcheck ensures the jta-dev container won't start until Redis is ready
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
