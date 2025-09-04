@@ -275,7 +275,7 @@ async def run_end_to_end_test() -> None:
             )
             return
 
-    # logger.info("\n--- End-to-End Test Sequence Completed ---")
+    logger.info("\n--- End-to-End Test Sequence Completed ---")
 
 
 if __name__ == "__main__":

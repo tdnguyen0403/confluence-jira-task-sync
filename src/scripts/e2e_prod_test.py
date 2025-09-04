@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 load_dotenv(
     dotenv_path="./.env.prod"
 )
-BASE_URL = "http://localhost:32000"
+BASE_URL = "http://localhost:8080"
 API_KEY = os.getenv("API_SECRET_KEY")
 if not API_KEY:
     raise ValueError(
